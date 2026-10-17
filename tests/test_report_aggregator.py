@@ -178,6 +178,44 @@ def test_vale_findings_inside_a_code_span_are_dropped(tmp_path: pathlib.Path) ->
     assert text.index('headers;') + len('headers') == semicolons[0].range.start
 
 
+@pytest.mark.skipif(shutil.which('vale') is None, reason='vale is not installed')
+def test_vale_findings_inside_an_example_block_are_dropped(tmp_path: pathlib.Path) -> None:
+    text = 'def f():\n    """Parse it.\n\n    Run it like this:\n\n        parse(a); parse(b)\n    """\n'
+    linter = ReportAggregator(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (ValeLinter(),))
+    report = linter.run(
+        Document(uri=(tmp_path / 'probe.py').as_uri(), text=text, language_id='python'),
+        RuleSet(enabled_rule_ids=frozenset()),
+    )
+    assert not [item for item in report.diagnostics if 'Semicolon' in item.rule_id], 'an example is code, not prose'
+
+
+@pytest.mark.skipif(shutil.which('vale') is None, reason='vale is not installed')
+@pytest.mark.parametrize('suffix', ['.ts', '.mts', '.cts'])
+def test_vale_reads_only_the_comments_of_a_typescript_module(tmp_path: pathlib.Path, suffix: str) -> None:
+    text = 'const a = "x; y"; // a note; with a semicolon\n'
+    found = ValeLinter().run(Document(uri=(tmp_path / f'a{suffix}').as_uri(), text=text, language_id='typescript'))
+    assert [text[item.range.start] for item in found if 'Semicolon' in item.rule_id] == [';']
+
+
+def test_autocorrect_never_edits_a_string_in_code() -> None:
+    text = 'def f():\n    # 註解English文字\n    return "中文English"  # 尾註English\n'
+    linter = ReportAggregator(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (AutoCorrectLinter(),))
+    report = linter.run(
+        Document(uri='file:///probe.py', text=text, language_id='python'), RuleSet(enabled_rule_ids=frozenset())
+    )
+    source = text.encode('utf-8')
+    edited = [source[item.range.start : item.range.end].decode('utf-8') for item in report.diagnostics]
+    assert edited == ['    # 註解English文字'], 'a string is code, and changing it changes what the program does'
+
+
+def test_a_file_autocorrect_cannot_parse_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    def give_up(text: str, path: str) -> str:
+        raise ValueError('call limit reached')
+
+    monkeypatch.setattr('autocorrect_py.format_for', give_up)
+    assert AutoCorrectLinter().run(Document(uri='file:///big.ts', text='// 註解\n', language_id='typescript')) == ()
+
+
 def test_autocorrect_needs_no_install() -> None:
     assert AutoCorrectLinter().is_available() is True
 

@@ -44,18 +44,31 @@ class FileHeaderCommentRule(Rule):
         )
 
 
+class ConventionsByLanguage:
+    """Each language spells its doc comment and its tags its own way, so a rule asks per document."""
+
+    def __init__(self, conventions: tuple[LanguageConventions, ...]) -> None:
+        self._by_language = {language.language_id: language for language in conventions}
+
+    def lookup(self, context: RuleContext) -> LanguageConventions | None:
+        return self._by_language.get(context.document.language_id)
+
+
 class PlainCommentOnPublicRule(Rule):
     metadata = PLAIN_COMMENT_ON_PUBLIC
 
-    def __init__(self, conventions: LanguageConventions) -> None:
-        self._conventions = conventions
+    def __init__(self, conventions: tuple[LanguageConventions, ...]) -> None:
+        self._conventions = ConventionsByLanguage(conventions)
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         if not group.attaches_to_public_symbol or group.form is CommentForm.DOC:
             return
         if group.placement is not CommentPlacement.LEADING_DECLARATION:
             return
-        delimiter = self._conventions.doc_delimiter
+        conventions = self._conventions.lookup(context)
+        if conventions is None:
+            return
+        delimiter = conventions.doc_delimiter
         name = group.attachment.name if group.attachment else 'the symbol'
         yield Diagnostic(
             rule_id=self.metadata.rule_id,
@@ -71,14 +84,15 @@ class PlainCommentOnPublicRule(Rule):
 class SignatureRestatingTagRule(Rule):
     metadata = SIGNATURE_RESTATING_TAG
 
-    def __init__(self, conventions: LanguageConventions) -> None:
-        self._conventions = conventions
+    def __init__(self, conventions: tuple[LanguageConventions, ...]) -> None:
+        self._conventions = ConventionsByLanguage(conventions)
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if group.form is not CommentForm.DOC:
+        conventions = self._conventions.lookup(context)
+        if group.form is not CommentForm.DOC or conventions is None:
             return
         for line in group.lines:
-            matched_tag = self._first_matching_tag(line.text)
+            matched_tag = self._first_matching_tag(line.text, conventions.signature_tags)
             if matched_tag is None:
                 continue
             yield Diagnostic(
@@ -93,9 +107,9 @@ class SignatureRestatingTagRule(Rule):
             )
             return
 
-    def _first_matching_tag(self, text: str) -> str | None:
+    def _first_matching_tag(self, text: str, signature_tags: tuple[str, ...]) -> str | None:
         stripped_text = text.strip()
-        for matched_tag in self._conventions.signature_tags:
+        for matched_tag in signature_tags:
             if stripped_text.startswith(matched_tag):
                 return matched_tag
         return None

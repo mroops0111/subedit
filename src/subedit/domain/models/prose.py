@@ -28,6 +28,11 @@ _BRACKET_PAIRS = {'(': ')', '[': ']', '{': '}'}
 _FENCE = re.compile(r'^\s*(```|~~~)')
 _LIST_DELIMITER = re.compile(r'^\s*(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s')
 _LITERAL_DELIMITER = '\\b'
+# A block tag such as @example or @throws opens the tag section, which runs to the end and holds no prose to lay out.
+_BLOCK_TAG = re.compile(r'^\s*@[A-Za-z]')
+_EXAMPLE_TAG = '@example'
+# A line that opens or closes a brace, or ends a statement, is code commented out rather than prose.
+_CODE_LINE = re.compile(r'(^\s*}|[{};]\s*$)')
 _CLOSING_MARKS = '"\')]}'
 _APOSTROPHES = ("'", '\u2019')
 
@@ -70,6 +75,8 @@ class Prose:
         inside_fence = False
         inside_literal_marker = False
         inside_list = False
+        inside_tags = False
+        inside_code = False
 
         def flush(next_is_literal: bool) -> None:
             nonlocal current_lines, segment_is_literal
@@ -80,6 +87,11 @@ class Prose:
 
         for line in self.physical_lines:
             stripped_line = line.strip()
+            inside_tags = inside_tags or bool(_BLOCK_TAG.match(line))
+            if inside_tags:
+                flush(next_is_literal=True)
+                current_lines.append(line)
+                continue
             if _FENCE.match(line):
                 inside_fence = not inside_fence
                 flush(next_is_literal=True)
@@ -93,6 +105,7 @@ class Prose:
             if not stripped_line:
                 inside_literal_marker = False
                 inside_list = False
+                inside_code = False
                 flush(next_is_literal=inside_fence)
                 current_lines.append(line)
                 continue
@@ -100,12 +113,39 @@ class Prose:
                 inside_list = True
             elif not self._continues_list_item(line, inside_list):
                 inside_list = False
-            flush(next_is_literal=inside_fence or inside_literal_marker or inside_list or self._is_indented(line))
+            # The indented body under a commented-out opening brace is code too.
+            inside_code = self._is_code(line) or (inside_code and line[:1].isspace())
+            flush(
+                next_is_literal=inside_fence
+                or inside_literal_marker
+                or inside_list
+                or self._is_indented(line)
+                or inside_code
+            )
             current_lines.append(line)
 
         if current_lines:
             segments.append(Segment(tuple(current_lines), segment_is_literal))
         return tuple(segments)
+
+    def code_line_indexes(self) -> frozenset[int]:
+        """The lines that hold code rather than prose, such as a fenced or indented block or an @example body."""
+        indexes: set[int] = set()
+        inside_fence = False
+        inside_example = False
+        for index, line in enumerate(self.physical_lines):
+            if _BLOCK_TAG.match(line):
+                inside_example = line.strip().startswith(_EXAMPLE_TAG)
+                continue
+            if _FENCE.match(line):
+                inside_fence = not inside_fence
+                continue
+            if line.strip() and (inside_example or inside_fence or self._is_indented(line) or self._is_code(line)):
+                indexes.add(index)
+        return frozenset(indexes)
+
+    def _is_code(self, line: str) -> bool:
+        return bool(_CODE_LINE.search(line))
 
     def _is_indented(self, line: str) -> bool:
         return line.startswith(('    ', '\t'))

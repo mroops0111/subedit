@@ -1,6 +1,6 @@
 import typing
 
-from ..models.comment import CommentGroup
+from ..models.comment import CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata
 from ..ports.rule import Rule, RuleContext
 from .rewrite import stub_floor
@@ -43,6 +43,18 @@ class LineTooLongRule(Rule):
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         width = context.line_width
         if group.longest_line <= width:
+            return
+        if group.placement is CommentPlacement.TRAILING:
+            yield Diagnostic(
+                rule_id=self.metadata.rule_id,
+                range=group.range,
+                message=(
+                    f'This trailing comment runs the line to {group.longest_line} characters against a limit of '
+                    f'{width}, and it cannot break without leaving the code behind. '
+                    'Shorten it, or move it to its own line above the code.'
+                ),
+                fix=Fix.rewrite(),
+            )
             return
         reflowed = group.reflow(width, stub_floor(context))
         if reflowed.longest_line > width:

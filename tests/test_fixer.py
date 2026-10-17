@@ -192,7 +192,8 @@ class ShoutingLinter(ExternalLinter):
 def test_external_linter_edits_are_applied_until_none_remain() -> None:
     linter = ShoutingLinter()
     document = Document(uri='file:///a.py', text='# SHOUT once\n# SHOUT twice\n', language_id='python')
-    result = Fixer(Linter(SilentParser(), RuleEngine(())), (linter,)).run(document, RuleSet(frozenset()))
+    # The real parser finds the comment lines, which are the only place an external edit may land.
+    result = Fixer(Linter(DEFAULT_PARSER, RuleEngine(())), (linter,)).run(document, RuleSet(frozenset()))
 
     assert result.document.text == '# shout once\n# shout twice\n'
     assert result.report.is_clean

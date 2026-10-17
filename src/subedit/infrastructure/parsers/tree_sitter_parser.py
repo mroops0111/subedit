@@ -109,12 +109,16 @@ class TreeSitterParser(SourceParser):
                     suffix=marker_split.suffix,
                 )
             )
+        placement = self._classify_placement(profile, document, node, is_doc=True)
         return CommentGroup(
             range=SourceRange(lines[0].range.start, lines[-1].range.end),
             lines=tuple(lines),
             form=CommentForm.DOC,
-            placement=self._classify_placement(profile, document, node, is_doc=True),
-            attachment=self._resolve_attachment(profile, node, is_doc=True),
+            placement=placement,
+            attachment=self._resolve_attachment(profile, node, is_doc=True)
+            if placement is CommentPlacement.LEADING_DECLARATION
+            else None,
+            frame=profile.doc_frame,
         )
 
     # Width is measured across indent, delimiter, and text together.
@@ -141,7 +145,7 @@ class TreeSitterParser(SourceParser):
         *,
         is_doc: bool,
     ) -> CommentPlacement:
-        if is_doc:
+        if is_doc and not profile.doc_leads_declaration:
             owner = self._find_owning_definition(profile, node)
             return CommentPlacement.FILE_HEADER if owner is None else CommentPlacement.LEADING_DECLARATION
         if self._is_trailing_comment(document, node):
@@ -203,8 +207,9 @@ class TreeSitterParser(SourceParser):
 
     # Only a leading declaration documents a symbol, and CommentGroup rejects any other pairing.
     def _resolve_attachment(self, profile: LanguageProfile, node: Node, *, is_doc: bool) -> SymbolRef | None:
+        lives_inside = is_doc and not profile.doc_leads_declaration
         definition_node = (
-            self._find_owning_definition(profile, node) if is_doc else self._find_next_definition(profile, node)
+            self._find_owning_definition(profile, node) if lives_inside else self._find_next_definition(profile, node)
         )
         if definition_node is None:
             return None
@@ -218,7 +223,7 @@ class TreeSitterParser(SourceParser):
         return SymbolRef(
             name=name,
             kind=profile.symbol_kind(declaration.type),
-            visibility=profile.visibility_of(name),
+            visibility=profile.visibility_of_declaration(declaration, name),
         )
 
     # A decorated definition wraps the real one and carries no name field of its own,

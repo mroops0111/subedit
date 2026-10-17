@@ -7,7 +7,7 @@ from subedit.infrastructure.linters.vale_linter import ValeReport
 
 def test_a_missing_section_falls_back_to_defaults() -> None:
     parsed = ConfigFile.parse({})
-    assert parsed.subedit.line_width == 120
+    assert parsed.subedit.line_width is None, 'an unset width falls back to the language default'
     assert parsed.subedit.exclude == ()
     assert parsed.rules == {}
 
@@ -18,7 +18,7 @@ def test_the_hyphenated_key_is_accepted() -> None:
 
 @pytest.mark.parametrize('width', ['wide', 0, -10, None, [80]])
 def test_a_nonsense_width_falls_back_rather_than_raising(width: object) -> None:
-    assert ConfigFile.parse({'subedit': {'line-width': width}}).subedit.line_width == 120
+    assert ConfigFile.parse({'subedit': {'line-width': width}}).subedit.line_width is None
 
 
 def test_a_rule_entry_may_be_a_boolean_a_string_or_a_table() -> None:

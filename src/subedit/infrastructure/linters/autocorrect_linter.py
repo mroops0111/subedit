@@ -30,7 +30,11 @@ class AutoCorrectLinter(ExternalLinter):
         The path only tells AutoCorrect which file type to parse, so it need not exist on disk.
         """
         self._load_config()
-        corrected_text = autocorrect_py.format_for(document.text, document.uri.removeprefix('file://'))
+        # Its grammar gives up on a large file, and one file it cannot read must not stop the run.
+        try:
+            corrected_text = autocorrect_py.format_for(document.text, _as_autocorrect_knows_it(document.uri))
+        except ValueError:
+            return ()
         if corrected_text == document.text:
             return ()
         return self._diff_lines(document, corrected_text)
@@ -69,3 +73,13 @@ class AutoCorrectLinter(ExternalLinter):
                 )
             )
         return tuple(diagnostics)
+
+
+# AutoCorrect reads a file type it does not know as plain text, so a module flavor goes in as plain TypeScript.
+AUTOCORRECT_SUFFIXES = {'.mts': '.ts', '.cts': '.ts'}
+
+
+def _as_autocorrect_knows_it(uri: str) -> str:
+    path = pathlib.Path(uri.removeprefix('file://'))
+    suffix = AUTOCORRECT_SUFFIXES.get(path.suffix)
+    return str(path.with_suffix(suffix)) if suffix else str(path)

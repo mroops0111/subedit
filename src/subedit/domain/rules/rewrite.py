@@ -1,6 +1,6 @@
 import typing
 
-from ..models.comment import CommentForm, CommentGroup
+from ..models.comment import CommentGroup
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.prose import Prose, reflow_sentence
 from ..ports.rule import Rule, RuleContext
@@ -46,7 +46,7 @@ def budgeted_sentences(group: CommentGroup, context: RuleContext) -> tuple[tuple
 
 def is_summary(group: CommentGroup, index: int) -> bool:
     """Whether a docstring's sentence is its summary, which reflow never breaks."""
-    return index == 0 and group.form is CommentForm.DOC
+    return index == 0 and group.has_summary_line
 
 
 def stub_floor(context: RuleContext) -> int:

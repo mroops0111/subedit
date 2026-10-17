@@ -77,7 +77,7 @@ class ValeLinter(ExternalLinter):
             return ()
         # The text goes in on stdin, because during a fix it is ahead of what the file on disk holds.
         # The path still selects the config sections, and Vale matches them exactly as for a file.
-        source_path = document.uri.removeprefix('file://')
+        source_path = _as_vale_knows_it(document.uri.removeprefix('file://'))
         if not self._needs_fallback:
             process = self._run_vale(document, source_path)
             if process is None:
@@ -129,6 +129,16 @@ class ValeLinter(ExternalLinter):
             fix=Fix.rewrite(),
             source=self.name,
         )
+
+
+# Vale reads a file it has no format for as plain text, code and all, so a module flavor goes in as plain TypeScript.
+VALE_SUFFIXES = {'.mts': '.ts', '.cts': '.ts'}
+
+
+def _as_vale_knows_it(source_path: str) -> str:
+    path = pathlib.Path(source_path)
+    suffix = VALE_SUFFIXES.get(path.suffix)
+    return str(path.with_suffix(suffix)) if suffix else source_path
 
 
 # Vale ignores a code span only in markup, so in a source file it reads the code inside one as prose.

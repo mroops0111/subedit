@@ -1,4 +1,13 @@
-from .comment import CommentForm, CommentGroup, CommentLine, CommentPlacement, SymbolKind, SymbolRef, Visibility
+from .comment import (
+    CommentForm,
+    CommentGroup,
+    CommentLine,
+    CommentPlacement,
+    DocFrame,
+    SymbolKind,
+    SymbolRef,
+    Visibility,
+)
 from .diagnostic import SEVERITY_BY_NAME, Diagnostic, Fix, FixKind, Report, RuleMetadata, Severity
 from .document import Document
 from .position import Encoding, Position, PositionMap, SourceRange
@@ -14,6 +23,7 @@ __all__ = [
     'CommentLine',
     'CommentPlacement',
     'Diagnostic',
+    'DocFrame',
     'Document',
     'Encoding',
     'Fix',

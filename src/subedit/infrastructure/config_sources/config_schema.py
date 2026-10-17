@@ -25,7 +25,8 @@ RuleEntry = typing.Annotated[bool | str | RuleTable, pydantic.Field(union_mode='
 class SubeditSection(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=True, populate_by_name=True)
 
-    line_width: int = pydantic.Field(default=120, alias='line-width', gt=0)
+    # Left unset, the width falls back to the language's own default.
+    line_width: int | None = pydantic.Field(default=None, alias='line-width', gt=0)
     exclude: tuple[str, ...] = ()
 
 

@@ -9,7 +9,14 @@ from .. import __version__
 from ..application import CorpusMeter, CorpusStatistics, Fixer, Linter, ReportAggregator, RuleEngine
 from ..domain.models.document import Document
 from ..domain.ports.external_linter import ExternalLinter
-from ..infrastructure import ALL_RULES, DEFAULT_CONFIG_SOURCE, DEFAULT_PARSER, EXTERNAL_LINTERS, PYTHON
+from ..infrastructure import (
+    ALL_RULES,
+    DEFAULT_CONFIG_SOURCE,
+    DEFAULT_PARSER,
+    EXTENSIONS,
+    EXTERNAL_LINTERS,
+    language_for,
+)
 from . import report as reporters
 from . import rule_reference
 
@@ -115,9 +122,13 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
     for path in paths:
         if path.is_dir():
             source_paths.extend(
-                sorted(candidate for candidate in path.rglob('*') if candidate.suffix in PYTHON.extensions)
+                sorted(
+                    candidate
+                    for candidate in path.rglob('*')
+                    if candidate.suffix in EXTENSIONS and not _is_vendored(candidate.relative_to(path))
+                )
             )
-        elif path.suffix in PYTHON.extensions:
+        elif path.suffix in EXTENSIONS:
             source_paths.append(path)
     documents: list[Document] = []
     for source_path in source_paths:
@@ -130,8 +141,16 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
             text = source_path.read_text(encoding='utf-8')
         except (OSError, UnicodeDecodeError):
             continue
-        documents.append(Document(uri=source_path.resolve().as_uri(), text=text, language_id=PYTHON.language_id))
+        language = language_for(source_path)
+        if language is None:
+            continue
+        documents.append(Document(uri=source_path.resolve().as_uri(), text=text, language_id=language.language_id))
     return tuple(documents)
+
+
+# Installed packages and tool caches hold code nobody here wrote, such as node_modules or a .venv.
+def _is_vendored(relative: pathlib.Path) -> bool:
+    return any(part == 'node_modules' or part.startswith('.') for part in relative.parts[:-1])
 
 
 def _require(documents: tuple[Document, ...]) -> None:

@@ -61,12 +61,29 @@ class CommentLine:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class DocFrame:
+    """The frame a doc comment such as JSDoc wraps its text in, with an opening, a prefix per line, and a closing.
+
+    A docstring has none, since its text runs on from the opening quotes and needs no prefix.
+    """
+
+    opening: str
+    prefix: str
+    closing: str
+
+    def one_line(self) -> tuple[str, str]:
+        """The delimiter and suffix around text that opens and closes on one line."""
+        return f'{self.opening} ', f' {self.closing.strip()}'
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class CommentGroup:
     range: SourceRange
     lines: tuple[CommentLine, ...]
     form: CommentForm
     placement: CommentPlacement
     attachment: SymbolRef | None = None
+    frame: DocFrame | None = None
 
     def __post_init__(self) -> None:
         if not self.lines:
@@ -86,6 +103,11 @@ class CommentGroup:
         return max(line.physical_width for line in self.lines)
 
     @property
+    def has_summary_line(self) -> bool:
+        """Whether the first sentence is a one-line summary, as PEP 257 asks of a docstring."""
+        return self.form is CommentForm.DOC and self.frame is None
+
+    @property
     def attaches_to_public_symbol(self) -> bool:
         return self.attachment is not None and self.attachment.visibility is Visibility.PUBLIC
 
@@ -98,7 +120,14 @@ class CommentGroup:
         ]
         return Prose('\n'.join(rendered_lines))
 
+    def code_ranges(self) -> tuple[SourceRange, ...]:
+        """Where the lines holding code sit, which a prose checker has no business reading."""
+        return tuple(self.lines[index].range for index in sorted(self.prose().code_line_indexes()))
+
     def reflow(self, width: int, stub_floor: int = 0) -> 'CommentGroup':
+        # A trailing comment shares its line with code, so a second line would have no code to sit beside.
+        if self.placement is CommentPlacement.TRAILING:
+            return self
         # A one line docstring that fits is the summary convention, not a block to lay out.
         if self.form is CommentForm.DOC and self.line_count == 1 and self.longest_line <= width:
             return self
@@ -120,6 +149,8 @@ class CommentGroup:
     def text_budget(self, width: int, *, first_line: bool) -> int:
         """The characters of text a line holds, which on a docstring's opening line also cede the quotes."""
         opening = self.lines[0]
+        if self.frame is not None:
+            return max(20, width - len(opening.indent) - len(self.frame.prefix))
         quoted = first_line or self.form is not CommentForm.DOC
         return max(20, width - (opening.prefix_width if quoted else len(opening.indent)))
 
@@ -142,10 +173,10 @@ class CommentGroup:
                 continue
             lines = tuple(line.strip() for line in paragraph if line.strip())
             for sentence_index, sentence in enumerate(Prose(' '.join(lines)).sentences()):
-                if sentence_index == 1 and paragraph_index == 0 and self.form is CommentForm.DOC:
+                if sentence_index == 1 and paragraph_index == 0 and self.has_summary_line:
                     out.append('')
                 first_budget = self.text_budget(width, first_line=not out) - (reserve if not out else 0)
-                if self.form is CommentForm.DOC and paragraph_index == 0 and sentence_index == 0:
+                if self.has_summary_line and paragraph_index == 0 and sentence_index == 0:
                     best_lines: tuple[str, ...] = (sentence.text,)
                 else:
                     best_lines = reflow_sentence(sentence.text, body_budget, stub_floor, first_width=first_budget)
@@ -188,6 +219,8 @@ class CommentGroup:
     def _rebuild_lines(self, texts: tuple[str, ...]) -> 'CommentGroup':
         if self.form is not CommentForm.DOC:
             return self.with_texts(texts)
+        if self.frame is not None:
+            return self._rebuild_framed(texts, self.frame)
         opening, closing = self.lines[0], self.lines[-1]
         closes_alone = len(self.lines) > 1 and not closing.text.strip()
         body = [dataclasses.replace(opening, delimiter='', suffix='', text=text, range=opening.range) for text in texts]
@@ -203,18 +236,34 @@ class CommentGroup:
             body[0] = dataclasses.replace(body[0], suffix=self.closing_quotes())
         return dataclasses.replace(self, lines=tuple(body))
 
+    # A block that opened and closed on one line stays there while its text fits.
+    def _rebuild_framed(self, texts: tuple[str, ...], frame: DocFrame) -> 'CommentGroup':
+        opening = self.lines[0]
+        if len(texts) == 1 and self.line_count == 1:
+            delimiter, suffix = frame.one_line()
+            return dataclasses.replace(
+                self, lines=(dataclasses.replace(opening, delimiter=delimiter, text=texts[0], suffix=suffix),)
+            )
+        bare = dataclasses.replace(opening, text='', suffix='')
+        body = [dataclasses.replace(bare, delimiter=frame.opening)]
+        body.extend(dataclasses.replace(bare, delimiter=frame.prefix, text=text) for text in texts)
+        body.append(dataclasses.replace(bare, delimiter=frame.closing))
+        return dataclasses.replace(self, lines=tuple(body))
+
     def closing_quotes(self) -> str:
-        if self.form is not CommentForm.DOC:
+        if self.form is not CommentForm.DOC or self.frame is not None:
             return ''
         return self.lines[-1].suffix or self.lines[0].delimiter.strip()
 
     def with_texts(self, texts: tuple[str, ...]) -> 'CommentGroup':
         if not texts:
             raise ValueError('A comment block needs at least one line')
-        template = self.lines[0]
+        # A blank line's delimiter drops its space, so a text moved onto it takes the spacing of a filled one.
+        template = next((line for line in self.lines if line.text), self.lines[0])
         rebuilt = tuple(
             dataclasses.replace(
                 self.lines[index] if index < len(self.lines) else template,
+                delimiter=template.delimiter if text else template.delimiter.rstrip(),
                 text=text,
             )
             for index, text in enumerate(texts)
