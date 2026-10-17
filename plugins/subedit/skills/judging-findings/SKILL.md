@@ -36,8 +36,9 @@ A warning passes when the text meets its criterion. Leave such text exactly as i
 
 An error always needs a rewrite. The message states the fix, and these notes cover what it leaves out.
 
-- `unbreakable-sentence`: a line can break only at a comma that ends a clause, and a comma inside brackets or a code span does not count. Add a comma at a clause boundary, or split the sentence in two.
-- `plain-comment-on-public`: move the text into the docstring.
+- `unbreakable-sentence`: a line can break only at a comma that ends a clause, and a comma inside brackets or a code span does not count. Add a comma at a clause boundary, or split the sentence in two. When every such comma would split a list, move the list to the end of the sentence. A Python docstring's summary must fit one line, so shorten it and move the detail into the body.
+- `line-too-long` (trailing comment): a comment beside code cannot break, so shorten it or move it to its own line above the code.
+- `plain-comment-on-public`: move the text into the doc comment, a docstring in Python or a `/** */` block in TypeScript.
 - `signature-restating-tag` and `subedit.SignatureTag`: delete the tag, since the signature already says it.
 - `subedit.EditHistory`: state the current behavior, not its history.
 - `subedit.Semicolon`, `subedit.EmDash`: split into two sentences, or use a comma or parentheses.

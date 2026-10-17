@@ -97,10 +97,13 @@ class TypeScriptProfile(LanguageProfile):
             return Visibility.INTERNAL
         ancestor = declaration.parent
         while ancestor is not None:
-            if ancestor.type == 'export_statement':
+            # An ambient declaration describes something that exists globally, so anyone can reach it.
+            if ancestor.type in ('export_statement', 'ambient_declaration'):
                 return Visibility.PUBLIC
-            if ancestor.type in _LOCAL_SCOPES or ancestor.type == 'program':
+            if ancestor.type in _LOCAL_SCOPES:
                 return Visibility.INTERNAL
+            if ancestor.type == 'program':
+                return Visibility.PUBLIC if name.encode() in _exported_later(ancestor) else Visibility.INTERNAL
             ancestor = ancestor.parent
         return Visibility.INTERNAL
 
@@ -121,6 +124,25 @@ class TypeScriptProfile(LanguageProfile):
             suffix = text[len(text.rstrip()) :] + _DOC_CLOSING
             text = text.rstrip()
         return DelimiterSplit(indent=indent, delimiter=delimiter, text=text, suffix=suffix)
+
+
+# A name can be declared first and exported further down, as in "export { build }" or "export default build".
+def _exported_later(program: Node) -> frozenset[bytes | None]:
+    names: set[bytes | None] = set()
+    for statement in program.named_children:
+        if statement.type != 'export_statement':
+            continue
+        default_value = statement.child_by_field_name('value')
+        if default_value is not None and default_value.type == 'identifier':
+            names.add(default_value.text)
+        for clause in statement.named_children:
+            if clause.type != 'export_clause':
+                continue
+            for specifier in clause.named_children:
+                local_name = specifier.child_by_field_name('name')
+                if local_name is not None:
+                    names.add(local_name.text)
+    return frozenset(names)
 
 
 TYPESCRIPT = TypeScriptProfile(

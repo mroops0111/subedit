@@ -82,6 +82,11 @@ def test_a_directive_is_no_prose(directive: str) -> None:
         ('class C {\n  /** Doc. */\n  render() {}\n}\n', Visibility.INTERNAL),
         ('export interface I {\n  /** Doc. */\n  name: string;\n}\n', Visibility.PUBLIC),
         ('export function f() {\n  /** Doc. */\n  const local = 1;\n}\n', Visibility.INTERNAL),
+        ('/** Doc. */\nconst build = 1;\nexport { build };\n', Visibility.PUBLIC),
+        ('/** Doc. */\nfunction build() {}\nexport default build;\n', Visibility.PUBLIC),
+        ('/** Doc. */\nconst build = 1;\nexport { other };\n', Visibility.INTERNAL),
+        ('/** Doc. */\ndeclare function build(): void;\n', Visibility.PUBLIC),
+        ('/** Doc. */\n@Component({})\nexport class C {}\n', Visibility.PUBLIC),
     ],
 )
 def test_visibility_comes_from_export_and_modifiers(source: str, visibility: Visibility) -> None:
