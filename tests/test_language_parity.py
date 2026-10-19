@@ -98,3 +98,29 @@ def test_prose_that_a_grammar_could_misread_stays_prose(line: str, language_id: 
 def test_one_line_of_code_is_code_in_both_languages(line: str) -> None:
     assert PYTHON.line_markup.is_code(line)
     assert TYPESCRIPT.line_markup.is_code(line)
+
+
+@pytest.mark.parametrize(
+    ('source', 'language_id'),
+    [
+        (
+            '/**\n * Recording layout.\n *\n *   <root>/runs/\n *     ├── index.jsonl\n *     └── <runId>.jsonl\n */\n'
+            'export class Store {}\n',
+            'typescript',
+        ),
+        (
+            '/** Lay it out. */\nexport function f() {\n  // Spacing:\n'
+            '  //   ranksep: vertical gap between ranks, wide enough for two,\n'
+            '  //            stacked edge labels.\n  return 1;\n}\n',
+            'typescript',
+        ),
+        (
+            'def f():\n    """Do it."""\n    # We subclass the dataclass rather than edit it.\n'
+            '    #   If the class is generic, the subclass inherits Generic\n'
+            '    #   with all the same parameters.\n    return 1\n',
+            'python',
+        ),
+    ],
+)
+def test_a_block_set_two_spaces_in_is_left_as_laid_out(source: str, language_id: str) -> None:
+    assert fixed(source, language_id) == source

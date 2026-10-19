@@ -168,8 +168,10 @@ class Prose:
                 indexes.add(index)
         return frozenset(indexes)
 
+    # A line set two spaces past the margin, such as a tree diagram or an aligned table, is laid out by hand.
+    # Markdown wants four for a code block, but a comment's prefix already takes the space a writer would count.
     def _is_indented(self, line: str) -> bool:
-        return line.startswith(('    ', '\t'))
+        return line.startswith(('  ', '\t'))
 
     # A wrapped list item is indented under its marker rather than to a fixed width,
     # so the continuation belongs to the item instead of opening a paragraph.
