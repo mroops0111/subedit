@@ -17,7 +17,7 @@ UNBREAKABLE_SENTENCE = RuleMetadata(
     rule_id='unbreakable-sentence',
     summary=(
         'A sentence over the width must carry a clause comma, splitting no list, wherever it has to break, '
-        'and a docstring summary must fit one line.'
+        'and a summary its style guide keeps to one line must fit it.'
     ),
     fix_kind=FixKind.REWRITE,
 )
@@ -45,7 +45,7 @@ def budgeted_sentences(group: CommentGroup, context: RuleContext) -> tuple[tuple
 
 
 def is_summary(group: CommentGroup, index: int) -> bool:
-    """Whether a docstring's sentence is its summary, which reflow never breaks."""
+    """Whether a sentence is the comment's one-line summary, which reflow never breaks."""
     return index == 0 and group.has_summary_line
 
 
@@ -92,7 +92,7 @@ class UnbreakableSentenceRule(Rule):
             if is_summary(group, index):
                 # A summary with nothing after it closes on its own line, so the quotes share its budget.
                 closing = len(group.closing()) if len(sentences) == 1 else 0
-                message = self._summary_message(sentence, budget - closing)
+                message = self._summary_message(sentence, budget - closing, group.layout.summary_convention)
             else:
                 message = self._sentence_message(sentence, budget)
             if message is not None:
@@ -105,12 +105,12 @@ class UnbreakableSentenceRule(Rule):
                 fix=Fix.rewrite(),
             )
 
-    def _summary_message(self, sentence: str, budget: int) -> str | None:
+    def _summary_message(self, sentence: str, budget: int, convention: str | None) -> str | None:
         if len(sentence) <= budget:
             return None
         return (
-            f'This docstring summary runs to {len(sentence)} characters against a budget of {budget} characters, '
-            'and PEP 257 asks that a summary fit one line, since indexing tools read only that line. '
+            f'This summary runs to {len(sentence)} characters against a budget of {budget} characters, '
+            f'and {convention} asks that a summary fit one line, since indexing tools read only that line. '
             'Shorten it to what the object does, and move the detail into the body below it.'
         )
 

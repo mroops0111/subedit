@@ -68,8 +68,8 @@ class CommentGroup:
 
     @property
     def has_summary_line(self) -> bool:
-        """Whether the first sentence is a one-line summary, as PEP 257 asks of a docstring."""
-        return self.layout.has_summary_line
+        """Whether the first sentence is a one-line summary, as a style guide such as PEP 257 asks."""
+        return self.layout.summary_convention is not None
 
     @property
     def attaches_to_public_symbol(self) -> bool:
@@ -117,7 +117,7 @@ class CommentGroup:
     # A sentence takes as few lines as fit, and the author's layout stays when it breaks no worse than the best one.
     # A sentence whose new layout would strand a stub, split a list, or still overflow needs its author,
     # so it keeps the layout they gave it rather than one its own check rejects.
-    # A docstring's summary never breaks, since PEP 257 keeps it to one line.
+    # A summary never breaks where the comment's style guide keeps it to one line.
     def _reflow_into_texts(
         self, width: int, stub_floor: int, reserve: int = 0, held: list[str] | None = None
     ) -> tuple[str, ...]:

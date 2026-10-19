@@ -29,8 +29,8 @@ class CommentLine:
 class CommentLayout(abc.ABC):
     """How a comment sets its text on lines, which each language's comment syntax decides and reflow follows."""
 
-    # PEP 257 keeps a docstring's first sentence to one line, as a summary indexing tools read alone.
-    has_summary_line = False
+    # The style guide that keeps the first sentence to one line, as a summary indexing tools read alone.
+    summary_convention: str | None = None
     # reStructuredText and Markdown read a list as part of the paragraph above it unless a blank line parts them,
     # while a line comment's list may sit right under the line that introduces it.
     parts_every_paragraph = False
@@ -72,7 +72,7 @@ class LinePrefixLayout(CommentLayout):
 class QuotedDocLayout(CommentLayout):
     """A docstring, whose text runs on from its opening quotes with no prefix on the lines after."""
 
-    has_summary_line = True
+    summary_convention = 'PEP 257'
     parts_every_paragraph = True
 
     def text_budget(self, lines: tuple[CommentLine, ...], width: int, *, first_line: bool) -> int:
