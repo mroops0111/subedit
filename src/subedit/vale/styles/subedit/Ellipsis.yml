@@ -6,4 +6,5 @@ tokens:
   - '\.\.\.'
   - '…'
   - '\band so on\b'
-  - '\betc\b'
+  # A path such as /etc/passwd names a directory rather than trailing off.
+  - '(?<![/\w.])etc\b'

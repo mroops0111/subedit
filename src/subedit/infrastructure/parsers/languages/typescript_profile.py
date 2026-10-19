@@ -20,10 +20,10 @@ _DOC_CLOSING = '*/'
 # A plain /* */ block is usually a license header or a lint directive, so only // and /** */ are prose.
 # A directive such as eslint-disable-next-line, or a triple-slash reference, is read by a tool rather than a person.
 # Three stars open a banner rather than a doc comment.
-QUERY = """
-((comment) @comment
-  (#match? @comment "^//")
-  (#not-match? @comment "^(///|//[ \t]*(eslint|@ts-|prettier-ignore|biome-ignore|istanbul |c8 |#region|#endregion))"))
+_DIRECTIVE = '^(///|//[ \t]*(eslint|@ts-|prettier-ignore|biome-ignore|istanbul |c8 |#region|#endregion))'
+QUERY = f"""
+((comment) @comment (#match? @comment "^//") (#not-match? @comment "{_DIRECTIVE}"))
+((comment) @directive (#match? @directive "{_DIRECTIVE}"))
 ((comment) @doc (#match? @doc "^/[*][*]([^*/]|$)"))
 """
 

@@ -58,8 +58,11 @@ _SECTION = re.compile(
     r'|vartype|yields?|ytype)\b|-{3,}\s*$)'
 )
 
-QUERY = """
-(comment) @comment
+# A pragma such as noqa is read by a tool, so the reason after it is no prose to lay out.
+_DIRECTIVE = '^#[ \t]*(noqa|type:[ \t]*ignore|pragma|pylint:|fmt:|isort:|ruff:|mypy:|pyright:)'
+QUERY = f"""
+((comment) @comment (#not-match? @comment "{_DIRECTIVE}"))
+((comment) @directive (#match? @directive "{_DIRECTIVE}"))
 (module . (expression_statement . (string) @doc .))
 (function_definition body: (block . (expression_statement . (string) @doc .)))
 (class_definition body: (block . (expression_statement . (string) @doc .)))

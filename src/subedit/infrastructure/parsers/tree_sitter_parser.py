@@ -11,6 +11,7 @@ from .languages import LanguageProfile, NodeRole
 # A query that names them otherwise yields nothing, silently.
 COMMENT_CAPTURE = 'comment'
 DOC_CAPTURE = 'doc'
+DIRECTIVE_CAPTURE = 'directive'
 
 
 class TreeSitterParser(SourceParser):
@@ -47,11 +48,21 @@ class TreeSitterParser(SourceParser):
         )
         return tuple(sorted(comment_groups, key=lambda group: group.range.start))
 
+    def directive_ranges(self, document: Document) -> tuple[SourceRange, ...]:
+        profile = self._profiles.get(document.language_id)
+        if profile is None:
+            return ()
+        tree = Parser(profile.language()).parse(document.text.encode('utf-8'))
+        return tuple(
+            SourceRange(node.start_byte, node.end_byte)
+            for node in self._run_query(profile, tree.root_node)[DIRECTIVE_CAPTURE]
+        )
+
     def _run_query(self, profile: LanguageProfile, root: Node) -> dict[str, list[Node]]:
         query = Query(profile.language(), profile.query())
         captures_by_name = QueryCursor(query).captures(root)
         # A node can match several patterns at once, so the same byte offset arrives twice.
-        grouped_captures: dict[str, list[Node]] = {COMMENT_CAPTURE: [], DOC_CAPTURE: []}
+        grouped_captures: dict[str, list[Node]] = {COMMENT_CAPTURE: [], DOC_CAPTURE: [], DIRECTIVE_CAPTURE: []}
         for name, nodes in captures_by_name.items():
             grouped_captures.setdefault(name, []).extend(nodes)
         for name, nodes in grouped_captures.items():

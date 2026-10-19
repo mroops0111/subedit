@@ -70,4 +70,5 @@ class Linter:
         groups = self._parser.parse(document)
         diagnostics = self._engine.run(document, groups, rule_set)
         sorted_diagnostics = sorted(diagnostics, key=lambda item: (item.range.start, item.rule_id))
-        return Inspection(Report(tuple(sorted_diagnostics)), ProseMap.of_comments(groups))
+        prose_map = ProseMap.of_comments(groups, self._parser.directive_ranges(document))
+        return Inspection(Report(tuple(sorted_diagnostics)), prose_map)

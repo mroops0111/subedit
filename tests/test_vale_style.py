@@ -120,3 +120,13 @@ def test_a_ticket_reference_ends_at_its_digits(tmp_path: pathlib.Path, reference
         check=False,
     )
     assert ('subedit.ExternalRef' in result.stdout) is flagged
+
+
+@pytest.mark.parametrize(
+    ('sentence', 'flagged'),
+    [('Tags, labels, etc. are skipped.', True), ('It lives under root, not /etc/passwd.', False)],
+)
+def test_etc_is_a_trailing_list_only_outside_a_path(tmp_path: pathlib.Path, sentence: str, flagged: bool) -> None:
+    staged = tmp_path / 'etc.py'
+    staged.write_text(f'def f():\n    # {sentence}\n    pass\n', encoding='utf-8')
+    assert ('subedit.Ellipsis' in run_vale(str(staged))) is flagged
