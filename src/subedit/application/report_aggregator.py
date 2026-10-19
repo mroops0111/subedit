@@ -13,13 +13,15 @@ class ReportAggregator:
         self._external_linters = external_linters
 
     def run(self, document: Document, rule_set: RuleSet) -> Report:
-        report = self._linter.run(document, rule_set)
+        inspection = self._linter.inspect(document, rule_set)
+        report = inspection.report
         missing_sources: list[str] = []
         for external_linter in self._external_linters:
             if not external_linter.is_available():
                 missing_sources.append(external_linter.name)
                 continue
-            report = report.merged_with(Report(self._configured(external_linter.run(document), rule_set)))
+            found = tuple(item for item in external_linter.run(document) if inspection.prose_map.admits(item))
+            report = report.merged_with(Report(self._configured(found, rule_set)))
         if missing_sources:
             report = report.merged_with(Report(unavailable_sources=tuple(missing_sources)))
         return report

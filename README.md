@@ -115,19 +115,33 @@ Add this to `~/.codex/hooks.json`.
 
 Registering the hook with both agents is the normal case. Each agent names its edit tools differently, so every payload identifies its sender, and a payload from anything else exits 0 untouched. `subedit-hook --help` prints the payload shapes it accepts.
 
+## Languages
+
+| Language | Files | Doc comment | Default width |
+| --- | --- | --- | --- |
+| Python | `.py`, `.pyi` | `"""` docstring | 120 |
+| TypeScript | `.ts`, `.mts`, `.cts`, `.tsx` | `/** */` JSDoc | 80, as Prettier sets it |
+
+A TypeScript symbol is public when it is exported, and a class member stays public unless it is `private`, `protected`, or `#named`.
+A JSDoc block keeps its frame when reflowed. Its tag section, from the first tag such as `@throws` onward, is left as written.
+A plain `/* */` block and a directive such as `// eslint-disable-next-line` carry no prose for subedit to lay out, so only Vale reads the block, and nothing reads the directive.
+A directory walk skips dotted directories such as `.venv`, and the package directories each language installs into, such as `node_modules` or `venv`.
+
 ## Configuration
 
 Settings come from `subedit.toml`, or from `[tool.subedit]` in `pyproject.toml`, whichever sits closest above the file being checked.
 
 ```toml
 [subedit]
-line-width = 120
+line-width = 100
 exclude = ["tests/fixtures/**"]
 
 [rules]
 mid-clause-break = "error"
 block-too-long = { severity = "warning", line = 3, doc-public = 20 }
 ```
+
+Left unset, `line-width` takes the default of each file's language.
 
 Rule names describe the problem they report. `docs/rules.md` lists every rule, generated from the rules themselves.
 
@@ -160,12 +174,12 @@ Code comments are the first surface, and Markdown comes next.
 
 ## Related Tools
 
-`subedit` covers the one thing the usual Python tools leave alone.
+`subedit` covers the one thing the usual linters and type checkers leave alone.
 
 | Tool | Checks |
 | --- | --- |
-| ruff | code structure |
-| basedpyright | types |
+| ruff, ESLint | code structure |
+| basedpyright, tsc | types |
 | **subedit** | **the natural language inside source** |
 
 ## License

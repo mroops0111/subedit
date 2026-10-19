@@ -56,8 +56,34 @@ class Segment:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class ProseMarkup:
+    """What a language writes in its comments besides prose, which reflow leaves as written.
+
+    A tag section, such as JSDoc's from its first @throws on, runs to the end of the comment.
+    An example tag's body is code, and so is a line commented out of a language whose statements look like one.
+    """
+
+    tag_section: re.Pattern[str] | None = None
+    example_tag: str | None = None
+    code_line: re.Pattern[str] | None = None
+
+    def opens_tag_section(self, line: str) -> bool:
+        return self.tag_section is not None and bool(self.tag_section.match(line))
+
+    def opens_example(self, line: str) -> bool:
+        return self.example_tag is not None and line.strip().startswith(self.example_tag)
+
+    def is_code(self, line: str) -> bool:
+        return self.code_line is not None and bool(self.code_line.search(line))
+
+
+PLAIN_MARKUP = ProseMarkup()
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class Prose:
     text: str
+    markup: ProseMarkup = PLAIN_MARKUP
 
     @property
     def physical_lines(self) -> tuple[str, ...]:
@@ -70,6 +96,8 @@ class Prose:
         inside_fence = False
         inside_literal_marker = False
         inside_list = False
+        inside_tags = False
+        inside_code = False
 
         def flush(next_is_literal: bool) -> None:
             nonlocal current_lines, segment_is_literal
@@ -80,6 +108,11 @@ class Prose:
 
         for line in self.physical_lines:
             stripped_line = line.strip()
+            inside_tags = inside_tags or self.markup.opens_tag_section(line)
+            if inside_tags:
+                flush(next_is_literal=True)
+                current_lines.append(line)
+                continue
             if _FENCE.match(line):
                 inside_fence = not inside_fence
                 flush(next_is_literal=True)
@@ -93,6 +126,7 @@ class Prose:
             if not stripped_line:
                 inside_literal_marker = False
                 inside_list = False
+                inside_code = False
                 flush(next_is_literal=inside_fence)
                 current_lines.append(line)
                 continue
@@ -100,12 +134,38 @@ class Prose:
                 inside_list = True
             elif not self._continues_list_item(line, inside_list):
                 inside_list = False
-            flush(next_is_literal=inside_fence or inside_literal_marker or inside_list or self._is_indented(line))
+            # The indented body under a commented-out opening brace is code too.
+            inside_code = self.markup.is_code(line) or (inside_code and line[:1].isspace())
+            flush(
+                next_is_literal=inside_fence
+                or inside_literal_marker
+                or inside_list
+                or self._is_indented(line)
+                or inside_code
+            )
             current_lines.append(line)
 
         if current_lines:
             segments.append(Segment(tuple(current_lines), segment_is_literal))
         return tuple(segments)
+
+    def code_line_indexes(self) -> frozenset[int]:
+        """The lines that hold code rather than prose, such as a fenced or indented block or an @example body."""
+        indexes: set[int] = set()
+        inside_fence = False
+        inside_example = False
+        for index, line in enumerate(self.physical_lines):
+            if self.markup.opens_tag_section(line):
+                inside_example = self.markup.opens_example(line)
+                continue
+            if _FENCE.match(line):
+                inside_fence = not inside_fence
+                continue
+            if line.strip() and (
+                inside_example or inside_fence or self._is_indented(line) or self.markup.is_code(line)
+            ):
+                indexes.add(index)
+        return frozenset(indexes)
 
     def _is_indented(self, line: str) -> bool:
         return line.startswith(('    ', '\t'))

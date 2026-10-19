@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 
 from subedit.domain import (
@@ -25,6 +27,10 @@ def group(*bodies: str, **kwargs: object) -> CommentGroup:
     }
     defaults.update(kwargs)
     return CommentGroup(**defaults)  # pyright: ignore[reportArgumentType]
+
+
+def rebuilt(subject: CommentGroup, *texts: str) -> CommentGroup:
+    return dataclasses.replace(subject, lines=subject.layout.rebuild(subject.lines, texts, width=80))
 
 
 def test_a_block_needs_at_least_one_line() -> None:
@@ -67,7 +73,7 @@ def test_an_empty_payload_renders_without_trailing_space() -> None:
 
 def test_with_payloads_returns_a_new_block_and_leaves_the_original_alone() -> None:
     original = group('one', 'two')
-    rewrapped = original.with_texts(('single line now',))
+    rewrapped = rebuilt(original, 'single line now')
 
     assert rewrapped is not original
     assert original.line_count == 2
@@ -76,13 +82,13 @@ def test_with_payloads_returns_a_new_block_and_leaves_the_original_alone() -> No
 
 
 def test_with_payloads_can_grow_the_block_using_the_first_line_prefix() -> None:
-    grown = group('one').with_texts(('one', 'two', 'three'))
+    grown = rebuilt(group('one'), 'one', 'two', 'three')
     assert grown.render() == '  // one\n  // two\n  // three'
 
 
 def test_with_payloads_rejects_an_empty_result() -> None:
     with pytest.raises(ValueError, match='at least one line'):
-        group('one').with_texts(())
+        rebuilt(group('one'))
 
 
 def documented(name: str, visibility: Visibility) -> CommentGroup:

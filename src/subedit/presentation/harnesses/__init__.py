@@ -1,12 +1,10 @@
 import pathlib
 
-from ...infrastructure import PYTHON
+from ...infrastructure import EXTENSIONS
 from .agent_harness import BLOCK_EXIT, AgentHarness, HarnessMetadata, Payload
 from .claude_code_harness import ClaudeCodeHarness
 from .codex_harness import CodexHarness
 
-
-EXTENSIONS = frozenset(PYTHON.extensions)
 
 # Each agent names its edit tools differently, so a payload identifies its own sender.
 # One project can run both agents at once, and neither needs to know the other exists.

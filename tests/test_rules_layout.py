@@ -215,3 +215,25 @@ def test_a_line_comment_list_stays_right_under_its_introduction() -> None:
 def test_a_docstring_list_still_gets_the_blank_line_rest_needs() -> None:
     source = 'def f():\n    """Pick one.\n\n    The order is fixed.\n    - detect\n    - pick\n    """\n'
     assert '    The order is fixed.\n\n    - detect\n' in fixed(source, width=120)
+
+
+def test_a_trailing_comment_is_never_broken_onto_a_line_of_its_own() -> None:
+    source = 'x = compute()  # a trailing note, which runs well past the width set for this file\n'
+    assert fixed(source, width=60) == source, 'a second line would copy the code beside the comment'
+
+
+def test_a_trailing_comment_over_the_width_asks_for_its_author() -> None:
+    source = 'x = compute()  # a trailing note, which runs well past the width set for this file\n'
+    report = lint(source, width=60)
+    assert [item.rule_id for item in report.diagnostics] == ['line-too-long']
+    assert report.diagnostics[0].fix is not None
+    assert report.diagnostics[0].fix.kind is FixKind.REWRITE
+
+
+def test_a_paragraph_moved_onto_a_blank_line_keeps_its_space() -> None:
+    source = (
+        'def f():\n    # the first paragraph runs on\n    # past one line.\n    #\n    # the second one.\n    pass\n'
+    )
+    assert fixed(source, width=60) == (
+        'def f():\n    # the first paragraph runs on past one line.\n    #\n    # the second one.\n    pass\n'
+    )

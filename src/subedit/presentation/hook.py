@@ -5,7 +5,7 @@ import sys
 
 from ..application import Fixer, Linter, RuleEngine
 from ..domain.models.document import Document
-from ..infrastructure import ALL_RULES, DEFAULT_CONFIG_SOURCE, DEFAULT_PARSER, EXTERNAL_LINTERS, PYTHON
+from ..infrastructure import ALL_RULES, DEFAULT_CONFIG_SOURCE, DEFAULT_PARSER, EXTERNAL_LINTERS, language_for
 from . import report as reporters
 from .harnesses import ALL_HARNESSES, BLOCK_EXIT, Payload, resolve
 
@@ -44,7 +44,10 @@ def run(payload: Payload, *, write: bool = True) -> HookResult:
             source_text = source_path.read_text(encoding='utf-8')
         except (OSError, UnicodeDecodeError):
             continue
-        document = Document(uri=source_path.resolve().as_uri(), text=source_text, language_id=PYTHON.language_id)
+        language = language_for(source_path)
+        if language is None:
+            continue
+        document = Document(uri=source_path.resolve().as_uri(), text=source_text, language_id=language.language_id)
         fix_result = fixer.run(document, DEFAULT_CONFIG_SOURCE.resolve(str(source_path)))
         if fix_result.has_changes and write:
             source_path.write_text(fix_result.document.text, encoding='utf-8')

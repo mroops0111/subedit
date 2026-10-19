@@ -3,7 +3,7 @@ import re
 import tree_sitter_typescript
 from tree_sitter import Language
 
-from subedit.domain import CommentForm, CommentPlacement, Document, SymbolKind, Visibility
+from subedit.domain import LINE_LAYOUT, CommentForm, CommentPlacement, Document, SymbolKind, Visibility
 from subedit.domain.ports import DelimiterSplit
 from subedit.infrastructure import TreeSitterParser
 from subedit.infrastructure.parsers.languages import LanguageProfile, NodeRole
@@ -20,6 +20,8 @@ class TypeScriptProfile(LanguageProfile):
     extensions = frozenset({'.ts', '.tsx'})
     doc_delimiter = '/**'
     signature_tags = ('@param', '@returns', '@type')
+    canonical_extension = '.ts'
+    doc_layout = LINE_LAYOUT
     _ROLES = {
         'program': NodeRole.ROOT,
         'comment': NodeRole.COMMENT,

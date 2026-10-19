@@ -37,9 +37,12 @@ class TreeSitterParser(SourceParser):
         source_bytes = document.text.encode('utf-8')
         tree = Parser(profile.language()).parse(source_bytes)
         grouped_captures = self._run_query(profile, tree.root_node)
-        comment_groups = [self._build_doc_group(profile, document, node) for node in grouped_captures[DOC_CAPTURE]]
+        exported = profile.exported_names(tree.root_node)
+        comment_groups = [
+            self._build_doc_group(profile, document, node, exported) for node in grouped_captures[DOC_CAPTURE]
+        ]
         comment_groups.extend(
-            self._build_line_group(profile, document, group)
+            self._build_line_group(profile, document, group, exported)
             for group in self._group_adjacent_comments(profile, document, grouped_captures[COMMENT_CAPTURE])
         )
         return tuple(sorted(comment_groups, key=lambda group: group.range.start))
@@ -83,7 +86,9 @@ class TreeSitterParser(SourceParser):
         line = document.positions.line_text(node.start_point[0])
         return bool(line[: node.start_point[1]].strip())
 
-    def _build_line_group(self, profile: LanguageProfile, document: Document, nodes: list[Node]) -> CommentGroup:
+    def _build_line_group(
+        self, profile: LanguageProfile, document: Document, nodes: list[Node], exported: frozenset[str]
+    ) -> CommentGroup:
         lines = tuple(self._build_comment_line(profile, document, node, CommentForm.LINE) for node in nodes)
         placement = self._classify_placement(profile, document, nodes[-1], is_doc=False)
         return CommentGroup(
@@ -91,12 +96,15 @@ class TreeSitterParser(SourceParser):
             lines=lines,
             form=CommentForm.LINE,
             placement=placement,
-            attachment=self._resolve_attachment(profile, nodes[-1], is_doc=False)
+            attachment=self._resolve_attachment(profile, nodes[-1], exported, is_doc=False)
             if placement is CommentPlacement.LEADING_DECLARATION
             else None,
+            markup=profile.line_markup,
         )
 
-    def _build_doc_group(self, profile: LanguageProfile, document: Document, node: Node) -> CommentGroup:
+    def _build_doc_group(
+        self, profile: LanguageProfile, document: Document, node: Node, exported: frozenset[str]
+    ) -> CommentGroup:
         lines: list[CommentLine] = []
         for line_number in range(node.start_point[0], node.end_point[0] + 1):
             marker_split = profile.split_delimiter(document.positions.line_text(line_number), CommentForm.DOC)
@@ -109,12 +117,17 @@ class TreeSitterParser(SourceParser):
                     suffix=marker_split.suffix,
                 )
             )
+        placement = self._classify_placement(profile, document, node, is_doc=True)
         return CommentGroup(
             range=SourceRange(lines[0].range.start, lines[-1].range.end),
             lines=tuple(lines),
             form=CommentForm.DOC,
-            placement=self._classify_placement(profile, document, node, is_doc=True),
-            attachment=self._resolve_attachment(profile, node, is_doc=True),
+            placement=placement,
+            attachment=self._resolve_attachment(profile, node, exported, is_doc=True)
+            if placement is CommentPlacement.LEADING_DECLARATION
+            else None,
+            layout=profile.doc_layout,
+            markup=profile.doc_markup,
         )
 
     # Width is measured across indent, delimiter, and text together.
@@ -141,7 +154,7 @@ class TreeSitterParser(SourceParser):
         *,
         is_doc: bool,
     ) -> CommentPlacement:
-        if is_doc:
+        if is_doc and not profile.doc_leads_declaration:
             owner = self._find_owning_definition(profile, node)
             return CommentPlacement.FILE_HEADER if owner is None else CommentPlacement.LEADING_DECLARATION
         if self._is_trailing_comment(document, node):
@@ -202,9 +215,12 @@ class TreeSitterParser(SourceParser):
         return None
 
     # Only a leading declaration documents a symbol, and CommentGroup rejects any other pairing.
-    def _resolve_attachment(self, profile: LanguageProfile, node: Node, *, is_doc: bool) -> SymbolRef | None:
+    def _resolve_attachment(
+        self, profile: LanguageProfile, node: Node, exported: frozenset[str], *, is_doc: bool
+    ) -> SymbolRef | None:
+        lives_inside = is_doc and not profile.doc_leads_declaration
         definition_node = (
-            self._find_owning_definition(profile, node) if is_doc else self._find_next_definition(profile, node)
+            self._find_owning_definition(profile, node) if lives_inside else self._find_next_definition(profile, node)
         )
         if definition_node is None:
             return None
@@ -218,7 +234,7 @@ class TreeSitterParser(SourceParser):
         return SymbolRef(
             name=name,
             kind=profile.symbol_kind(declaration.type),
-            visibility=profile.visibility_of(name),
+            visibility=profile.visibility_of_declaration(declaration, name, exported),
         )
 
     # A decorated definition wraps the real one and carries no name field of its own,

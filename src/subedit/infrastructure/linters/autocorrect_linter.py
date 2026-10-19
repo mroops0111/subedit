@@ -1,4 +1,5 @@
 import pathlib
+import typing
 
 import autocorrect_py
 
@@ -7,6 +8,7 @@ from ...domain.models.document import Document
 from ...domain.models.position import Position, SourceRange
 from ...domain.models.text import TextEdit
 from ...domain.ports.external_linter import ExternalLinter
+from .source_path import as_known_path
 
 
 RULE_ID = 'autocorrect/spacing'
@@ -16,8 +18,11 @@ CONFIG_PATH = pathlib.Path('.autocorrectrc')
 class AutoCorrectLinter(ExternalLinter):
     name = 'autocorrect'
 
-    def __init__(self, config_path: pathlib.Path = CONFIG_PATH) -> None:
+    def __init__(
+        self, config_path: pathlib.Path = CONFIG_PATH, suffix_aliases: typing.Mapping[str, str] | None = None
+    ) -> None:
         self._config_path = config_path
+        self._suffix_aliases = dict(suffix_aliases or {})
         self._config_loaded = False
 
     def is_available(self) -> bool:
@@ -30,7 +35,13 @@ class AutoCorrectLinter(ExternalLinter):
         The path only tells AutoCorrect which file type to parse, so it need not exist on disk.
         """
         self._load_config()
-        corrected_text = autocorrect_py.format_for(document.text, document.uri.removeprefix('file://'))
+        # Its grammar gives up on a large file, and one file it cannot read must not stop the run.
+        try:
+            corrected_text = autocorrect_py.format_for(
+                document.text, as_known_path(document.uri.removeprefix('file://'), self._suffix_aliases)
+            )
+        except ValueError:
+            return ()
         if corrected_text == document.text:
             return ()
         return self._diff_lines(document, corrected_text)

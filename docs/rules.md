@@ -15,4 +15,4 @@ The level says whether a rewrite blocks. An error fails check and stops an agent
 | `plain-comment-on-public` | rewrite | error | A public symbol must be documented in the doc comment form its language renders. |
 | `signature-restating-tag` | rewrite | error | A doc comment must not restate what the type signature already carries. |
 | `stub-fragment` | rewrite | warning | A sentence forced to break must not leave a stub of a line behind. |
-| `unbreakable-sentence` | rewrite | error | A sentence over the width must carry a clause comma, splitting no list, wherever it has to break, and a docstring summary must fit one line. |
+| `unbreakable-sentence` | rewrite | error | A sentence over the width must carry a clause comma, splitting no list, wherever it has to break, and a summary its style guide keeps to one line must fit it. |
