@@ -37,6 +37,8 @@ class SymbolRef:
     name: str
     kind: SymbolKind
     visibility: Visibility
+    # A comment over several declarations, right under code, may head them as a group rather than document this one.
+    may_head_a_group: bool = False
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

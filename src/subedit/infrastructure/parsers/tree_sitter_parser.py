@@ -230,7 +230,8 @@ class TreeSitterParser(SourceParser):
         )
         if definition_node is None:
             return None
-        if not is_doc and opening is not None and self._heads_a_run(profile, opening, definition_node):
+        over_a_run = not is_doc and opening is not None and self._runs_over_several(profile, definition_node)
+        if over_a_run and opening is not None and self._opens_a_paragraph(opening):
             return None
         declaration = self._find_named_declaration(profile, definition_node)
         name = self._declared_name(declaration)
@@ -240,15 +241,17 @@ class TreeSitterParser(SourceParser):
             name=name,
             kind=profile.symbol_kind(declaration.type),
             visibility=profile.visibility_of_declaration(declaration, name, exported),
+            may_head_a_group=over_a_run,
         )
 
     # A plain comment opening a paragraph over a run of declarations heads the run, so it documents none alone.
-    # One in mid paragraph sits among the declarations, so it documents the one under it.
-    # A value and a type of the same name, as zod pairs a schema with its inferred type, are one declaration.
-    def _heads_a_run(self, profile: LanguageProfile, opening: Node, definition_node: Node) -> bool:
+    # One right under code reads either way, as a field's note or as a group's heading.
+    def _opens_a_paragraph(self, opening: Node) -> bool:
         above = opening.prev_named_sibling
-        if above is not None and self._is_adjacent(above, opening):
-            return False
+        return above is None or not self._is_adjacent(above, opening)
+
+    # A value and a type of the same name, as zod pairs a schema with its inferred type, are one declaration.
+    def _runs_over_several(self, profile: LanguageProfile, definition_node: Node) -> bool:
         name = self._declared_name(self._find_named_declaration(profile, definition_node))
         previous, following = definition_node, definition_node.next_named_sibling
         while following is not None and self._is_adjacent(previous, following):

@@ -3,7 +3,16 @@ import pathlib
 import pytest
 
 from subedit.application import Linter, RuleEngine
-from subedit.domain import CommentForm, CommentPlacement, Document, RuleSet, Visibility, apply_edits
+from subedit.domain import (
+    CommentForm,
+    CommentPlacement,
+    Document,
+    RuleSet,
+    RuleSettings,
+    Severity,
+    Visibility,
+    apply_edits,
+)
 from subedit.infrastructure import (
     ALL_RULES,
     DEFAULT_CONFIG_SOURCE,
@@ -341,3 +350,35 @@ def test_a_comment_documents_the_one_declaration_under_it(source: str, documente
     findings = lint(source).diagnostics
     assert [item.rule_id for item in findings] == ['plain-comment-on-public']
     assert findings[0].message.startswith(documented)
+
+
+MID_PARAGRAPH_HEADING = (
+    'export interface Services {\n'
+    '  outputGate: Gate;\n'
+    '  // Core services, always present.\n'
+    '  workspaceService: WorkspaceService;\n'
+    '  hitlService: HITLService;\n'
+    '}\n'
+)
+
+
+def test_a_comment_that_may_head_a_group_is_advice_rather_than_a_block() -> None:
+    [finding] = lint(MID_PARAGRAPH_HEADING).diagnostics
+    assert finding.severity is Severity.WARNING, 'right under a field, it reads as a heading or as a field note'
+    assert 'heads the declarations below it as a group' in finding.message
+
+
+def test_a_comment_over_one_field_right_under_another_still_blocks() -> None:
+    source = 'export interface Services {\n  outputGate: Gate;\n  // Required for replay.\n  runs: Runs;\n}\n'
+    [finding] = lint(source).diagnostics
+    assert finding.severity is Severity.ERROR
+
+
+def test_a_configured_severity_holds_for_a_tentative_finding_too() -> None:
+    enabled = frozenset(rule.metadata.rule_id for rule in ALL_RULES)
+    rule_set = RuleSet(
+        enabled_rule_ids=enabled, settings={'plain-comment-on-public': RuleSettings(severity=Severity.ERROR)}
+    )
+    document = Document(uri='file:///a.ts', text=MID_PARAGRAPH_HEADING, language_id='typescript')
+    [finding] = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).run(document, rule_set).diagnostics
+    assert finding.severity is Severity.ERROR

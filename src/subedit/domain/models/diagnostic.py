@@ -69,6 +69,8 @@ class Diagnostic:
     severity: Severity = Severity.ERROR
     fix: Fix | None = None
     source: str = 'subedit'
+    # A finding the rule may have read wrong reaches the author as advice, unless the project sets its severity.
+    tentative: bool = False
 
     def __post_init__(self) -> None:
         if not self.message:

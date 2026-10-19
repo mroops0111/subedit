@@ -123,6 +123,7 @@ Registering the hook with both agents is the normal case. Each agent names its e
 | TypeScript | `.ts`, `.mts`, `.cts`, `.tsx` | `/** */` JSDoc | `printWidth` for Prettier, `lineWidth` for Biome |
 
 A TypeScript symbol is public when it is exported, and a class member stays public unless it is `private`, `protected`, or `#named`.
+A plain comment opening a paragraph over several declarations heads them as a group, so it documents none of them. One right under another declaration may be either, so `plain-comment-on-public` reports it as a warning.
 A JSDoc block keeps its frame when reflowed. Its tag section, from the first tag such as `@throws` onward, is left as written, as a docstring's sections from `Args:`, `Parameters`, or `:param` onward are.
 A comment line that the language's own grammar reads as code, such as `// return result` or `# client.send(`, is left as written in either language.
 A plain `/* */` block and a directive such as `// eslint-disable-next-line` carry no prose for subedit to lay out, so only Vale reads the block, and nothing reads the directive.

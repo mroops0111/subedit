@@ -70,15 +70,24 @@ class PlainCommentOnPublicRule(Rule):
         if conventions is None:
             return
         delimiter = conventions.doc_delimiter
-        name = group.attachment.name if group.attachment else 'the symbol'
+        attachment = group.attachment
+        name = attachment.name if attachment else 'the symbol'
+        message = (
+            f'{name} is public but documented with a plain comment. '
+            f'Move the text into a {delimiter} doc comment so tooling renders it on hover.'
+        )
+        may_head_a_group = attachment is not None and attachment.may_head_a_group
+        if may_head_a_group:
+            message += (
+                f' If it heads the declarations below it as a group rather than describing {name}, leave it, '
+                'or set it apart with a blank line above it.'
+            )
         yield Diagnostic(
             rule_id=self.metadata.rule_id,
             range=group.range,
-            message=(
-                f'{name} is public but documented with a plain comment. '
-                f'Move the text into a {delimiter} doc comment so tooling renders it on hover.'
-            ),
+            message=message,
             fix=Fix.rewrite(),
+            tentative=may_head_a_group,
         )
 
 
