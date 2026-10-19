@@ -28,11 +28,6 @@ _BRACKET_PAIRS = {'(': ')', '[': ']', '{': '}'}
 _FENCE = re.compile(r'^\s*(```|~~~)')
 _LIST_DELIMITER = re.compile(r'^\s*(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s')
 _LITERAL_DELIMITER = '\\b'
-# A block tag such as @example or @throws opens the tag section, which runs to the end and holds no prose to lay out.
-_BLOCK_TAG = re.compile(r'^\s*@[A-Za-z]')
-_EXAMPLE_TAG = '@example'
-# A line that opens or closes a brace, or ends a statement, is code commented out rather than prose.
-_CODE_LINE = re.compile(r'(^\s*}|[{};]\s*$)')
 _CLOSING_MARKS = '"\')]}'
 _APOSTROPHES = ("'", '\u2019')
 
@@ -61,8 +56,34 @@ class Segment:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class ProseMarkup:
+    """What a language writes in its comments besides prose, which reflow leaves as written.
+
+    A tag section, such as JSDoc's from its first @throws on, runs to the end of the comment.
+    An example tag's body is code, and so is a line commented out of a language whose statements look like one.
+    """
+
+    tag_section: re.Pattern[str] | None = None
+    example_tag: str | None = None
+    code_line: re.Pattern[str] | None = None
+
+    def opens_tag_section(self, line: str) -> bool:
+        return self.tag_section is not None and bool(self.tag_section.match(line))
+
+    def opens_example(self, line: str) -> bool:
+        return self.example_tag is not None and line.strip().startswith(self.example_tag)
+
+    def is_code(self, line: str) -> bool:
+        return self.code_line is not None and bool(self.code_line.search(line))
+
+
+PLAIN_MARKUP = ProseMarkup()
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class Prose:
     text: str
+    markup: ProseMarkup = PLAIN_MARKUP
 
     @property
     def physical_lines(self) -> tuple[str, ...]:
@@ -87,7 +108,7 @@ class Prose:
 
         for line in self.physical_lines:
             stripped_line = line.strip()
-            inside_tags = inside_tags or bool(_BLOCK_TAG.match(line))
+            inside_tags = inside_tags or self.markup.opens_tag_section(line)
             if inside_tags:
                 flush(next_is_literal=True)
                 current_lines.append(line)
@@ -114,7 +135,7 @@ class Prose:
             elif not self._continues_list_item(line, inside_list):
                 inside_list = False
             # The indented body under a commented-out opening brace is code too.
-            inside_code = self._is_code(line) or (inside_code and line[:1].isspace())
+            inside_code = self.markup.is_code(line) or (inside_code and line[:1].isspace())
             flush(
                 next_is_literal=inside_fence
                 or inside_literal_marker
@@ -134,18 +155,17 @@ class Prose:
         inside_fence = False
         inside_example = False
         for index, line in enumerate(self.physical_lines):
-            if _BLOCK_TAG.match(line):
-                inside_example = line.strip().startswith(_EXAMPLE_TAG)
+            if self.markup.opens_tag_section(line):
+                inside_example = self.markup.opens_example(line)
                 continue
             if _FENCE.match(line):
                 inside_fence = not inside_fence
                 continue
-            if line.strip() and (inside_example or inside_fence or self._is_indented(line) or self._is_code(line)):
+            if line.strip() and (
+                inside_example or inside_fence or self._is_indented(line) or self.markup.is_code(line)
+            ):
                 indexes.add(index)
         return frozenset(indexes)
-
-    def _is_code(self, line: str) -> bool:
-        return bool(_CODE_LINE.search(line))
 
     def _is_indented(self, line: str) -> bool:
         return line.startswith(('    ', '\t'))

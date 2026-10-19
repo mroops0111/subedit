@@ -4,6 +4,7 @@ import tree_sitter_python
 from tree_sitter import Language
 
 from ....domain.models.comment import CommentForm, SymbolKind, Visibility
+from ....domain.models.comment_layout import QUOTED_DOC_LAYOUT
 from ....domain.ports.language_conventions import DelimiterSplit
 from .language_profile import LanguageProfile, NodeRole
 
@@ -25,7 +26,10 @@ class PythonProfile(LanguageProfile):
     language_id = 'python'
     extensions = frozenset({'.py', '.pyi'})
     doc_delimiter = '"""'
-    signature_tags = ('Args:', 'Returns:', 'Raises:', 'Yields:', ':param', ':return', ':rtype')
+    signature_tags = ('Args:', 'Returns:', 'Raises:', 'Yields:', ':param', ':return', ':returns', ':rtype')
+    canonical_extension = '.py'
+    doc_layout = QUOTED_DOC_LAYOUT
+    vendor_directories = frozenset({'venv', 'site-packages', '__pypackages__'})
     _ROLES = {
         'module': NodeRole.ROOT,
         'comment': NodeRole.COMMENT,

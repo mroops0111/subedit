@@ -32,7 +32,7 @@ def prose_sentences(group: CommentGroup) -> tuple[str, ...]:
         sentence.text
         for segment in group.prose().segments()
         if not segment.is_literal
-        for sentence in Prose(segment.text).sentences()
+        for sentence in Prose(segment.text, group.markup).sentences()
     )
 
 
@@ -91,7 +91,7 @@ class UnbreakableSentenceRule(Rule):
         for index, (sentence, budget) in enumerate(sentences):
             if is_summary(group, index):
                 # A summary with nothing after it closes on its own line, so the quotes share its budget.
-                closing = len(group.closing_quotes()) if len(sentences) == 1 else 0
+                closing = len(group.closing()) if len(sentences) == 1 else 0
                 message = self._summary_message(sentence, budget - closing)
             else:
                 message = self._sentence_message(sentence, budget)

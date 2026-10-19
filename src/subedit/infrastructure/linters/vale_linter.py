@@ -3,6 +3,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import typing
 
 import pydantic
 
@@ -11,6 +12,7 @@ from ...domain.models.document import Document
 from ...domain.models.position import Position, SourceRange
 from ...domain.models.prose import code_spans
 from ...domain.ports.external_linter import ExternalLinter
+from .source_path import as_known_path
 
 
 TIMEOUT_SECONDS = 30
@@ -50,8 +52,14 @@ class ValeReport(pydantic.RootModel[dict[str, list[ValeAlert]]]):
 class ValeLinter(ExternalLinter):
     name = 'vale'
 
-    def __init__(self, executable: str | None = None, fallback_config: pathlib.Path = BUNDLED_CONFIG) -> None:
+    def __init__(
+        self,
+        executable: str | None = None,
+        fallback_config: pathlib.Path = BUNDLED_CONFIG,
+        suffix_aliases: typing.Mapping[str, str] | None = None,
+    ) -> None:
         self._executable = executable or _default_executable()
+        self._suffix_aliases = dict(suffix_aliases or {})
         self._fallback_config = fallback_config
         self._needs_fallback = False
 
@@ -77,7 +85,7 @@ class ValeLinter(ExternalLinter):
             return ()
         # The text goes in on stdin, because during a fix it is ahead of what the file on disk holds.
         # The path still selects the config sections, and Vale matches them exactly as for a file.
-        source_path = _as_vale_knows_it(document.uri.removeprefix('file://'))
+        source_path = as_known_path(document.uri.removeprefix('file://'), self._suffix_aliases)
         if not self._needs_fallback:
             process = self._run_vale(document, source_path)
             if process is None:
@@ -129,16 +137,6 @@ class ValeLinter(ExternalLinter):
             fix=Fix.rewrite(),
             source=self.name,
         )
-
-
-# Vale reads a file it has no format for as plain text, code and all, so a module flavor goes in as plain TypeScript.
-VALE_SUFFIXES = {'.mts': '.ts', '.cts': '.ts'}
-
-
-def _as_vale_knows_it(source_path: str) -> str:
-    path = pathlib.Path(source_path)
-    suffix = VALE_SUFFIXES.get(path.suffix)
-    return str(path.with_suffix(suffix)) if suffix else source_path
 
 
 # Vale ignores a code span only in markup, so in a source file it reads the code inside one as prose.

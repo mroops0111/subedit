@@ -3,21 +3,24 @@ import pathlib
 import tomllib
 import typing
 
-from ...domain.models.rule_set import RuleSet, RuleSettings
+from ...domain.models.rule_set import DEFAULT_LINE_WIDTH, RuleSet, RuleSettings
 from .config_schema import ConfigFile, RuleTable
 
 
 CONFIG_NAME = 'subedit.toml'
 PYPROJECT_NAME = 'pyproject.toml'
-DEFAULT_WIDTH = 120
 
 
 class TomlConfigSource:
     def __init__(
-        self, available_rule_ids: tuple[str, ...], default_widths: typing.Mapping[str, int] | None = None
+        self,
+        available_rule_ids: tuple[str, ...],
+        default_widths: typing.Mapping[str, int] | None = None,
+        fallback_width: int = DEFAULT_LINE_WIDTH,
     ) -> None:
         self._available_rule_ids = available_rule_ids
         self._default_widths = dict(default_widths or {})
+        self._fallback_width = fallback_width
 
     def resolve(self, path: str) -> RuleSet:
         config_file = self._read(path)
@@ -30,7 +33,7 @@ class TomlConfigSource:
 
     def default_width(self, path: str) -> int:
         """The width a file gets when no config sets one, which follows its language's formatter."""
-        return self._default_widths.get(pathlib.Path(path).suffix, DEFAULT_WIDTH)
+        return self._default_widths.get(pathlib.Path(path).suffix, self._fallback_width)
 
     def exclude_patterns(self, path: str) -> tuple[str, ...]:
         config_file = self._read(path)

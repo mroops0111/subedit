@@ -2,8 +2,9 @@ import dataclasses
 import enum
 import itertools
 
+from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .position import SourceRange
-from .prose import Prose, Sentence, break_cost, comma_breaks, reflow_sentence
+from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence, break_cost, comma_breaks, reflow_sentence
 from .text import TextEdit
 
 
@@ -39,51 +40,14 @@ class SymbolRef:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class CommentLine:
-    range: SourceRange
-    indent: str
-    delimiter: str
-    text: str
-    suffix: str = ''
-
-    @property
-    def physical_width(self) -> int:
-        return len(self.indent) + len(self.delimiter) + len(self.text) + len(self.suffix)
-
-    @property
-    def prefix_width(self) -> int:
-        return len(self.indent) + len(self.delimiter)
-
-    def render(self) -> str:
-        if not self.text and not self.suffix:
-            return (self.indent + self.delimiter).rstrip()
-        return self.indent + self.delimiter + self.text + self.suffix
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
-class DocFrame:
-    """The frame a doc comment such as JSDoc wraps its text in, with an opening, a prefix per line, and a closing.
-
-    A docstring has none, since its text runs on from the opening quotes and needs no prefix.
-    """
-
-    opening: str
-    prefix: str
-    closing: str
-
-    def one_line(self) -> tuple[str, str]:
-        """The delimiter and suffix around text that opens and closes on one line."""
-        return f'{self.opening} ', f' {self.closing.strip()}'
-
-
-@dataclasses.dataclass(frozen=True, slots=True)
 class CommentGroup:
     range: SourceRange
     lines: tuple[CommentLine, ...]
     form: CommentForm
     placement: CommentPlacement
     attachment: SymbolRef | None = None
-    frame: DocFrame | None = None
+    layout: CommentLayout = LINE_LAYOUT
+    markup: ProseMarkup = PLAIN_MARKUP
 
     def __post_init__(self) -> None:
         if not self.lines:
@@ -105,7 +69,7 @@ class CommentGroup:
     @property
     def has_summary_line(self) -> bool:
         """Whether the first sentence is a one-line summary, as PEP 257 asks of a docstring."""
-        return self.form is CommentForm.DOC and self.frame is None
+        return self.layout.has_summary_line
 
     @property
     def attaches_to_public_symbol(self) -> bool:
@@ -118,7 +82,7 @@ class CommentGroup:
             ' ' * max(0, len(line.indent) - base) + line.text.rstrip() if line.text.strip() else ''
             for line in self.lines
         ]
-        return Prose('\n'.join(rendered_lines))
+        return Prose('\n'.join(rendered_lines), self.markup)
 
     def code_ranges(self) -> tuple[SourceRange, ...]:
         """Where the lines holding code sit, which a prose checker has no business reading."""
@@ -133,12 +97,12 @@ class CommentGroup:
             return self
         texts = self._reflow_into_texts(width, stub_floor)
         # Text that ends up on one line closes there too, so the closing quotes need room beside it.
-        closing_width = len(self.closing_quotes())
+        closing_width = len(self.closing())
         if len(texts) == 1 and len(texts[0]) > self.text_budget(width, first_line=True) - closing_width:
             texts = self._reflow_into_texts(width, stub_floor, closing_width)
         if not texts:
             return self
-        return self._rebuild_lines(texts)
+        return dataclasses.replace(self, lines=self.layout.rebuild(self.lines, texts, width))
 
     def sentences_held_by_a_list(self, width: int, stub_floor: int = 0) -> tuple[str, ...]:
         """The sentences reflow leaves as the author broke them, since every legal break would split a list."""
@@ -148,11 +112,7 @@ class CommentGroup:
 
     def text_budget(self, width: int, *, first_line: bool) -> int:
         """The characters of text a line holds, which on a docstring's opening line also cede the quotes."""
-        opening = self.lines[0]
-        if self.frame is not None:
-            return max(20, width - len(opening.indent) - len(self.frame.prefix))
-        quoted = first_line or self.form is not CommentForm.DOC
-        return max(20, width - (opening.prefix_width if quoted else len(opening.indent)))
+        return self.layout.text_budget(self.lines, width, first_line=first_line)
 
     # A sentence takes as few lines as fit, and the author's layout stays when it breaks no worse than the best one.
     # A sentence whose new layout would strand a stub, split a list, or still overflow needs its author,
@@ -164,9 +124,7 @@ class CommentGroup:
         body_budget = self.text_budget(width, first_line=False)
         out: list[str] = []
         for paragraph_index, (paragraph, is_literal, follows_blank) in enumerate(self._split_into_paragraphs()):
-            # reStructuredText reads a list as part of the paragraph above it unless a blank line parts them,
-            # while a line comment's list may sit right under the line that introduces it.
-            if out and (follows_blank or self.form is CommentForm.DOC):
+            if out and (follows_blank or self.layout.parts_every_paragraph):
                 out.append('')
             if is_literal:
                 out.extend(paragraph)
@@ -216,59 +174,9 @@ class CommentGroup:
                 follows_blank = False
         return tuple(paragraphs)
 
-    def _rebuild_lines(self, texts: tuple[str, ...]) -> 'CommentGroup':
-        if self.form is not CommentForm.DOC:
-            return self.with_texts(texts)
-        if self.frame is not None:
-            return self._rebuild_framed(texts, self.frame)
-        opening, closing = self.lines[0], self.lines[-1]
-        closes_alone = len(self.lines) > 1 and not closing.text.strip()
-        body = [dataclasses.replace(opening, delimiter='', suffix='', text=text, range=opening.range) for text in texts]
-        body[0] = dataclasses.replace(body[0], delimiter=opening.delimiter)
-        # Text that fits one line closes on that line, as ruff and black format it.
-        if len(texts) > 1:
-            body.append(
-                dataclasses.replace(closing, delimiter=closing.delimiter or opening.delimiter, text='', suffix='')
-            )
-            if not closes_alone:
-                body[-1] = dataclasses.replace(body[-1], delimiter=opening.delimiter.strip())
-        else:
-            body[0] = dataclasses.replace(body[0], suffix=self.closing_quotes())
-        return dataclasses.replace(self, lines=tuple(body))
-
-    # A block that opened and closed on one line stays there while its text fits.
-    def _rebuild_framed(self, texts: tuple[str, ...], frame: DocFrame) -> 'CommentGroup':
-        opening = self.lines[0]
-        if len(texts) == 1 and self.line_count == 1:
-            delimiter, suffix = frame.one_line()
-            return dataclasses.replace(
-                self, lines=(dataclasses.replace(opening, delimiter=delimiter, text=texts[0], suffix=suffix),)
-            )
-        bare = dataclasses.replace(opening, text='', suffix='')
-        body = [dataclasses.replace(bare, delimiter=frame.opening)]
-        body.extend(dataclasses.replace(bare, delimiter=frame.prefix, text=text) for text in texts)
-        body.append(dataclasses.replace(bare, delimiter=frame.closing))
-        return dataclasses.replace(self, lines=tuple(body))
-
-    def closing_quotes(self) -> str:
-        if self.form is not CommentForm.DOC or self.frame is not None:
-            return ''
-        return self.lines[-1].suffix or self.lines[0].delimiter.strip()
-
-    def with_texts(self, texts: tuple[str, ...]) -> 'CommentGroup':
-        if not texts:
-            raise ValueError('A comment block needs at least one line')
-        # A blank line's delimiter drops its space, so a text moved onto it takes the spacing of a filled one.
-        template = next((line for line in self.lines if line.text), self.lines[0])
-        rebuilt = tuple(
-            dataclasses.replace(
-                self.lines[index] if index < len(self.lines) else template,
-                delimiter=template.delimiter if text else template.delimiter.rstrip(),
-                text=text,
-            )
-            for index, text in enumerate(texts)
-        )
-        return dataclasses.replace(self, lines=rebuilt)
+    def closing(self) -> str:
+        """What closes the comment on its last text line, such as a docstring's quotes."""
+        return self.layout.closing(self.lines)
 
     def render(self) -> str:
         return '\n'.join(line.render() for line in self.lines)

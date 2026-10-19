@@ -3,7 +3,9 @@ import re
 import tree_sitter_typescript
 from tree_sitter import Language, Node
 
-from ....domain.models.comment import CommentForm, DocFrame, SymbolKind, Visibility
+from ....domain.models.comment import CommentForm, SymbolKind, Visibility
+from ....domain.models.comment_layout import FramedDocLayout
+from ....domain.models.prose import ProseMarkup
 from ....domain.ports.language_conventions import DelimiterSplit
 from .language_profile import LanguageProfile, NodeRole
 
@@ -29,16 +31,24 @@ _CLASS_LIKE = frozenset(
 _PRIVATE_MODIFIERS = frozenset({b'private', b'protected'})
 # A declaration inside one of these is local to a body, so nothing outside it can see the name.
 _LOCAL_SCOPES = frozenset({'statement_block', 'class_static_block'})
+# A line that opens or closes a brace, or ends a statement, is code commented out rather than prose.
+# A brace closing on a word is an inline tag such as {@link Store}, which prose holds.
+_CODE_LINE = re.compile(r'(^\s*}|[{;]\s*$|[\s{]}\s*$)')
+# A block tag such as @example or @throws opens the tag section, which runs to the end and holds no prose to lay out.
+_BLOCK_TAG = re.compile(r'^\s*@[A-Za-z]')
 
 
 class TypeScriptProfile(LanguageProfile):
     """TypeScript, whose doc comment is a JSDoc block standing above the declaration it documents."""
 
     doc_delimiter = '/**'
-    doc_frame = DocFrame(opening='/**', prefix=' * ', closing=' */')
+    doc_layout = FramedDocLayout(opening='/**', prefix=' * ', closing_line=' */')
+    doc_markup = ProseMarkup(tag_section=_BLOCK_TAG, example_tag='@example', code_line=_CODE_LINE)
+    line_markup = ProseMarkup(code_line=_CODE_LINE)
     doc_leads_declaration = True
     default_line_width = 80
-    signature_tags = ('@param', '@returns', '@type')
+    signature_tags = ('@param', '@returns', '@return', '@type')
+    vendor_directories = frozenset({'node_modules', 'bower_components', 'jspm_packages'})
     _ROLES = {
         'program': NodeRole.ROOT,
         'comment': NodeRole.COMMENT,
@@ -64,9 +74,12 @@ class TypeScriptProfile(LanguageProfile):
         'import_statement': NodeRole.IMPORT,
     }
 
-    def __init__(self, language_id: str, extensions: frozenset[str], language: Language) -> None:
+    def __init__(
+        self, language_id: str, extensions: frozenset[str], canonical_extension: str, language: Language
+    ) -> None:
         self.language_id = language_id
         self.extensions = extensions
+        self.canonical_extension = canonical_extension
         self._language = language
 
     def language(self) -> Language:
@@ -86,7 +99,25 @@ class TypeScriptProfile(LanguageProfile):
     def visibility_of(self, name: str) -> Visibility:
         return Visibility.INTERNAL if name.startswith('#') else Visibility.PUBLIC
 
-    def visibility_of_declaration(self, declaration: Node, name: str) -> Visibility:
+    def exported_names(self, root: Node) -> frozenset[str]:
+        """The names exported apart from their declaration, as in "export { build }" or "export default build"."""
+        names: set[str] = set()
+        for statement in root.named_children:
+            if statement.type != 'export_statement':
+                continue
+            default_value = statement.child_by_field_name('value')
+            if default_value is not None and default_value.type == 'identifier':
+                names.add(_text(default_value))
+            for clause in statement.named_children:
+                if clause.type != 'export_clause':
+                    continue
+                for specifier in clause.named_children:
+                    local_name = specifier.child_by_field_name('name')
+                    if local_name is not None:
+                        names.add(_text(local_name))
+        return frozenset(names)
+
+    def visibility_of_declaration(self, declaration: Node, name: str, exported: frozenset[str]) -> Visibility:
         """A top-level name is public only when exported, and a member follows its class unless marked private."""
         if self.visibility_of(name) is Visibility.INTERNAL:
             return Visibility.INTERNAL
@@ -95,16 +126,16 @@ class TypeScriptProfile(LanguageProfile):
             for child in declaration.children
         ):
             return Visibility.INTERNAL
-        ancestor = declaration.parent
-        while ancestor is not None:
+        statement = declaration
+        while statement.parent is not None:
             # An ambient declaration describes something that exists globally, so anyone can reach it.
-            if ancestor.type in ('export_statement', 'ambient_declaration'):
+            if statement.parent.type in ('export_statement', 'ambient_declaration'):
                 return Visibility.PUBLIC
-            if ancestor.type in _LOCAL_SCOPES:
+            if statement.parent.type in _LOCAL_SCOPES:
                 return Visibility.INTERNAL
-            if ancestor.type == 'program':
-                return Visibility.PUBLIC if name.encode() in _exported_later(ancestor) else Visibility.INTERNAL
-            ancestor = ancestor.parent
+            if statement.parent.type == 'program':
+                return Visibility.PUBLIC if _declared_names(statement) & exported else Visibility.INTERNAL
+            statement = statement.parent
         return Visibility.INTERNAL
 
     def split_delimiter(self, line: str, form: CommentForm) -> DelimiterSplit:
@@ -126,26 +157,24 @@ class TypeScriptProfile(LanguageProfile):
         return DelimiterSplit(indent=indent, delimiter=delimiter, text=text, suffix=suffix)
 
 
-# A name can be declared first and exported further down, as in "export { build }" or "export default build".
-def _exported_later(program: Node) -> frozenset[bytes | None]:
-    names: set[bytes | None] = set()
-    for statement in program.named_children:
-        if statement.type != 'export_statement':
-            continue
-        default_value = statement.child_by_field_name('value')
-        if default_value is not None and default_value.type == 'identifier':
-            names.add(default_value.text)
-        for clause in statement.named_children:
-            if clause.type != 'export_clause':
-                continue
-            for specifier in clause.named_children:
-                local_name = specifier.child_by_field_name('name')
-                if local_name is not None:
-                    names.add(local_name.text)
-    return frozenset(names)
+def _text(node: Node) -> str:
+    return (node.text or b'').decode('utf-8')
+
+
+# A member is exported with the class around it, so what counts is the name the top-level statement declares.
+def _declared_names(statement: Node) -> frozenset[str]:
+    name = statement.child_by_field_name('name')
+    if name is not None:
+        return frozenset({_text(name)})
+    return frozenset(
+        _text(declarator_name)
+        for declarator in statement.named_children
+        if declarator.type == 'variable_declarator'
+        and (declarator_name := declarator.child_by_field_name('name')) is not None
+    )
 
 
 TYPESCRIPT = TypeScriptProfile(
-    'typescript', frozenset({'.ts', '.mts', '.cts'}), Language(tree_sitter_typescript.language_typescript())
+    'typescript', frozenset({'.ts', '.mts', '.cts'}), '.ts', Language(tree_sitter_typescript.language_typescript())
 )
-TSX = TypeScriptProfile('tsx', frozenset({'.tsx'}), Language(tree_sitter_typescript.language_tsx()))
+TSX = TypeScriptProfile('tsx', frozenset({'.tsx'}), '.tsx', Language(tree_sitter_typescript.language_tsx()))

@@ -17,7 +17,7 @@ from subedit.domain import (
     Severity,
     SourceRange,
 )
-from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, AutoCorrectLinter, ValeLinter
+from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, SUFFIX_ALIASES, AutoCorrectLinter, ValeLinter
 
 
 ENABLED = frozenset(rule.metadata.rule_id for rule in ALL_RULES)
@@ -193,7 +193,8 @@ def test_vale_findings_inside_an_example_block_are_dropped(tmp_path: pathlib.Pat
 @pytest.mark.parametrize('suffix', ['.ts', '.mts', '.cts'])
 def test_vale_reads_only_the_comments_of_a_typescript_module(tmp_path: pathlib.Path, suffix: str) -> None:
     text = 'const a = "x; y"; // a note; with a semicolon\n'
-    found = ValeLinter().run(Document(uri=(tmp_path / f'a{suffix}').as_uri(), text=text, language_id='typescript'))
+    linter = ValeLinter(suffix_aliases=SUFFIX_ALIASES)
+    found = linter.run(Document(uri=(tmp_path / f'a{suffix}').as_uri(), text=text, language_id='typescript'))
     assert [text[item.range.start] for item in found if 'Semicolon' in item.rule_id] == [';']
 
 

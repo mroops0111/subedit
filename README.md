@@ -125,7 +125,7 @@ Registering the hook with both agents is the normal case. Each agent names its e
 A TypeScript symbol is public when it is exported, and a class member stays public unless it is `private`, `protected`, or `#named`.
 A JSDoc block keeps its frame when reflowed. Its tag section, from the first tag such as `@throws` onward, is left as written.
 A plain `/* */` block and a directive such as `// eslint-disable-next-line` carry no prose for subedit to lay out, so only Vale reads the block, and nothing reads the directive.
-A directory walk skips `node_modules` and dotted directories such as `.venv`.
+A directory walk skips dotted directories such as `.venv`, and the package directories each language installs into, such as `node_modules` or `venv`.
 
 ## Configuration
 

@@ -13,6 +13,7 @@ from subedit.domain import (
     RuleSet,
     RuleSettings,
     Severity,
+    SourceParser,
     SourceRange,
     TextEdit,
 )
@@ -138,3 +139,22 @@ def test_a_fix_kind_survives_the_engine() -> None:
     report = Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rule_set('fixer'))
     assert report.mechanical and report.mechanical[0].fix is not None
     assert report.mechanical[0].fix.kind is FixKind.TARGETED
+
+
+def test_one_inspection_parses_the_document_once() -> None:
+    class CountingParser(SourceParser):
+        def __init__(self) -> None:
+            self.parse_count = 0
+
+        def supports(self, language_id: str) -> bool:
+            return True
+
+        def parse(self, document: Document) -> tuple[CommentGroup, ...]:
+            self.parse_count += 1
+            return DEFAULT_PARSER.parse(document)
+
+    parser = CountingParser()
+    document = Document(uri='file:///a.py', text='x = 1  # a note\n# a line\ny = 2\n', language_id='python')
+    inspection = Linter(parser, RuleEngine(())).inspect(document, RuleSet(enabled_rule_ids=frozenset()))
+    assert parser.parse_count == 1
+    assert len(inspection.prose_map.editable) == 1, 'the trailing note shares its line with code'

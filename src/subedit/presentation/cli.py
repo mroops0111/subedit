@@ -15,6 +15,7 @@ from ..infrastructure import (
     DEFAULT_PARSER,
     EXTENSIONS,
     EXTERNAL_LINTERS,
+    VENDOR_DIRECTORIES,
     language_for,
 )
 from . import report as reporters
@@ -150,7 +151,7 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
 
 # Installed packages and tool caches hold code nobody here wrote, such as node_modules or a .venv.
 def _is_vendored(relative: pathlib.Path) -> bool:
-    return any(part == 'node_modules' or part.startswith('.') for part in relative.parts[:-1])
+    return any(part in VENDOR_DIRECTORIES or part.startswith('.') for part in relative.parts[:-1])
 
 
 def _require(documents: tuple[Document, ...]) -> None:

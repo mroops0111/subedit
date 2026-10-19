@@ -4,7 +4,15 @@ import pytest
 
 from subedit.application import Linter, RuleEngine
 from subedit.domain import CommentForm, CommentPlacement, Document, RuleSet, Visibility, apply_edits
-from subedit.infrastructure import ALL_RULES, DEFAULT_CONFIG_SOURCE, DEFAULT_PARSER, LAYOUT_RULES, language_for
+from subedit.infrastructure import (
+    ALL_RULES,
+    DEFAULT_CONFIG_SOURCE,
+    DEFAULT_PARSER,
+    LAYOUT_RULES,
+    SUFFIX_ALIASES,
+    TYPESCRIPT,
+    language_for,
+)
 from subedit.presentation import hook
 from subedit.presentation.cli import app
 
@@ -175,10 +183,11 @@ def test_a_configured_width_applies_to_typescript_too(tmp_path: pathlib.Path) ->
     assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.ts')).line_width == 100
 
 
-def test_check_walks_typescript_but_skips_node_modules(
-    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize('vendored', ['node_modules/pkg', 'venv/lib', '.venv/lib'])
+def test_check_walks_typescript_but_skips_installed_packages(
+    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str], vendored: str
 ) -> None:
-    for folder in ('src', 'node_modules/pkg'):
+    for folder in ('src', vendored):
         (tmp_path / folder).mkdir(parents=True)
         (tmp_path / folder / 'a.ts').write_text('// Builds it.\nexport function build() {}\n', encoding='utf-8')
 
@@ -186,7 +195,7 @@ def test_check_walks_typescript_but_skips_node_modules(
         app(['check', '--no-delegate', str(tmp_path)])
     output = capsys.readouterr().out
     assert 'src/a.ts' in output
-    assert 'node_modules' not in output, 'installed packages hold code nobody here wrote'
+    assert vendored.split('/')[0] not in output, 'installed packages hold code nobody here wrote'
 
 
 def test_the_hook_repairs_a_typescript_edit(tmp_path: pathlib.Path) -> None:
@@ -207,6 +216,67 @@ def test_the_hook_repairs_a_typescript_edit(tmp_path: pathlib.Path) -> None:
     )
 
 
-def test_commented_out_code_is_not_joined_into_a_sentence() -> None:
-    source = 'export class C {\n  // get count(): number {\n  //   return 1\n  // }\n  run() {}\n}\n'
+@pytest.mark.parametrize(
+    'code',
+    [
+        '  // get count(): number {\n  //   return 1\n  // }\n',
+        '  // function f(\n  //   params: string = {}\n  // )\n',
+    ],
+)
+def test_commented_out_code_is_not_joined_into_a_sentence(code: str) -> None:
+    source = f'export class C {{\n{code}  run() {{}}\n}}\n'
     assert fixed(source) == source
+
+
+@pytest.mark.parametrize('export', ['export { C };', 'export default C;'])
+def test_a_member_of_a_class_exported_later_is_public(export: str) -> None:
+    attachment = parse(f'class C {{\n  /** Doc. */\n  run() {{}}\n}}\n{export}\n')[0].attachment
+    assert attachment is not None
+    assert attachment.visibility is Visibility.PUBLIC, 'the export names the class, and the member goes with it'
+
+
+def test_the_exports_are_read_once_per_parse(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[object] = []
+    original = type(TYPESCRIPT).exported_names
+    monkeypatch.setattr(
+        type(TYPESCRIPT), 'exported_names', lambda self, root: calls.append(root) or original(self, root)
+    )
+    parse(''.join(f'/** Doc. */\nconst a{index} = 1;\n' for index in range(5)))
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('overflow', [1, 4])
+def test_a_one_line_jsdoc_just_over_the_width_opens_into_a_frame(overflow: int) -> None:
+    text = 'Read a value from the store and hand it back to the caller'
+    source = f'/** {text}{"x" * (80 - 7 - len(text) + overflow)} */\nexport function read() {{}}\n'
+    repaired = fixed(source)
+    assert repaired != source
+    assert max(len(line) for line in repaired.splitlines()) <= 80
+
+
+def test_a_one_line_jsdoc_that_fits_exactly_stays_on_one_line() -> None:
+    text = 'Read a value.'
+    source = f'/** {text}{"x" * (80 - 7 - len(text))} */\nexport function read() {{}}\n'
+    assert fixed(source) == source
+
+
+@pytest.mark.parametrize('tag', ['@typeParam T the element kind', '@typedef {object} Options', '@returnsDeep the copy'])
+def test_a_tag_that_only_starts_like_a_signature_tag_is_fine(tag: str) -> None:
+    source = f'/**\n * Builds it.\n *\n * {tag}\n */\nexport function build<T>() {{}}\n'
+    assert 'signature-restating-tag' not in ids(source)
+
+
+@pytest.mark.parametrize('tag', ['@returns the built thing', '@return the built thing', '@type {string}'])
+def test_a_signature_tag_is_matched_as_a_whole_word(tag: str) -> None:
+    source = f'/**\n * Builds it.\n *\n * {tag}\n */\nexport function build() {{}}\n'
+    assert 'signature-restating-tag' in ids(source)
+
+
+def test_an_inline_link_closing_a_jsdoc_line_is_prose() -> None:
+    group = parse('/**\n * Read it, as described in\n * {@link Store}\n */\nexport function read() {}\n')[0]
+    assert group.prose().flattened == 'Read it, as described in {@link Store}'
+    assert group.code_ranges() == (), 'only a line that opens or closes a block of code is code'
+
+
+def test_the_typescript_extensions_alias_to_the_one_prose_tools_know() -> None:
+    assert SUFFIX_ALIASES == {'.mts': '.ts', '.cts': '.ts', '.pyi': '.py'}

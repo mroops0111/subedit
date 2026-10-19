@@ -1,7 +1,15 @@
 import pytest
 from tree_sitter import Language
 
-from subedit.domain import CommentForm, CommentGroup, CommentPlacement, Document, SymbolKind, Visibility
+from subedit.domain import (
+    QUOTED_DOC_LAYOUT,
+    CommentForm,
+    CommentGroup,
+    CommentPlacement,
+    Document,
+    SymbolKind,
+    Visibility,
+)
 from subedit.domain.ports import DelimiterSplit
 from subedit.infrastructure import DEFAULT_PARSER, PYTHON, LanguageProfile, TreeSitterParser
 from subedit.infrastructure.parsers.languages import NodeRole
@@ -245,6 +253,8 @@ def test_a_profile_naming_its_captures_otherwise_yields_nothing() -> None:
         extensions = frozenset({'.py'})
         doc_delimiter = '"""'
         signature_tags = ()
+        canonical_extension = '.py'
+        doc_layout = QUOTED_DOC_LAYOUT
 
         def language(self) -> Language:
             return PYTHON.language()
@@ -294,3 +304,17 @@ def test_a_comment_touching_the_first_statement_is_no_file_header() -> None:
 def test_a_comment_set_apart_at_the_top_is_a_file_header() -> None:
     source = '# Banner about the module.\n\nISSUER = "https://auth.example.com"\n'
     assert parse(source)[0].placement is CommentPlacement.FILE_HEADER
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        '# The cache warms lazily;\n# the first call pays for it.\nx = 1\n',
+        '# Wrap the loader with\n# @cache so it reads the file once.\nx = 1\n',
+        'def f():\n    """Return the mapping, which reads as\n    {key: value}\n    """\n',
+    ],
+)
+def test_jsdoc_and_brace_heuristics_stay_out_of_python(source: str) -> None:
+    group = parse(source)[0]
+    assert all(not segment.is_literal for segment in group.prose().segments()), 'Python marks no tags or code this way'
+    assert group.code_ranges() == ()

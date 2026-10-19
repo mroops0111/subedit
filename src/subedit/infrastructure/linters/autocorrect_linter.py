@@ -1,4 +1,5 @@
 import pathlib
+import typing
 
 import autocorrect_py
 
@@ -7,6 +8,7 @@ from ...domain.models.document import Document
 from ...domain.models.position import Position, SourceRange
 from ...domain.models.text import TextEdit
 from ...domain.ports.external_linter import ExternalLinter
+from .source_path import as_known_path
 
 
 RULE_ID = 'autocorrect/spacing'
@@ -16,8 +18,11 @@ CONFIG_PATH = pathlib.Path('.autocorrectrc')
 class AutoCorrectLinter(ExternalLinter):
     name = 'autocorrect'
 
-    def __init__(self, config_path: pathlib.Path = CONFIG_PATH) -> None:
+    def __init__(
+        self, config_path: pathlib.Path = CONFIG_PATH, suffix_aliases: typing.Mapping[str, str] | None = None
+    ) -> None:
         self._config_path = config_path
+        self._suffix_aliases = dict(suffix_aliases or {})
         self._config_loaded = False
 
     def is_available(self) -> bool:
@@ -32,7 +37,9 @@ class AutoCorrectLinter(ExternalLinter):
         self._load_config()
         # Its grammar gives up on a large file, and one file it cannot read must not stop the run.
         try:
-            corrected_text = autocorrect_py.format_for(document.text, _as_autocorrect_knows_it(document.uri))
+            corrected_text = autocorrect_py.format_for(
+                document.text, as_known_path(document.uri.removeprefix('file://'), self._suffix_aliases)
+            )
         except ValueError:
             return ()
         if corrected_text == document.text:
@@ -73,13 +80,3 @@ class AutoCorrectLinter(ExternalLinter):
                 )
             )
         return tuple(diagnostics)
-
-
-# AutoCorrect reads a file type it does not know as plain text, so a module flavor goes in as plain TypeScript.
-AUTOCORRECT_SUFFIXES = {'.mts': '.ts', '.cts': '.ts'}
-
-
-def _as_autocorrect_knows_it(uri: str) -> str:
-    path = pathlib.Path(uri.removeprefix('file://'))
-    suffix = AUTOCORRECT_SUFFIXES.get(path.suffix)
-    return str(path.with_suffix(suffix)) if suffix else str(path)

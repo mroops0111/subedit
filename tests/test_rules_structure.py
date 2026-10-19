@@ -117,3 +117,8 @@ def test_each_rule_can_be_disabled_independently(rule_id: str) -> None:
 def test_doc_comment_form_survives_decorators(decorator: str) -> None:
     source = f'# documents the public builder\n{decorator}def build(x):\n    return x\n'
     assert 'plain-comment-on-public' in ids(source)
+
+
+def test_a_reststructuredtext_returns_field_is_a_signature_tag() -> None:
+    source = 'def build(x):\n    """Build it.\n\n    :returns: the thing\n    """\n'
+    assert 'signature-restating-tag' in ids(source)

@@ -1,3 +1,4 @@
+import re
 import typing
 
 from ..models.comment import CommentForm, CommentGroup, CommentPlacement
@@ -107,10 +108,11 @@ class SignatureRestatingTagRule(Rule):
             )
             return
 
+    # A tag matches only as a whole word, so a short tag never claims a longer one that opens with it.
     def _first_matching_tag(self, text: str, signature_tags: tuple[str, ...]) -> str | None:
         stripped_text = text.strip()
         for matched_tag in signature_tags:
-            if stripped_text.startswith(matched_tag):
+            if re.match(re.escape(matched_tag) + r'(?![\w-])', stripped_text):
                 return matched_tag
         return None
 

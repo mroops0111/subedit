@@ -17,6 +17,13 @@ from .parsers import PYTHON, TSX, TYPESCRIPT, LanguageProfile, NodeRole, TreeSit
 
 LANGUAGES: tuple[LanguageProfile, ...] = (PYTHON, TYPESCRIPT, TSX)
 EXTENSIONS = frozenset(extension for language in LANGUAGES for extension in language.extensions)
+VENDOR_DIRECTORIES = frozenset(directory for language in LANGUAGES for directory in language.vendor_directories)
+SUFFIX_ALIASES = {
+    extension: language.canonical_extension
+    for language in LANGUAGES
+    for extension in language.extensions
+    if extension != language.canonical_extension
+}
 
 LAYOUT_RULES = (MidClauseBreakRule(), LineTooLongRule())
 REWRITE_RULES = (StubFragmentRule(), UnbreakableSentenceRule())
@@ -40,7 +47,7 @@ def language_for(path: pathlib.Path) -> LanguageProfile | None:
     return next((language for language in LANGUAGES if path.suffix in language.extensions), None)
 
 
-EXTERNAL_LINTERS = (ValeLinter(), AutoCorrectLinter())
+EXTERNAL_LINTERS = (ValeLinter(suffix_aliases=SUFFIX_ALIASES), AutoCorrectLinter(suffix_aliases=SUFFIX_ALIASES))
 
 __all__ = [
     'ALL_RULES',
@@ -54,8 +61,10 @@ __all__ = [
     'PYTHON',
     'REWRITE_RULES',
     'STRUCTURAL_RULES',
+    'SUFFIX_ALIASES',
     'TSX',
     'TYPESCRIPT',
+    'VENDOR_DIRECTORIES',
     'AutoCorrectLinter',
     'LanguageProfile',
     'NodeRole',
