@@ -6,8 +6,8 @@ from tree_sitter import Language, Node
 from ....domain.models.comment import SymbolKind, Visibility
 from ....domain.models.comment_layout import CommentLayout
 from ....domain.models.prose import PLAIN_MARKUP, ProseMarkup
-from ....domain.models.rule_set import DEFAULT_LINE_WIDTH
 from ....domain.ports.language_conventions import LanguageConventions
+from ...config_sources.formatter_width import WidthSetting
 
 
 class NodeRole(enum.Enum):
@@ -43,7 +43,8 @@ class LanguageProfile(LanguageConventions, GrammarAdapter):
     line_markup: ProseMarkup = PLAIN_MARKUP
     # A docstring lives inside what it documents, while a JSDoc block stands above it.
     doc_leads_declaration = False
-    default_line_width = DEFAULT_LINE_WIDTH
+    # Where the language's formatters set a line width, which subedit follows over a default of its own.
+    width_settings: tuple[WidthSetting, ...] = ()
     # Directories a package manager fills with code nobody in the project wrote.
     vendor_directories: frozenset[str] = frozenset()
 

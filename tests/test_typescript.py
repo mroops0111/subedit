@@ -173,8 +173,8 @@ def test_an_example_holds_code_rather_than_prose() -> None:
     assert len(group.code_ranges()) == 1
 
 
-def test_a_typescript_file_defaults_to_the_prettier_width(tmp_path: pathlib.Path) -> None:
-    assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.ts')).line_width == 80
+def test_typescript_and_python_share_a_default_width(tmp_path: pathlib.Path) -> None:
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.ts')).line_width == 120
     assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.py')).line_width == 120
 
 

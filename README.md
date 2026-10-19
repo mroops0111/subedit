@@ -117,13 +117,14 @@ Registering the hook with both agents is the normal case. Each agent names its e
 
 ## Languages
 
-| Language | Files | Doc comment | Default width |
+| Language | Files | Doc comment | Width read from |
 | --- | --- | --- | --- |
-| Python | `.py`, `.pyi` | `"""` docstring | 120 |
-| TypeScript | `.ts`, `.mts`, `.cts`, `.tsx` | `/** */` JSDoc | 80, as Prettier sets it |
+| Python | `.py`, `.pyi` | `"""` docstring | `line-length` for ruff or black |
+| TypeScript | `.ts`, `.mts`, `.cts`, `.tsx` | `/** */` JSDoc | `printWidth` for Prettier, `lineWidth` for Biome |
 
 A TypeScript symbol is public when it is exported, and a class member stays public unless it is `private`, `protected`, or `#named`.
-A JSDoc block keeps its frame when reflowed. Its tag section, from the first tag such as `@throws` onward, is left as written.
+A JSDoc block keeps its frame when reflowed. Its tag section, from the first tag such as `@throws` onward, is left as written, as a docstring's sections from `Args:`, `Parameters`, or `:param` onward are.
+A comment line that the language's own grammar reads as code, such as `// return result` or `# client.send(`, is left as written in either language.
 A plain `/* */` block and a directive such as `// eslint-disable-next-line` carry no prose for subedit to lay out, so only Vale reads the block, and nothing reads the directive.
 A directory walk skips dotted directories such as `.venv`, and the package directories each language installs into, such as `node_modules` or `venv`.
 
@@ -141,7 +142,7 @@ mid-clause-break = "error"
 block-too-long = { severity = "warning", line = 3, doc-public = 20 }
 ```
 
-Left unset, `line-width` takes the default of each file's language.
+Left unset, `line-width` follows the project's formatter, from the config the formatter would read for that file, and is 120 where no formatter sets one.
 
 Rule names describe the problem they report. `docs/rules.md` lists every rule, generated from the rules themselves.
 

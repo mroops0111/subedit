@@ -5,7 +5,10 @@ from tree_sitter import Language
 
 from ....domain.models.comment import CommentForm, SymbolKind, Visibility
 from ....domain.models.comment_layout import QUOTED_DOC_LAYOUT
+from ....domain.models.prose import ProseMarkup
 from ....domain.ports.language_conventions import DelimiterSplit
+from ...config_sources.formatter_width import WidthSetting
+from .code_line import GrammarCodeLine
 from .language_profile import LanguageProfile, NodeRole
 
 
@@ -13,6 +16,47 @@ _DOC_DELIMITER = re.compile(r'^([rRbBuUfF]{0,2})("""|\'\'\')')
 _HASH_DELIMITER = re.compile(r'^(#+\s?)')
 
 _LANGUAGE = Language(tree_sitter_python.language())
+
+# A clause that continues a block, a bracket opening or closing a call, or a doctest prompt is code,
+# though it cannot parse alone.
+_BLOCK_LINE = re.compile(
+    r'^\s*(?:(?:else|try|finally)\s*:|(?:elif|except)\b.*:|[)\]}]+[,:]?|(?:>>>|\.\.\.)(?:\s.*)?|.*[(\[{])\s*$'
+)
+_STATEMENT_TYPES = frozenset(
+    {
+        'call',
+        'await',
+        'assignment',
+        'augmented_assignment',
+        'return_statement',
+        'raise_statement',
+        'assert_statement',
+        'delete_statement',
+        'import_statement',
+        'import_from_statement',
+        'global_statement',
+        'nonlocal_statement',
+        'if_statement',
+        'for_statement',
+        'while_statement',
+        'with_statement',
+        'function_definition',
+        'class_definition',
+    }
+)
+# "Note: this" parses as an annotation with no value, which a label in prose reads as too.
+_CODE_LINE = GrammarCodeLine(
+    _LANGUAGE, _STATEMENT_TYPES, block_line=_BLOCK_LINE, required_fields={'assignment': 'right'}
+)
+# A Google section such as Args:, a NumPy one such as Parameters,
+# or a reStructuredText field such as :param opens the sections that close a docstring,
+# which hold entries rather than prose to lay out.
+_SECTION = re.compile(
+    r'^\s*(?:(?:Args|Arguments|Parameters|Params|Keyword Args|Keyword Arguments|Other Parameters|Returns?|Yields?'
+    r'|Raises|Exceptions?|Attributes|Examples?|Notes?|Warnings?|Warns|Todo|See Also|References|Methods):?\s*$'
+    r'|:(?:param|parameter|arg|argument|key|keyword|type|returns?|rtype|raises?|except|exception|var|ivar|cvar'
+    r'|vartype|yields?|ytype)\b|-{3,}\s*$)'
+)
 
 QUERY = """
 (comment) @comment
@@ -29,7 +73,15 @@ class PythonProfile(LanguageProfile):
     signature_tags = ('Args:', 'Returns:', 'Raises:', 'Yields:', ':param', ':return', ':returns', ':rtype')
     canonical_extension = '.py'
     doc_layout = QUOTED_DOC_LAYOUT
+    doc_markup = ProseMarkup(tag_section=_SECTION, example_tag='Example', code_line=_CODE_LINE)
+    line_markup = ProseMarkup(code_line=_CODE_LINE)
     vendor_directories = frozenset({'venv', 'site-packages', '__pypackages__'})
+    width_settings = (
+        WidthSetting('ruff.toml', ('line-length',)),
+        WidthSetting('.ruff.toml', ('line-length',)),
+        WidthSetting('pyproject.toml', ('tool', 'ruff', 'line-length')),
+        WidthSetting('pyproject.toml', ('tool', 'black', 'line-length')),
+    )
     _ROLES = {
         'module': NodeRole.ROOT,
         'comment': NodeRole.COMMENT,

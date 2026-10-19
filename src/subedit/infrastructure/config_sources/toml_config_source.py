@@ -1,10 +1,10 @@
 import fnmatch
 import pathlib
 import tomllib
-import typing
 
 from ...domain.models.rule_set import DEFAULT_LINE_WIDTH, RuleSet, RuleSettings
 from .config_schema import ConfigFile, RuleTable
+from .formatter_width import FormatterWidths
 
 
 CONFIG_NAME = 'subedit.toml'
@@ -15,11 +15,11 @@ class TomlConfigSource:
     def __init__(
         self,
         available_rule_ids: tuple[str, ...],
-        default_widths: typing.Mapping[str, int] | None = None,
+        formatter_widths: FormatterWidths | None = None,
         fallback_width: int = DEFAULT_LINE_WIDTH,
     ) -> None:
         self._available_rule_ids = available_rule_ids
-        self._default_widths = dict(default_widths or {})
+        self._formatter_widths = formatter_widths or FormatterWidths({})
         self._fallback_width = fallback_width
 
     def resolve(self, path: str) -> RuleSet:
@@ -32,8 +32,9 @@ class TomlConfigSource:
         return RuleSet(enabled_rule_ids=frozenset(self._available_rule_ids), line_width=self.default_width(path))
 
     def default_width(self, path: str) -> int:
-        """The width a file gets when no config sets one, which follows its language's formatter."""
-        return self._default_widths.get(pathlib.Path(path).suffix, self._fallback_width)
+        """The width a file gets when subedit's config sets none, which the project's formatter sets if it has one."""
+        formatter_width = self._formatter_widths.width_for(path)
+        return self._fallback_width if formatter_width is None else formatter_width
 
     def exclude_patterns(self, path: str) -> tuple[str, ...]:
         config_file = self._read(path)

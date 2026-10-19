@@ -1,6 +1,7 @@
 import dataclasses
 import itertools
 import re
+import typing
 
 
 # Abbreviations whose period does not end a sentence, written without that period.
@@ -60,12 +61,12 @@ class ProseMarkup:
     """What a language writes in its comments besides prose, which reflow leaves as written.
 
     A tag section, such as JSDoc's from its first @throws on, runs to the end of the comment.
-    An example tag's body is code, and so is a line commented out of a language whose statements look like one.
+    An example tag's body is code, and so is a line that the language's grammar reads as code commented out.
     """
 
     tag_section: re.Pattern[str] | None = None
     example_tag: str | None = None
-    code_line: re.Pattern[str] | None = None
+    code_line: typing.Callable[[str], bool] | None = None
 
     def opens_tag_section(self, line: str) -> bool:
         return self.tag_section is not None and bool(self.tag_section.match(line))
@@ -74,7 +75,7 @@ class ProseMarkup:
         return self.example_tag is not None and line.strip().startswith(self.example_tag)
 
     def is_code(self, line: str) -> bool:
-        return self.code_line is not None and bool(self.code_line.search(line))
+        return self.code_line is not None and self.code_line(line)
 
 
 PLAIN_MARKUP = ProseMarkup()
