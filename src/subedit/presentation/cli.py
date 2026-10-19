@@ -8,6 +8,7 @@ import typer
 from .. import __version__
 from ..application import CorpusMeter, CorpusStatistics, Fixer, Linter, ReportAggregator, RuleEngine
 from ..domain.models.document import Document
+from ..domain.models.text import source_lines
 from ..domain.ports.external_linter import ExternalLinter
 from ..infrastructure import (
     ALL_RULES,
@@ -191,12 +192,12 @@ def _diff(before: Document, after: Document) -> str:
     path = _file_path(before)
     return ''.join(
         difflib.unified_diff(
-            before.text.splitlines(keepends=True),
-            after.text.splitlines(keepends=True),
+            source_lines(before.text),
+            source_lines(after.text),
             fromfile=path,
             tofile=path,
         )
-    ).rstrip()
+    ).rstrip('\n')
 
 
 def _render(statistics: CorpusStatistics) -> str:

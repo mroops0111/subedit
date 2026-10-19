@@ -121,10 +121,11 @@ class Report:
         )
 
     def merged_with(self, other: 'Report') -> 'Report':
-        seen_keys: set[tuple[str, int, int]] = set()
+        seen_keys: set[tuple[str, int, int, str]] = set()
         merged_diagnostics: list[Diagnostic] = []
         for diagnostic in (*self.diagnostics, *other.diagnostics):
-            key = (diagnostic.rule_id, diagnostic.range.start, diagnostic.range.end)
+            # One rule can find several sentences in one block, and each finding carries its own message.
+            key = (diagnostic.rule_id, diagnostic.range.start, diagnostic.range.end, diagnostic.message)
             if key in seen_keys:
                 continue
             seen_keys.add(key)

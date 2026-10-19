@@ -106,3 +106,17 @@ def test_an_external_reference_warns_rather_than_fails(tmp_path: pathlib.Path) -
     )
     assert 'subedit.ExternalRef' in result.stdout
     assert result.returncode == 0, 'whether a reference is public is a judgment, so it must not fail the run'
+
+
+@pytest.mark.parametrize(('reference', 'flagged'), [('JIRA-123', True), ('FNV-1a', False)])
+def test_a_ticket_reference_ends_at_its_digits(tmp_path: pathlib.Path, reference: str, flagged: bool) -> None:
+    staged = tmp_path / 'ref.py'
+    staged.write_text(f'def f():\n    # Hash it with {reference} first.\n    pass\n', encoding='utf-8')
+    result = subprocess.run(
+        ['vale', '--output=line', f'--config={CONFIG}', str(staged)],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert ('subedit.ExternalRef' in result.stdout) is flagged

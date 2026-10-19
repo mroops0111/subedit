@@ -280,3 +280,43 @@ def test_an_inline_link_closing_a_jsdoc_line_is_prose() -> None:
 
 def test_the_typescript_extensions_alias_to_the_one_prose_tools_know() -> None:
     assert SUFFIX_ALIASES == {'.mts': '.ts', '.cts': '.ts', '.pyi': '.py'}
+
+
+def test_a_heading_over_several_fields_documents_none_of_them() -> None:
+    source = (
+        'export interface Services {\n'
+        '  // Infrastructure singletons.\n'
+        '  eventBus: EventBus;\n'
+        '  clock: Clock;\n'
+        '\n'
+        '  // The registry, which plugins fill.\n'
+        '  registry: Registry;\n'
+        '}\n'
+    )
+    assert ids(source) == ['plain-comment-on-public'], 'only the comment over a single field documents it'
+    assert lint(source).diagnostics[0].message.startswith('registry')
+
+
+def test_a_trailing_comment_gets_one_finding_for_its_width() -> None:
+    source = 'export function f() {\n  return new Promise(() => {}) // stall, as a killed process would, forever\n}\n'
+    assert ids(source, width=60) == ['line-too-long']
+
+
+def test_a_fix_never_pushes_a_wrapped_sentence_past_the_width() -> None:
+    source = (
+        '// NOTE: the earlier case is now blocked upstream by the scaffold check on\n'
+        '// the source roles before the batch ever runs. It stays as a guard.\n'
+        'export const x = 1;\n'
+    )
+    assert fixed(source) == source, 'joining the first sentence would run it to 113 characters'
+
+
+@pytest.mark.parametrize(
+    ('source', 'is_header'),
+    [
+        ("// Must stay first: it patches zod before any schema is built.\nimport './zod-openapi.js'\n", False),
+        ("// The schema package.\nimport { z } from 'zod'\n", True),
+    ],
+)
+def test_a_comment_over_an_import_run_for_its_effect_is_no_banner(source: str, is_header: bool) -> None:
+    assert ('file-header-comment' in ids(source + '\nexport const x = 1;\n')) is is_header

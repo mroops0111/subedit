@@ -16,6 +16,7 @@ from subedit.domain import (
     RuleSettings,
     Severity,
     SourceRange,
+    apply_edits,
 )
 from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, SUFFIX_ALIASES, AutoCorrectLinter, ValeLinter
 
@@ -239,3 +240,11 @@ def test_the_autocorrect_adapter_offers_an_edit_for_text_never_saved() -> None:
     assert len(found) == 1
     assert found[0].fix is not None and found[0].fix.kind is FixKind.TARGETED
     assert found[0].fix.edits[0].new_text == '# 今天下午 3 點開會'
+
+
+def test_autocorrect_edits_the_line_it_corrected_past_a_record_separator() -> None:
+    text = "const FORMAT = '%H\x1e%s'\n// 使用sse传输\n"
+    found = AutoCorrectLinter().run(Document(uri='file:///probe.ts', text=text, language_id='typescript'))
+    assert [apply_edits(text, item.fix.edits) for item in found if item.fix] == [
+        "const FORMAT = '%H\x1e%s'\n// 使用 sse 传输\n"
+    ]

@@ -168,14 +168,14 @@ class TreeSitterParser(SourceParser):
         return CommentPlacement.INLINE_BODY
 
     # A comment on the line right above a statement describes that statement, even at the top of a file.
-    # Imports are the exception, since a comment over them is a banner rather than a note on one import.
+    # Imports are the exception, since a comment over them is a banner rather than a note on one import,
+    # unless the import runs only for its effect, such as patching a library, which only a comment explains.
     def _touches_next_code(self, profile: LanguageProfile, node: Node) -> bool:
         candidate = node.next_named_sibling
-        return (
-            candidate is not None
-            and profile.role_of(candidate.type) not in (NodeRole.COMMENT, NodeRole.IMPORT)
-            and self._is_adjacent(node, candidate)
-        )
+        if candidate is None or not self._is_adjacent(node, candidate):
+            return False
+        role = profile.role_of(candidate.type)
+        return role is not NodeRole.COMMENT and (role is not NodeRole.IMPORT or profile.imports_for_effect(candidate))
 
     # A blank line between a comment and what follows sets the comment apart, as a section divider does.
     def _is_adjacent(self, upper: Node, lower: Node) -> bool:
@@ -224,6 +224,9 @@ class TreeSitterParser(SourceParser):
         )
         if definition_node is None:
             return None
+        # A plain comment over a run of declarations heads the run, so it documents none of them alone.
+        if not is_doc and self._heads_a_run(profile, definition_node):
+            return None
         declaration = self._find_named_declaration(profile, definition_node)
         if declaration is None:
             return None
@@ -235,6 +238,14 @@ class TreeSitterParser(SourceParser):
             name=name,
             kind=profile.symbol_kind(declaration.type),
             visibility=profile.visibility_of_declaration(declaration, name, exported),
+        )
+
+    def _heads_a_run(self, profile: LanguageProfile, definition_node: Node) -> bool:
+        following = definition_node.next_named_sibling
+        return (
+            following is not None
+            and profile.role_of(following.type) is NodeRole.DEFINITION
+            and self._is_adjacent(definition_node, following)
         )
 
     # A decorated definition wraps the real one and carries no name field of its own,

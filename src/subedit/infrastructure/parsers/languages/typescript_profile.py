@@ -99,6 +99,11 @@ class TypeScriptProfile(LanguageProfile):
     def visibility_of(self, name: str) -> Visibility:
         return Visibility.INTERNAL if name.startswith('#') else Visibility.PUBLIC
 
+    def imports_for_effect(self, node: Node) -> bool:
+        return node.type == 'import_statement' and not any(
+            child.type in ('import_clause', 'import_require_clause') for child in node.named_children
+        )
+
     def exported_names(self, root: Node) -> frozenset[str]:
         """The names exported apart from their declaration, as in "export { build }" or "export default build"."""
         names: set[str] = set()

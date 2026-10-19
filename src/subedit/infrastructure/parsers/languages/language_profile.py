@@ -47,6 +47,10 @@ class LanguageProfile(LanguageConventions, GrammarAdapter):
     # Directories a package manager fills with code nobody in the project wrote.
     vendor_directories: frozenset[str] = frozenset()
 
+    def imports_for_effect(self, node: Node) -> bool:
+        """Whether an import binds no name and runs only for its side effect, which a comment over it explains."""
+        return False
+
     def exported_names(self, root: Node) -> frozenset[str]:
         """The names a module exports apart from where it declares them, read once per parse."""
         return frozenset()
