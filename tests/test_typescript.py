@@ -320,3 +320,24 @@ def test_a_fix_never_pushes_a_wrapped_sentence_past_the_width() -> None:
 )
 def test_a_comment_over_an_import_run_for_its_effect_is_no_banner(source: str, is_header: bool) -> None:
     assert ('file-header-comment' in ids(source + '\nexport const x = 1;\n')) is is_header
+
+
+@pytest.mark.parametrize(
+    ('source', 'documented'),
+    [
+        (
+            'export interface S {\n  clock: Clock;\n  // The bus every sync trigger uses.\n  bus: Bus;\n  log: Log;\n}\n',
+            'bus',
+        ),
+        (
+            "// Absent or 'human' is a person who logs in.\n"
+            "export const UserKind = z.enum(['human']);\n"
+            'export type UserKind = z.infer<typeof UserKind>;\n',
+            'UserKind',
+        ),
+    ],
+)
+def test_a_comment_documents_the_one_declaration_under_it(source: str, documented: str) -> None:
+    findings = lint(source).diagnostics
+    assert [item.rule_id for item in findings] == ['plain-comment-on-public']
+    assert findings[0].message.startswith(documented)
