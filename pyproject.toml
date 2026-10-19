@@ -1,6 +1,6 @@
 [project]
 name = "subedit"
-version = "0.1.5"
+version = "0.2.0"
 description = "A linter and formatter for the prose inside code comments, across languages."
 authors = [
     {name = "Yun-Tai Yang"},
