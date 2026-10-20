@@ -1,7 +1,7 @@
 {
   "name": "subedit",
   "displayName": "subedit",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Repairs comment layout silently on write, and returns only what needs rewriting.",
   "author": {
     "name": "mroops0111"
