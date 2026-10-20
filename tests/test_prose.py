@@ -237,3 +237,19 @@ def test_an_appositive_is_no_list_item() -> None:
 def test_parallel_items_led_by_articles_still_form_a_list() -> None:
     lines = ('It feeds a cat, a dog,', 'and a bird every morning before the long walk.')
     assert break_cost(lines) == 1
+
+
+@pytest.mark.parametrize(
+    'text',
+    [
+        'Process-local pub/sub of `WorkspaceEvent`s. Subscribers register per workspace.',
+        'Stop both on Ctrl+C. Standalone, it runs the server alone.',
+        'Retry on HTTP 5xx-A. Then give up.',
+    ],
+)
+def test_a_letter_closing_a_longer_token_is_no_initial(text: str) -> None:
+    assert len(Prose(text).sentences()) == 2
+
+
+def test_an_initial_in_brackets_still_holds_its_sentence() -> None:
+    assert len(Prose('named after (J. Smith) originally').sentences()) == 1

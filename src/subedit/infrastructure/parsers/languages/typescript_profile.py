@@ -20,7 +20,10 @@ _DOC_CLOSING = '*/'
 # A plain /* */ block is usually a license header or a lint directive, so only // and /** */ are prose.
 # A directive such as eslint-disable-next-line, or a triple-slash reference, is read by a tool rather than a person.
 # Three stars open a banner rather than a doc comment.
-_DIRECTIVE = '^(///|//[ \t]*(eslint|@ts-|prettier-ignore|biome-ignore|istanbul |c8 |#region|#endregion))'
+_DIRECTIVE = (
+    '^(///|//[ \t]*(eslint|@ts-|prettier-ignore|biome-ignore|istanbul |c8 |#region|#endregion)'
+    '|/[*][ \t]*(eslint|prettier-ignore|biome-ignore|istanbul |c8 ))'
+)
 QUERY = f"""
 ((comment) @comment (#match? @comment "^//") (#not-match? @comment "{_DIRECTIVE}"))
 ((comment) @directive (#match? @directive "{_DIRECTIVE}"))
@@ -63,6 +66,7 @@ class TypeScriptProfile(LanguageProfile):
     doc_delimiter = '/**'
     doc_layout = FramedDocLayout(opening='/**', prefix=' * ', closing_line=' */')
     doc_leads_declaration = True
+    directive = re.compile(_DIRECTIVE)
     width_settings = (
         *(
             WidthSetting(name, ('printWidth',))

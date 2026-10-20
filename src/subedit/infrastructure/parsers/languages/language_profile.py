@@ -1,5 +1,6 @@
 import abc
 import enum
+import re
 
 from tree_sitter import Language, Node
 
@@ -47,6 +48,11 @@ class LanguageProfile(LanguageConventions, GrammarAdapter):
     width_settings: tuple[WidthSetting, ...] = ()
     # Directories a package manager fills with code nobody in the project wrote.
     vendor_directories: frozenset[str] = frozenset()
+    # A comment a tool reads, such as eslint-disable or noqa, which the query sets apart from prose.
+    directive: re.Pattern[str] | None = None
+
+    def is_directive(self, node: Node) -> bool:
+        return self.directive is not None and bool(self.directive.match((node.text or b'').decode('utf-8')))
 
     def imports_for_effect(self, node: Node) -> bool:
         """Whether an import binds no name and runs only for its side effect, which a comment over it explains."""

@@ -124,3 +124,25 @@ def test_one_line_of_code_is_code_in_both_languages(line: str) -> None:
 )
 def test_a_block_set_two_spaces_in_is_left_as_laid_out(source: str, language_id: str) -> None:
     assert fixed(source, language_id) == source
+
+
+@pytest.mark.parametrize(
+    ('source', 'language_id'),
+    [
+        (
+            '// Fixture strings hold literal placeholders the gateway expands.\n'
+            '/* eslint-disable no-template-curly-in-string */\nimport { describe } from "vitest";\n',
+            'typescript',
+        ),
+        (
+            '# Fixture strings hold literal placeholders the gateway expands.\n'
+            '# pylint: disable=consider-using-f-string\nimport os\n',
+            'python',
+        ),
+    ],
+)
+def test_a_comment_explaining_a_file_wide_directive_is_no_file_header(source: str, language_id: str) -> None:
+    suffix = '.py' if language_id == 'python' else '.ts'
+    document = Document(uri=f'file:///a{suffix}', text=source, language_id=language_id)
+    report = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).run(document, RuleSet(enabled_rule_ids=ENABLED))
+    assert 'file-header-comment' not in [item.rule_id for item in report.diagnostics]

@@ -181,12 +181,15 @@ class TreeSitterParser(SourceParser):
     # A comment on the line right above a statement describes that statement, even at the top of a file.
     # Imports are the exception, since a comment over them is a banner rather than a note on one import,
     # unless the import runs only for its effect, such as patching a library, which only a comment explains.
+    # A directive such as eslint-disable governs what follows it, so the comment over it explains the directive.
     def _touches_next_code(self, profile: LanguageProfile, node: Node) -> bool:
         candidate = node.next_named_sibling
         if candidate is None or not self._is_adjacent(node, candidate):
             return False
         role = profile.role_of(candidate.type)
-        return role is not NodeRole.COMMENT and (role is not NodeRole.IMPORT or profile.imports_for_effect(candidate))
+        if role is NodeRole.COMMENT:
+            return profile.is_directive(candidate)
+        return role is not NodeRole.IMPORT or profile.imports_for_effect(candidate)
 
     # A blank line between a comment and what follows sets the comment apart, as a section divider does.
     def _is_adjacent(self, upper: Node, lower: Node) -> bool:

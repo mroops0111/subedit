@@ -30,6 +30,7 @@ _FENCE = re.compile(r'^\s*(```|~~~)')
 _LIST_DELIMITER = re.compile(r'^\s*(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s')
 _LITERAL_DELIMITER = '\\b'
 _CLOSING_MARKS = '"\')]}'
+_OPENING_MARKS = '"\'([{'
 _APOSTROPHES = ("'", '\u2019')
 
 # Only before a number, since "No. 5" abbreviates while a trailing no ends its sentence.
@@ -237,9 +238,18 @@ class Prose:
             return False
         if word == NUMBER_ABBREVIATION and text[offset + 1 :].lstrip()[:1].isdigit():
             return False
-        if trailing_word and len(trailing_word.group(1).replace('.', '')) == 1:
+        if (
+            trailing_word
+            and len(trailing_word.group(1).replace('.', '')) == 1
+            and self._stands_alone(text, trailing_word)
+        ):
             return False
         return self._followed_by_break(text, offset)
+
+    # An initial stands as a word of its own, so a letter closing Ctrl+C or a plural such as `Event`s is none.
+    def _stands_alone(self, text: str, trailing_word: re.Match[str]) -> bool:
+        before = text[: trailing_word.start()]
+        return not before or before[-1].isspace() or before[-1] in _OPENING_MARKS
 
     def _followed_by_break(self, text: str, offset: int) -> bool:
         rest = text[offset + 1 :]

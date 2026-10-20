@@ -76,6 +76,7 @@ class PythonProfile(LanguageProfile):
     signature_tags = ('Args:', 'Returns:', 'Raises:', 'Yields:', ':param', ':return', ':returns', ':rtype')
     canonical_extension = '.py'
     doc_layout = QUOTED_DOC_LAYOUT
+    directive = re.compile(_DIRECTIVE)
     doc_markup = ProseMarkup(tag_section=_SECTION, example_tag='Example', code_line=_CODE_LINE)
     line_markup = ProseMarkup(code_line=_CODE_LINE)
     vendor_directories = frozenset({'venv', 'site-packages', '__pypackages__'})
