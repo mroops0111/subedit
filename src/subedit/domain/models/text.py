@@ -10,6 +10,19 @@ class TextEdit:
     new_text: str
 
 
+def source_lines(text: str) -> list[str]:
+    """The lines a source file holds, each with its newline, split where a newline falls and nowhere else.
+
+    str.splitlines also splits at characters such as a form feed or a record separator,
+    which leave a line's number out of step with what an editor, patch, and PositionMap count.
+    """
+    pieces = text.split('\n')
+    lines = [piece + '\n' for piece in pieces[:-1]]
+    if pieces[-1]:
+        lines.append(pieces[-1])
+    return lines
+
+
 def apply_edits(text: str, edits: tuple[TextEdit, ...]) -> str:
     if not edits:
         return text

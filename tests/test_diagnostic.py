@@ -99,3 +99,12 @@ def test_merging_records_every_unavailable_source_once() -> None:
 
 def test_severity_orders_by_urgency() -> None:
     assert Severity.ERROR > Severity.WARNING > Severity.SUGGESTION
+
+
+def test_a_merge_keeps_each_finding_one_rule_makes_in_one_block() -> None:
+    first, second = (
+        Diagnostic(rule_id='unbreakable-sentence', range=SourceRange(0, 9), message=message)
+        for message in ('the first sentence', 'the second sentence')
+    )
+    assert Report((first, second)).merged_with(Report()).diagnostics == (first, second)
+    assert Report((first,)).merged_with(Report((first,))).diagnostics == (first,)

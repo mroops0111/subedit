@@ -1,6 +1,7 @@
 import pytest
 
 from subedit.domain import Document, SourceRange, TextEdit, apply_edits
+from subedit.domain.models.text import source_lines
 
 
 def edit(start: int, end: int, new_text: str) -> TextEdit:
@@ -59,3 +60,10 @@ def test_document_maps_positions_and_bumps_version_on_change() -> None:
 def test_document_accepts_an_explicit_version() -> None:
     document = Document(uri='file:///a.ts', text='a', language_id='typescript')
     assert document.with_text('b', version=42).version == 42
+
+
+@pytest.mark.parametrize('text', ['', 'a', 'a\n', 'a\nb', 'a\n\nb\n', 'log\x1erecord\nnext\x0cpage\n'])
+def test_source_lines_split_only_at_newlines(text: str) -> None:
+    lines = source_lines(text)
+    assert ''.join(lines) == text
+    assert len(lines) == text.count('\n') + (not text.endswith('\n') and bool(text))

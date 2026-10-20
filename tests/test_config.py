@@ -1,7 +1,9 @@
 import pathlib
 
+import pytest
+
 from subedit.domain import Severity
-from subedit.infrastructure import CONFIG_NAME, TomlConfigSource
+from subedit.infrastructure import CONFIG_NAME, DEFAULT_CONFIG_SOURCE, TomlConfigSource
 
 
 AVAILABLE = ('mid-clause-break', 'line-too-long', 'stub-fragment')
@@ -106,3 +108,48 @@ def test_a_dedicated_file_wins_over_pyproject(tmp_path: pathlib.Path) -> None:
     (tmp_path / PYPROJECT).write_text('[tool.subedit]\nline-width = 96\n', encoding='utf-8')
     target = write(tmp_path, '[subedit]\nline-width = 70\n')
     assert source().resolve(str(target)).line_width == 70
+
+
+@pytest.mark.parametrize(
+    ('file_name', 'body', 'suffix', 'width'),
+    [
+        ('pyproject.toml', '[tool.ruff]\nline-length = 88\n', '.py', 88),
+        ('pyproject.toml', '[tool.black]\nline-length = 100\n', '.py', 100),
+        ('ruff.toml', 'line-length = 79\n', '.py', 79),
+        ('.prettierrc', '{ "printWidth": 100 }\n', '.ts', 100),
+        ('.prettierrc', 'printWidth: 90\nsemi: false\n', '.ts', 90),
+        ('.prettierrc.toml', 'printWidth = 110\n', '.tsx', 110),
+        ('package.json', '{ "name": "a", "prettier": { "printWidth": 96 } }\n', '.ts', 96),
+        (
+            'biome.jsonc',
+            '{\n  // the schema keeps its URL\n  "$schema": "https://biomejs.dev/schema.json",\n'
+            '  "formatter": { "lineWidth": 100, },\n}\n',
+            '.ts',
+            100,
+        ),
+    ],
+)
+def test_the_width_follows_the_project_formatter(
+    tmp_path: pathlib.Path, file_name: str, body: str, suffix: str, width: int
+) -> None:
+    (tmp_path / file_name).write_text(body, encoding='utf-8')
+    nested = tmp_path / 'src'
+    nested.mkdir()
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(nested / f'a{suffix}')).line_width == width
+
+
+def test_one_language_formatter_leaves_the_other_language_alone(tmp_path: pathlib.Path) -> None:
+    (tmp_path / '.prettierrc').write_text('{ "printWidth": 80 }\n', encoding='utf-8')
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.py')).line_width == 120
+
+
+def test_a_formatter_left_at_its_default_sets_no_width(tmp_path: pathlib.Path) -> None:
+    (tmp_path / 'pyproject.toml').write_text('[tool.ruff]\ntarget-version = "py311"\n', encoding='utf-8')
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.py')).line_width == 120
+
+
+def test_subedit_config_sets_the_width_over_the_formatter(tmp_path: pathlib.Path) -> None:
+    (tmp_path / 'pyproject.toml').write_text(
+        '[tool.ruff]\nline-length = 88\n\n[tool.subedit]\nline-width = 100\n', encoding='utf-8'
+    )
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.py')).line_width == 100

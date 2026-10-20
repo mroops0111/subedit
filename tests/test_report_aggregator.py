@@ -16,6 +16,7 @@ from subedit.domain import (
     RuleSettings,
     Severity,
     SourceRange,
+    apply_edits,
 )
 from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, SUFFIX_ALIASES, AutoCorrectLinter, ValeLinter
 
@@ -239,3 +240,36 @@ def test_the_autocorrect_adapter_offers_an_edit_for_text_never_saved() -> None:
     assert len(found) == 1
     assert found[0].fix is not None and found[0].fix.kind is FixKind.TARGETED
     assert found[0].fix.edits[0].new_text == '# 今天下午 3 點開會'
+
+
+def test_autocorrect_edits_the_line_it_corrected_past_a_record_separator() -> None:
+    text = "const FORMAT = '%H\x1e%s'\n// 使用sse传输\n"
+    found = AutoCorrectLinter().run(Document(uri='file:///probe.ts', text=text, language_id='typescript'))
+    assert [apply_edits(text, item.fix.edits) for item in found if item.fix] == [
+        "const FORMAT = '%H\x1e%s'\n// 使用 sse 传输\n"
+    ]
+
+
+@pytest.mark.skipif(shutil.which('vale') is None, reason='vale is not installed')
+@pytest.mark.parametrize(
+    ('text', 'language_id', 'suffix'),
+    [
+        (
+            '// @ts-expect-error the source has no types; callers exercise it.\nimport { a } from "./a.mjs";\n',
+            'typescript',
+            '.ts',
+        ),
+        ('import os  # noqa: F401 kept for its side effect; nothing calls it\n', 'python', '.py'),
+    ],
+)
+def test_vale_leaves_a_directive_alone_as_the_native_rules_do(
+    tmp_path: pathlib.Path, text: str, language_id: str, suffix: str
+) -> None:
+    linter = ReportAggregator(
+        Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (ValeLinter(suffix_aliases=SUFFIX_ALIASES),)
+    )
+    report = linter.run(
+        Document(uri=(tmp_path / f'a{suffix}').as_uri(), text=text, language_id=language_id),
+        RuleSet(enabled_rule_ids=ENABLED),
+    )
+    assert report.diagnostics == (), 'a tool reads the directive, so no rule reads its reason as prose'

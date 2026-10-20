@@ -204,3 +204,17 @@ def test_check_passes_when_only_warnings_remain(tmp_path: pathlib.Path, capsys: 
 
     assert 'warning  file-header-comment' in capsys.readouterr().out
     assert exit_info.value.code == 0, 'a warning shows in the output but does not fail the run'
+
+
+def test_a_diff_keeps_a_blank_last_context_line(tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]) -> None:
+    target = tmp_path / 'bad.py'
+    target.write_text(
+        'def f():\n    # cap the size so the mmap does not\n    # blow past it, an unbounded value faults.\n    pass\n\n\nx = 1\n',
+        encoding='utf-8',
+    )
+    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 60\n', encoding='utf-8')
+
+    with pytest.raises(SystemExit):
+        app(['fix', '--no-delegate', str(target)])
+    hunk = capsys.readouterr().out.split('@@')[-1]
+    assert hunk.endswith('\n \n'), 'patch counts a blank context line, so dropping it makes the hunk short'

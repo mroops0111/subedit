@@ -6,7 +6,7 @@ import autocorrect_py
 from ...domain.models.diagnostic import Diagnostic, Fix, Severity
 from ...domain.models.document import Document
 from ...domain.models.position import Position, SourceRange
-from ...domain.models.text import TextEdit
+from ...domain.models.text import TextEdit, source_lines
 from ...domain.ports.external_linter import ExternalLinter
 from .source_path import as_known_path
 
@@ -59,8 +59,8 @@ class AutoCorrectLinter(ExternalLinter):
         autocorrect_py.load_config(config_text)  # pyright: ignore[reportAttributeAccessIssue]
 
     def _diff_lines(self, document: Document, corrected_text: str) -> tuple[Diagnostic, ...]:
-        original_lines = document.text.splitlines(keepends=True)
-        corrected_lines = corrected_text.splitlines(keepends=True)
+        original_lines = source_lines(document.text)
+        corrected_lines = source_lines(corrected_text)
         if len(original_lines) != len(corrected_lines):
             return ()
         diagnostics: list[Diagnostic] = []

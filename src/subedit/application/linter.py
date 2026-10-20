@@ -1,7 +1,7 @@
 import dataclasses
 
 from ..domain.models.comment import CommentGroup
-from ..domain.models.diagnostic import Diagnostic, Report
+from ..domain.models.diagnostic import Diagnostic, Report, Severity
 from ..domain.models.document import Document
 from ..domain.models.prose_map import ProseMap
 from ..domain.models.rule_set import RuleSet
@@ -27,7 +27,13 @@ class RuleEngine:
         return tuple(diagnostics)
 
     def _with_severity(self, diagnostic: Diagnostic, rule: Rule, rule_set: RuleSet) -> Diagnostic:
-        severity = rule_set.severity_for(rule.metadata)
+        configured = rule_set.settings_for(rule.metadata.rule_id).severity
+        if configured is not None:
+            severity = configured
+        elif diagnostic.tentative:
+            severity = Severity.WARNING
+        else:
+            severity = rule.metadata.default_severity
         if diagnostic.severity is severity:
             return diagnostic
         return dataclasses.replace(diagnostic, severity=severity)
@@ -64,4 +70,5 @@ class Linter:
         groups = self._parser.parse(document)
         diagnostics = self._engine.run(document, groups, rule_set)
         sorted_diagnostics = sorted(diagnostics, key=lambda item: (item.range.start, item.rule_id))
-        return Inspection(Report(tuple(sorted_diagnostics)), ProseMap.of_comments(groups))
+        prose_map = ProseMap.of_comments(groups, self._parser.directive_ranges(document))
+        return Inspection(Report(tuple(sorted_diagnostics)), prose_map)

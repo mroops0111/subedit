@@ -15,11 +15,14 @@ class ProseMap:
 
     editable: tuple[SourceRange, ...] = ()
     code: tuple[SourceRange, ...] = ()
+    # A directive's text, such as the reason after @ts-expect-error, is read by a tool, so nothing reads it as prose.
+    directives: tuple[SourceRange, ...] = ()
 
     @classmethod
-    def of_comments(cls, groups: tuple[CommentGroup, ...]) -> 'ProseMap':
+    def of_comments(cls, groups: tuple[CommentGroup, ...], directives: tuple[SourceRange, ...] = ()) -> 'ProseMap':
         """A trailing comment shares its line with code, so only a comment standing on its own lines is editable."""
         return cls(
+            directives=directives,
             editable=tuple(
                 line.range
                 for group in groups
@@ -31,7 +34,7 @@ class ProseMap:
 
     def admits(self, diagnostic: Diagnostic) -> bool:
         """Whether a finding reads prose rather than code, and any edit it offers stays on lines of prose."""
-        if any(code_range.start <= diagnostic.range.start < code_range.end for code_range in self.code):
+        if any(region.start <= diagnostic.range.start < region.end for region in (*self.code, *self.directives)):
             return False
         if diagnostic.fix is None:
             return True

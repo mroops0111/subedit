@@ -3,7 +3,7 @@ message: "Reference '%s' may be a ticket a reader cannot open. Keep a public ide
 level: warning
 nonword: true
 tokens:
-  - '[A-Z]{2,}-\d+'
+  - '[A-Z]{2,}-\d+\b'
 # Standards and encodings are names a reader can look up, not tickets.
 exceptions:
   - 'ISO-\d+'

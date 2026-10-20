@@ -226,7 +226,7 @@ def test_a_leading_declaration_comment_always_names_what_it_documents(source: st
 
 
 def test_a_trailing_comment_never_documents_the_declaration_below_it() -> None:
-    source = 'TOKEN = 1  # noqa: S105\n\n\nclass TokenSource:\n    pass\n'
+    source = 'TOKEN = 1  # a placeholder the tests swap out\n\n\nclass TokenSource:\n    pass\n'
     trailing = parse(source)[0]
 
     assert trailing.placement is CommentPlacement.TRAILING

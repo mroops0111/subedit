@@ -3,7 +3,16 @@ import pathlib
 import pytest
 
 from subedit.application import Linter, RuleEngine
-from subedit.domain import CommentForm, CommentPlacement, Document, RuleSet, Visibility, apply_edits
+from subedit.domain import (
+    CommentForm,
+    CommentPlacement,
+    Document,
+    RuleSet,
+    RuleSettings,
+    Severity,
+    Visibility,
+    apply_edits,
+)
 from subedit.infrastructure import (
     ALL_RULES,
     DEFAULT_CONFIG_SOURCE,
@@ -173,8 +182,8 @@ def test_an_example_holds_code_rather_than_prose() -> None:
     assert len(group.code_ranges()) == 1
 
 
-def test_a_typescript_file_defaults_to_the_prettier_width(tmp_path: pathlib.Path) -> None:
-    assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.ts')).line_width == 80
+def test_typescript_and_python_share_a_default_width(tmp_path: pathlib.Path) -> None:
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.ts')).line_width == 120
     assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.py')).line_width == 120
 
 
@@ -280,3 +289,96 @@ def test_an_inline_link_closing_a_jsdoc_line_is_prose() -> None:
 
 def test_the_typescript_extensions_alias_to_the_one_prose_tools_know() -> None:
     assert SUFFIX_ALIASES == {'.mts': '.ts', '.cts': '.ts', '.pyi': '.py'}
+
+
+def test_a_heading_over_several_fields_documents_none_of_them() -> None:
+    source = (
+        'export interface Services {\n'
+        '  // Infrastructure singletons.\n'
+        '  eventBus: EventBus;\n'
+        '  clock: Clock;\n'
+        '\n'
+        '  // The registry, which plugins fill.\n'
+        '  registry: Registry;\n'
+        '}\n'
+    )
+    assert ids(source) == ['plain-comment-on-public'], 'only the comment over a single field documents it'
+    assert lint(source).diagnostics[0].message.startswith('registry')
+
+
+def test_a_trailing_comment_gets_one_finding_for_its_width() -> None:
+    source = 'export function f() {\n  return new Promise(() => {}) // stall, as a killed process would, forever\n}\n'
+    assert ids(source, width=60) == ['line-too-long']
+
+
+def test_a_fix_never_pushes_a_wrapped_sentence_past_the_width() -> None:
+    source = (
+        '// NOTE: the earlier case is now blocked upstream by the scaffold check on\n'
+        '// the source roles before the batch ever runs. It stays as a guard.\n'
+        'export const x = 1;\n'
+    )
+    assert fixed(source) == source, 'joining the first sentence would run it to 113 characters'
+
+
+@pytest.mark.parametrize(
+    ('source', 'is_header'),
+    [
+        ("// Must stay first: it patches zod before any schema is built.\nimport './zod-openapi.js'\n", False),
+        ("// The schema package.\nimport { z } from 'zod'\n", True),
+    ],
+)
+def test_a_comment_over_an_import_run_for_its_effect_is_no_banner(source: str, is_header: bool) -> None:
+    assert ('file-header-comment' in ids(source + '\nexport const x = 1;\n')) is is_header
+
+
+@pytest.mark.parametrize(
+    ('source', 'documented'),
+    [
+        (
+            'export interface S {\n  clock: Clock;\n  // The bus every sync trigger uses.\n  bus: Bus;\n  log: Log;\n}\n',
+            'bus',
+        ),
+        (
+            "// Absent or 'human' is a person who logs in.\n"
+            "export const UserKind = z.enum(['human']);\n"
+            'export type UserKind = z.infer<typeof UserKind>;\n',
+            'UserKind',
+        ),
+    ],
+)
+def test_a_comment_documents_the_one_declaration_under_it(source: str, documented: str) -> None:
+    findings = lint(source).diagnostics
+    assert [item.rule_id for item in findings] == ['plain-comment-on-public']
+    assert findings[0].message.startswith(documented)
+
+
+MID_PARAGRAPH_HEADING = (
+    'export interface Services {\n'
+    '  outputGate: Gate;\n'
+    '  // Core services, always present.\n'
+    '  workspaceService: WorkspaceService;\n'
+    '  hitlService: HITLService;\n'
+    '}\n'
+)
+
+
+def test_a_comment_that_may_head_a_group_is_advice_rather_than_a_block() -> None:
+    [finding] = lint(MID_PARAGRAPH_HEADING).diagnostics
+    assert finding.severity is Severity.WARNING, 'right under a field, it reads as a heading or as a field note'
+    assert 'heads the declarations below it as a group' in finding.message
+
+
+def test_a_comment_over_one_field_right_under_another_still_blocks() -> None:
+    source = 'export interface Services {\n  outputGate: Gate;\n  // Required for replay.\n  runs: Runs;\n}\n'
+    [finding] = lint(source).diagnostics
+    assert finding.severity is Severity.ERROR
+
+
+def test_a_configured_severity_holds_for_a_tentative_finding_too() -> None:
+    enabled = frozenset(rule.metadata.rule_id for rule in ALL_RULES)
+    rule_set = RuleSet(
+        enabled_rule_ids=enabled, settings={'plain-comment-on-public': RuleSettings(severity=Severity.ERROR)}
+    )
+    document = Document(uri='file:///a.ts', text=MID_PARAGRAPH_HEADING, language_id='typescript')
+    [finding] = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).run(document, rule_set).diagnostics
+    assert finding.severity is Severity.ERROR

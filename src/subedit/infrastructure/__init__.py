@@ -10,7 +10,7 @@ from ..domain.rules import (
     StubFragmentRule,
     UnbreakableSentenceRule,
 )
-from .config_sources import CONFIG_NAME, TomlConfigSource
+from .config_sources import CONFIG_NAME, FormatterWidths, TomlConfigSource
 from .linters import AutoCorrectLinter, ValeLinter
 from .parsers import PYTHON, TSX, TYPESCRIPT, LanguageProfile, NodeRole, TreeSitterParser
 
@@ -38,7 +38,9 @@ ALL_RULES = LAYOUT_RULES + REWRITE_RULES + STRUCTURAL_RULES
 DEFAULT_PARSER = TreeSitterParser(LANGUAGES)
 DEFAULT_CONFIG_SOURCE = TomlConfigSource(
     tuple(rule.metadata.rule_id for rule in ALL_RULES),
-    {extension: language.default_line_width for language in LANGUAGES for extension in language.extensions},
+    FormatterWidths(
+        {extension: language.width_settings for language in LANGUAGES for extension in language.extensions}
+    ),
 )
 
 

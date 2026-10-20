@@ -1,6 +1,6 @@
 import typing
 
-from ..models.comment import CommentGroup
+from ..models.comment import CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.prose import Prose, reflow_sentence
 from ..ports.rule import Rule, RuleContext
@@ -60,6 +60,9 @@ class StubFragmentRule(Rule):
     metadata = STUB_FRAGMENT
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
+        # A trailing comment never breaks, so a rule judging where a sentence breaks leaves it to line-too-long.
+        if group.placement is CommentPlacement.TRAILING:
+            return
         minimum_length = stub_floor(context)
         for index, (sentence, budget) in enumerate(budgeted_sentences(group, context)):
             if is_summary(group, index):
@@ -87,6 +90,9 @@ class UnbreakableSentenceRule(Rule):
     metadata = UNBREAKABLE_SENTENCE
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
+        # A trailing comment never breaks, so its width is line-too-long's to judge.
+        if group.placement is CommentPlacement.TRAILING:
+            return
         sentences = budgeted_sentences(group, context)
         for index, (sentence, budget) in enumerate(sentences):
             if is_summary(group, index):

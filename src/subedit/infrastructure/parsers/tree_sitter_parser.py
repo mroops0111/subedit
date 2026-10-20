@@ -11,6 +11,7 @@ from .languages import LanguageProfile, NodeRole
 # A query that names them otherwise yields nothing, silently.
 COMMENT_CAPTURE = 'comment'
 DOC_CAPTURE = 'doc'
+DIRECTIVE_CAPTURE = 'directive'
 
 
 class TreeSitterParser(SourceParser):
@@ -47,11 +48,21 @@ class TreeSitterParser(SourceParser):
         )
         return tuple(sorted(comment_groups, key=lambda group: group.range.start))
 
+    def directive_ranges(self, document: Document) -> tuple[SourceRange, ...]:
+        profile = self._profiles.get(document.language_id)
+        if profile is None:
+            return ()
+        tree = Parser(profile.language()).parse(document.text.encode('utf-8'))
+        return tuple(
+            SourceRange(node.start_byte, node.end_byte)
+            for node in self._run_query(profile, tree.root_node)[DIRECTIVE_CAPTURE]
+        )
+
     def _run_query(self, profile: LanguageProfile, root: Node) -> dict[str, list[Node]]:
         query = Query(profile.language(), profile.query())
         captures_by_name = QueryCursor(query).captures(root)
         # A node can match several patterns at once, so the same byte offset arrives twice.
-        grouped_captures: dict[str, list[Node]] = {COMMENT_CAPTURE: [], DOC_CAPTURE: []}
+        grouped_captures: dict[str, list[Node]] = {COMMENT_CAPTURE: [], DOC_CAPTURE: [], DIRECTIVE_CAPTURE: []}
         for name, nodes in captures_by_name.items():
             grouped_captures.setdefault(name, []).extend(nodes)
         for name, nodes in grouped_captures.items():
@@ -96,7 +107,7 @@ class TreeSitterParser(SourceParser):
             lines=lines,
             form=CommentForm.LINE,
             placement=placement,
-            attachment=self._resolve_attachment(profile, nodes[-1], exported, is_doc=False)
+            attachment=self._resolve_attachment(profile, nodes[-1], exported, is_doc=False, opening=nodes[0])
             if placement is CommentPlacement.LEADING_DECLARATION
             else None,
             markup=profile.line_markup,
@@ -168,14 +179,14 @@ class TreeSitterParser(SourceParser):
         return CommentPlacement.INLINE_BODY
 
     # A comment on the line right above a statement describes that statement, even at the top of a file.
-    # Imports are the exception, since a comment over them is a banner rather than a note on one import.
+    # Imports are the exception, since a comment over them is a banner rather than a note on one import,
+    # unless the import runs only for its effect, such as patching a library, which only a comment explains.
     def _touches_next_code(self, profile: LanguageProfile, node: Node) -> bool:
         candidate = node.next_named_sibling
-        return (
-            candidate is not None
-            and profile.role_of(candidate.type) not in (NodeRole.COMMENT, NodeRole.IMPORT)
-            and self._is_adjacent(node, candidate)
-        )
+        if candidate is None or not self._is_adjacent(node, candidate):
+            return False
+        role = profile.role_of(candidate.type)
+        return role is not NodeRole.COMMENT and (role is not NodeRole.IMPORT or profile.imports_for_effect(candidate))
 
     # A blank line between a comment and what follows sets the comment apart, as a section divider does.
     def _is_adjacent(self, upper: Node, lower: Node) -> bool:
@@ -216,7 +227,13 @@ class TreeSitterParser(SourceParser):
 
     # Only a leading declaration documents a symbol, and CommentGroup rejects any other pairing.
     def _resolve_attachment(
-        self, profile: LanguageProfile, node: Node, exported: frozenset[str], *, is_doc: bool
+        self,
+        profile: LanguageProfile,
+        node: Node,
+        exported: frozenset[str],
+        *,
+        is_doc: bool,
+        opening: Node | None = None,
     ) -> SymbolRef | None:
         lives_inside = is_doc and not profile.doc_leads_declaration
         definition_node = (
@@ -224,18 +241,43 @@ class TreeSitterParser(SourceParser):
         )
         if definition_node is None:
             return None
+        over_a_run = not is_doc and opening is not None and self._runs_over_several(profile, definition_node)
+        if over_a_run and opening is not None and self._opens_a_paragraph(opening):
+            return None
         declaration = self._find_named_declaration(profile, definition_node)
-        if declaration is None:
+        name = self._declared_name(declaration)
+        if declaration is None or name is None:
             return None
-        name_node = declaration.child_by_field_name('name')
-        if name_node is None or name_node.text is None:
-            return None
-        name = name_node.text.decode('utf-8')
         return SymbolRef(
             name=name,
             kind=profile.symbol_kind(declaration.type),
             visibility=profile.visibility_of_declaration(declaration, name, exported),
+            may_head_a_group=over_a_run,
         )
+
+    # A plain comment opening a paragraph over a run of declarations heads the run, so it documents none alone.
+    # One right under code reads either way, as a field's note or as a group's heading.
+    def _opens_a_paragraph(self, opening: Node) -> bool:
+        above = opening.prev_named_sibling
+        return above is None or not self._is_adjacent(above, opening)
+
+    # A value and a type of the same name, as zod pairs a schema with its inferred type, are one declaration.
+    def _runs_over_several(self, profile: LanguageProfile, definition_node: Node) -> bool:
+        name = self._declared_name(self._find_named_declaration(profile, definition_node))
+        previous, following = definition_node, definition_node.next_named_sibling
+        while following is not None and self._is_adjacent(previous, following):
+            if profile.role_of(following.type) is not NodeRole.DEFINITION:
+                return False
+            if self._declared_name(self._find_named_declaration(profile, following)) != name:
+                return True
+            previous, following = following, following.next_named_sibling
+        return False
+
+    def _declared_name(self, declaration: Node | None) -> str | None:
+        name_node = declaration.child_by_field_name('name') if declaration is not None else None
+        if name_node is None or name_node.text is None:
+            return None
+        return name_node.text.decode('utf-8')
 
     # A decorated definition wraps the real one and carries no name field of its own,
     # so the search descends until it reaches whichever node actually names something.

@@ -7,6 +7,8 @@ from ....domain.models.comment import CommentForm, SymbolKind, Visibility
 from ....domain.models.comment_layout import FramedDocLayout
 from ....domain.models.prose import ProseMarkup
 from ....domain.ports.language_conventions import DelimiterSplit
+from ...config_sources.formatter_width import WidthSetting
+from .code_line import GrammarCodeLine
 from .language_profile import LanguageProfile, NodeRole
 
 
@@ -18,10 +20,10 @@ _DOC_CLOSING = '*/'
 # A plain /* */ block is usually a license header or a lint directive, so only // and /** */ are prose.
 # A directive such as eslint-disable-next-line, or a triple-slash reference, is read by a tool rather than a person.
 # Three stars open a banner rather than a doc comment.
-QUERY = """
-((comment) @comment
-  (#match? @comment "^//")
-  (#not-match? @comment "^(///|//[ \t]*(eslint|@ts-|prettier-ignore|biome-ignore|istanbul |c8 |#region|#endregion))"))
+_DIRECTIVE = '^(///|//[ \t]*(eslint|@ts-|prettier-ignore|biome-ignore|istanbul |c8 |#region|#endregion))'
+QUERY = f"""
+((comment) @comment (#match? @comment "^//") (#not-match? @comment "{_DIRECTIVE}"))
+((comment) @directive (#match? @directive "{_DIRECTIVE}"))
 ((comment) @doc (#match? @doc "^/[*][*]([^*/]|$)"))
 """
 
@@ -31,9 +33,26 @@ _CLASS_LIKE = frozenset(
 _PRIVATE_MODIFIERS = frozenset({b'private', b'protected'})
 # A declaration inside one of these is local to a body, so nothing outside it can see the name.
 _LOCAL_SCOPES = frozenset({'statement_block', 'class_static_block'})
-# A line that opens or closes a brace, or ends a statement, is code commented out rather than prose.
+# A line that opens or closes a bracket, or ends a statement, is code though it cannot parse alone.
 # A brace closing on a word is an inline tag such as {@link Store}, which prose holds.
-_CODE_LINE = re.compile(r'(^\s*}|[{;]\s*$|[\s{]}\s*$)')
+_BLOCK_LINE = re.compile(r'(^\s*[)\]}]|[(\[{;]\s*$|[\s{]}\s*$)')
+_STATEMENT_TYPES = frozenset(
+    {
+        'call_expression',
+        'new_expression',
+        'await_expression',
+        'assignment_expression',
+        'augmented_assignment_expression',
+        'lexical_declaration',
+        'variable_declaration',
+        'return_statement',
+        'throw_statement',
+        'import_statement',
+        'export_statement',
+        'function_declaration',
+        'class_declaration',
+    }
+)
 # A block tag such as @example or @throws opens the tag section, which runs to the end and holds no prose to lay out.
 _BLOCK_TAG = re.compile(r'^\s*@[A-Za-z]')
 
@@ -43,10 +62,19 @@ class TypeScriptProfile(LanguageProfile):
 
     doc_delimiter = '/**'
     doc_layout = FramedDocLayout(opening='/**', prefix=' * ', closing_line=' */')
-    doc_markup = ProseMarkup(tag_section=_BLOCK_TAG, example_tag='@example', code_line=_CODE_LINE)
-    line_markup = ProseMarkup(code_line=_CODE_LINE)
     doc_leads_declaration = True
-    default_line_width = 80
+    width_settings = (
+        *(
+            WidthSetting(name, ('printWidth',))
+            for name in ('.prettierrc', '.prettierrc.json', '.prettierrc.yaml', '.prettierrc.yml', '.prettierrc.toml')
+        ),
+        WidthSetting('package.json', ('prettier', 'printWidth')),
+        *(
+            WidthSetting(name, key_path)
+            for name in ('biome.json', 'biome.jsonc')
+            for key_path in (('javascript', 'formatter', 'lineWidth'), ('formatter', 'lineWidth'))
+        ),
+    )
     signature_tags = ('@param', '@returns', '@return', '@type')
     vendor_directories = frozenset({'node_modules', 'bower_components', 'jspm_packages'})
     _ROLES = {
@@ -81,6 +109,9 @@ class TypeScriptProfile(LanguageProfile):
         self.extensions = extensions
         self.canonical_extension = canonical_extension
         self._language = language
+        code_line = GrammarCodeLine(language, _STATEMENT_TYPES, block_line=_BLOCK_LINE)
+        self.doc_markup = ProseMarkup(tag_section=_BLOCK_TAG, example_tag='@example', code_line=code_line)
+        self.line_markup = ProseMarkup(code_line=code_line)
 
     def language(self) -> Language:
         return self._language
@@ -98,6 +129,11 @@ class TypeScriptProfile(LanguageProfile):
 
     def visibility_of(self, name: str) -> Visibility:
         return Visibility.INTERNAL if name.startswith('#') else Visibility.PUBLIC
+
+    def imports_for_effect(self, node: Node) -> bool:
+        return node.type == 'import_statement' and not any(
+            child.type in ('import_clause', 'import_require_clause') for child in node.named_children
+        )
 
     def exported_names(self, root: Node) -> frozenset[str]:
         """The names exported apart from their declaration, as in "export { build }" or "export default build"."""

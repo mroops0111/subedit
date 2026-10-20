@@ -37,6 +37,8 @@ class SymbolRef:
     name: str
     kind: SymbolKind
     visibility: Visibility
+    # A comment over several declarations, right under code, may head them as a group rather than document this one.
+    may_head_a_group: bool = False
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -102,7 +104,12 @@ class CommentGroup:
             texts = self._reflow_into_texts(width, stub_floor, closing_width)
         if not texts:
             return self
-        return dataclasses.replace(self, lines=self.layout.rebuild(self.lines, texts, width))
+        rebuilt = dataclasses.replace(self, lines=self.layout.rebuild(self.lines, texts, width))
+        # A sentence with no legal break may come out longer than the author wrapped it,
+        # and a fix that pushes a line past the width trades one finding for another.
+        if rebuilt.longest_line > max(width, self.longest_line):
+            return self
+        return rebuilt
 
     def sentences_held_by_a_list(self, width: int, stub_floor: int = 0) -> tuple[str, ...]:
         """The sentences reflow leaves as the author broke them, since every legal break would split a list."""
