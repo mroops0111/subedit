@@ -4,7 +4,7 @@ Your house style, enforced in the places prose hides inside a codebase.
 
 A subeditor is the person at a publication who makes every piece of copy match its house style. `subedit` does that job for the prose in your code.
 
-Linters check your code. Almost nothing checks the sentences you write around it. `subedit` reads the comments and docstrings in your source, lays them out one sentence per line, and only tells you about the sentences a tool cannot fix for you.
+Linters check your code. Almost nothing checks the sentences you write around it. `subedit` reads the comments and docstrings in your source, lays them out so no sentence breaks mid clause, and only tells you about the sentences a tool cannot fix for you.
 
 ## Example
 
@@ -21,6 +21,8 @@ An editor wraps a comment at whatever column it reaches, so sentences break mid 
     # Cap the buffer at the runner limit, because an unbounded read faults the job.
     # Retry once, then give up.
 ```
+
+Short sentences may share a line while it fits, as in `# Retry once. Then give up.` A line of them that overflows is split, one sentence a line.
 
 A sentence that runs past the width with no comma has nowhere legal to break, and only its author knows where the meaning divides. That one comes back to you, or to the agent that wrote it.
 

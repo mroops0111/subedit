@@ -166,3 +166,24 @@ def test_a_comment_explaining_a_file_wide_directive_is_no_file_header(source: st
 )
 def test_a_list_item_whose_sentence_runs_on_at_the_margin_stays_one_item(source: str, language_id: str) -> None:
     assert fixed(source, language_id) == source
+
+
+@pytest.mark.parametrize(
+    ('source', 'language_id', 'marker'),
+    [
+        (
+            'def f():\n    """Do it."""\n    # Surface errors without stack traces. Reserve stacks for bugs.\n    return 1\n',
+            'python',
+            '#',
+        ),
+        (
+            '/** Do it. */\nexport function f() {\n'
+            '  // Surface errors without stack traces. Reserve stacks for bugs.\n  return 1;\n}\n',
+            'typescript',
+            '//',
+        ),
+    ],
+)
+def test_short_sentences_may_share_a_line_that_fits(source: str, language_id: str, marker: str) -> None:
+    assert fixed(source, language_id) == source
+    assert f'{marker} Surface errors without stack traces.\n' in fixed(source, language_id, width=60)
