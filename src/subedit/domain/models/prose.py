@@ -21,6 +21,8 @@ ABBREVIATIONS = frozenset(
 )
 
 _SENTENCE_END = re.compile(r'[.!?]')
+# A colon ends a lead-in as a period ends a sentence, so the line after either opens something new.
+_ENDS_A_SENTENCE = re.compile(r'[.!?:]["\')\]]*\s*$')
 _TRAILING_WORD = re.compile(r'([A-Za-z][A-Za-z.]*)$')
 _URL = re.compile(r'\b(?:https?://|www\.)\S+')
 # A span opened by two backticks, as reStructuredText writes code, closes on two.
@@ -30,6 +32,7 @@ _FENCE = re.compile(r'^\s*(```|~~~)')
 _LIST_DELIMITER = re.compile(r'^\s*(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s')
 _LITERAL_DELIMITER = '\\b'
 _CLOSING_MARKS = '"\')]}'
+_OPENING_MARKS = '"\'([{'
 _APOSTROPHES = ("'", '\u2019')
 
 # Only before a number, since "No. 5" abbreviates while a trailing no ends its sentence.
@@ -107,7 +110,8 @@ class Prose:
                 current_lines = []
             segment_is_literal = next_is_literal
 
-        for line in self.physical_lines:
+        lines = self.physical_lines
+        for previous_line, line in zip(('', *lines), lines, strict=False):
             stripped_line = line.strip()
             inside_tags = inside_tags or self.markup.opens_tag_section(line)
             if inside_tags:
@@ -133,7 +137,7 @@ class Prose:
                 continue
             if self._is_list_item(line):
                 inside_list = True
-            elif not self._continues_list_item(line, inside_list):
+            elif not self._continues_list_item(line, previous_line, inside_list):
                 inside_list = False
             # The indented body under a commented-out opening brace is code too.
             inside_code = self.markup.is_code(line) or (inside_code and line[:1].isspace())
@@ -173,10 +177,10 @@ class Prose:
     def _is_indented(self, line: str) -> bool:
         return line.startswith(('  ', '\t'))
 
-    # A wrapped list item is indented under its marker rather than to a fixed width,
+    # A wrapped list item is indented under its marker, or left at the margin while its sentence runs on,
     # so the continuation belongs to the item instead of opening a paragraph.
-    def _continues_list_item(self, line: str, inside_list: bool) -> bool:
-        return inside_list and line[:1].isspace()
+    def _continues_list_item(self, line: str, previous_line: str, inside_list: bool) -> bool:
+        return inside_list and (line[:1].isspace() or not _ENDS_A_SENTENCE.search(previous_line))
 
     def _is_list_item(self, line: str) -> bool:
         return bool(_LIST_DELIMITER.match(line))
@@ -237,9 +241,18 @@ class Prose:
             return False
         if word == NUMBER_ABBREVIATION and text[offset + 1 :].lstrip()[:1].isdigit():
             return False
-        if trailing_word and len(trailing_word.group(1).replace('.', '')) == 1:
+        if (
+            trailing_word
+            and len(trailing_word.group(1).replace('.', '')) == 1
+            and self._stands_alone(text, trailing_word)
+        ):
             return False
         return self._followed_by_break(text, offset)
+
+    # An initial stands as a word of its own, so a letter closing Ctrl+C or a plural such as `Event`s is none.
+    def _stands_alone(self, text: str, trailing_word: re.Match[str]) -> bool:
+        before = text[: trailing_word.start()]
+        return not before or before[-1].isspace() or before[-1] in _OPENING_MARKS
 
     def _followed_by_break(self, text: str, offset: int) -> bool:
         rest = text[offset + 1 :]

@@ -137,11 +137,21 @@ class CommentGroup:
                 out.extend(paragraph)
                 continue
             lines = tuple(line.strip() for line in paragraph if line.strip())
-            for sentence_index, sentence in enumerate(Prose(' '.join(lines)).sentences()):
+            sentences = Prose(' '.join(lines)).sentences()
+            shared_until = 0
+            for sentence_index, sentence in enumerate(sentences):
+                if sentence.offset < shared_until:
+                    continue
                 if sentence_index == 1 and paragraph_index == 0 and self.has_summary_line:
                     out.append('')
                 first_budget = self.text_budget(width, first_line=not out) - (reserve if not out else 0)
-                if self.has_summary_line and paragraph_index == 0 and sentence_index == 0:
+                is_summary = self.has_summary_line and paragraph_index == 0 and sentence_index == 0
+                shared_line = None if is_summary else _shared_line(lines, sentences[sentence_index:])
+                if shared_line is not None and len(shared_line) <= first_budget:
+                    out.append(shared_line)
+                    shared_until = sentence.offset + len(shared_line)
+                    continue
+                if is_summary:
                     best_lines: tuple[str, ...] = (sentence.text,)
                 else:
                     best_lines = reflow_sentence(sentence.text, body_budget, stub_floor, first_width=first_budget)
@@ -190,6 +200,19 @@ class CommentGroup:
 
     def as_edit(self) -> TextEdit:
         return TextEdit(self.range, self.render())
+
+
+# A line the author filled with several short sentences, each whole, reads as well as one sentence a line,
+# so it stays while it fits.
+def _shared_line(lines: tuple[str, ...], sentences: tuple[Sentence, ...]) -> str | None:
+    start = 0
+    for line in lines:
+        if start == sentences[0].offset:
+            end = start + len(line)
+            ending_here = [sentence for sentence in sentences[1:] if sentence.end == end]
+            return line if ending_here and sentences[0].end < end else None
+        start += len(line) + 1
+    return None
 
 
 # The lines a sentence already occupies, when it has them to itself.

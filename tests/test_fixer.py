@@ -116,13 +116,13 @@ def test_targeted_edits_run_before_reflow() -> None:
                     fix=Fix.reflow(reflowed.as_edit()),
                 )
 
-    source = 'def f():\n    # one. two.\n    pass\n'
+    source = 'def f():\n    # one\n    # two.\n    pass\n'
     document = Document(uri='file:///a.py', text=source, language_id='python')
     outcome = Fixer(Linter(DEFAULT_PARSER, RuleEngine((ReflowRule(), TargetedRule())))).run(
         document, RuleSet(enabled_rule_ids=frozenset({'targeted', 'reflowing'}), line_width=60)
     )
     assert '!' in outcome.document.text
-    assert outcome.document.text.count('    # ') == 2
+    assert outcome.document.text.count('    # ') == 1
 
 
 def test_overlapping_edits_are_deferred_rather_than_dropped() -> None:

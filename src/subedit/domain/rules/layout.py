@@ -30,8 +30,9 @@ class MidClauseBreakRule(Rule):
             rule_id=self.metadata.rule_id,
             range=group.range,
             message=(
-                'Comment layout differs from one sentence per line. '
-                'A sentence that fits takes one line, and a longer one breaks only at a comma ending a clause.'
+                'Comment layout breaks a sentence where it need not. '
+                'A sentence that fits takes one line, and a longer one breaks only at a comma ending a clause. '
+                'Short sentences may share a line that fits.'
             ),
             fix=Fix.reflow(reflowed.as_edit()),
         )

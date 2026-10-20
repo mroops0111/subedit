@@ -124,3 +124,66 @@ def test_one_line_of_code_is_code_in_both_languages(line: str) -> None:
 )
 def test_a_block_set_two_spaces_in_is_left_as_laid_out(source: str, language_id: str) -> None:
     assert fixed(source, language_id) == source
+
+
+@pytest.mark.parametrize(
+    ('source', 'language_id'),
+    [
+        (
+            '// Fixture strings hold literal placeholders the gateway expands.\n'
+            '/* eslint-disable no-template-curly-in-string */\nimport { describe } from "vitest";\n',
+            'typescript',
+        ),
+        (
+            '# Fixture strings hold literal placeholders the gateway expands.\n'
+            '# pylint: disable=consider-using-f-string\nimport os\n',
+            'python',
+        ),
+    ],
+)
+def test_a_comment_explaining_a_file_wide_directive_is_no_file_header(source: str, language_id: str) -> None:
+    suffix = '.py' if language_id == 'python' else '.ts'
+    document = Document(uri=f'file:///a{suffix}', text=source, language_id=language_id)
+    report = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).run(document, RuleSet(enabled_rule_ids=ENABLED))
+    assert 'file-header-comment' not in [item.rule_id for item in report.diagnostics]
+
+
+@pytest.mark.parametrize(
+    ('source', 'language_id'),
+    [
+        (
+            '/**\n * End-to-end flow.\n *\n * 1. Workspace scaffold, writes PRODUCT.md, registers workspace,\n'
+            " * binds the active plugin's validators.\n * 2. Proposal submission, which the reviewer approves.\n */\n"
+            'export function flow(): void {}\n',
+            'typescript',
+        ),
+        (
+            'def flow():\n    """End-to-end flow.\n\n    - **Graph**: reuses the workspace `GraphCanvas`,\n'
+            '    so the layout matches the main view.\n    - **List**: shows every proposal.\n    """\n',
+            'python',
+        ),
+    ],
+)
+def test_a_list_item_whose_sentence_runs_on_at_the_margin_stays_one_item(source: str, language_id: str) -> None:
+    assert fixed(source, language_id) == source
+
+
+@pytest.mark.parametrize(
+    ('source', 'language_id', 'marker'),
+    [
+        (
+            'def f():\n    """Do it."""\n    # Surface errors without stack traces. Reserve stacks for bugs.\n    return 1\n',
+            'python',
+            '#',
+        ),
+        (
+            '/** Do it. */\nexport function f() {\n'
+            '  // Surface errors without stack traces. Reserve stacks for bugs.\n  return 1;\n}\n',
+            'typescript',
+            '//',
+        ),
+    ],
+)
+def test_short_sentences_may_share_a_line_that_fits(source: str, language_id: str, marker: str) -> None:
+    assert fixed(source, language_id) == source
+    assert f'{marker} Surface errors without stack traces.\n' in fixed(source, language_id, width=60)

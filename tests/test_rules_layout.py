@@ -32,10 +32,27 @@ def test_a_mid_clause_break_is_reported_and_reflowed() -> None:
     assert '# cap the size to the limit so the mmap does not blow past it,\n' in fixed(source, width=70)
 
 
-def test_reflow_splits_one_sentence_per_line() -> None:
-    source = 'def f():\n    # first one. second one. third one.\n    pass\n'
-    result = fixed(source)
-    assert result.count('    # ') == 3
+def test_short_sentences_sharing_a_line_that_fits_stay_together() -> None:
+    assert lint('def f():\n    # first one. second one. third one.\n    pass\n').is_clean
+
+
+def test_sentences_sharing_a_line_that_overflows_take_one_line_each() -> None:
+    source = 'def f():\n    # the first sentence runs on. the second one too. the third one ends here.\n    pass\n'
+    assert fixed(source, width=40).count('    # ') == 3
+
+
+def test_sentences_on_lines_of_their_own_are_not_joined() -> None:
+    assert lint('def f():\n    # first one.\n    # second one.\n    pass\n').is_clean
+
+
+def test_a_sentence_running_on_from_a_shared_line_takes_its_own_line() -> None:
+    source = 'def f():\n    # first one. second one\n    # runs on.\n    pass\n'
+    assert fixed(source) == 'def f():\n    # first one.\n    # second one runs on.\n    pass\n'
+
+
+def test_a_docstring_summary_keeps_its_line_to_itself() -> None:
+    source = 'def f():\n    """Do it. Then more.\n\n    Body.\n    """\n'
+    assert '"""Do it.\n\n    Then more.' in fixed(source)
 
 
 def test_a_long_sentence_splits_at_commas_only() -> None:
