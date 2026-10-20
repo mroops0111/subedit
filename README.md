@@ -75,6 +75,8 @@ Rewriting a sentence needs its meaning, which a deterministic process cannot sup
 
 `subedit-hook` runs after every file an agent edits. It repairs the mechanical findings in place, and exits 2 only when a sentence needs rewriting, which hands the message back to the model. In Claude Code a warning reaches the model too, as context beside the tool result, without blocking the edit.
 
+The hook acts only in a project that opts in, with a `subedit.toml` or a `[tool.subedit]` table in `pyproject.toml`, in the edited file's directory or a parent. An empty table is enough. Elsewhere it exits 0 and changes nothing, so a plugin installed for every session stays out of projects that never asked for it. `check` and `fix` run anywhere, with the defaults when no config is found.
+
 ### Claude Code
 
 The plugin needs only [uv](https://docs.astral.sh/uv/). It runs subedit from PyPI with the `vale` extra, and warms that environment in the background when a session starts, so no edit waits on the first download.

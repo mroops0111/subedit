@@ -58,18 +58,46 @@ def test_the_wrapper_is_valid_shell() -> None:
     subprocess.run(['bash', '-n', str(WRAPPER)], check=True, capture_output=True)
 
 
-def test_the_wrapper_says_what_to_install_when_nothing_is_found() -> None:
-    completed = subprocess.run(
-        ['bash', str(WRAPPER)],
+def run_wrapper(project: pathlib.Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ['bash', str(WRAPPER), *arguments],
         check=False,
         capture_output=True,
         text=True,
-        env={'PATH': '/usr/bin:/bin'},
+        env={'PATH': '/usr/bin:/bin', 'CLAUDE_PROJECT_DIR': str(project)},
         input='',
     )
 
+
+def test_the_wrapper_says_what_to_install_when_nothing_is_found(tmp_path: pathlib.Path) -> None:
+    (tmp_path / 'subedit.toml').write_text('[subedit]\n', encoding='utf-8')
+
+    completed = run_wrapper(tmp_path)
+
     assert completed.returncode == 1
     assert 'astral.sh/uv' in completed.stderr, 'a missing command must say how to get it'
+
+
+@pytest.mark.parametrize('arguments', [(), ('prepare',)])
+def test_the_wrapper_stays_out_of_a_project_without_subedit_config(
+    tmp_path: pathlib.Path, arguments: tuple[str, ...]
+) -> None:
+    (tmp_path / 'pyproject.toml').write_text('[tool.ruff]\nline-length = 100\n', encoding='utf-8')
+
+    completed = run_wrapper(tmp_path, *arguments)
+
+    assert (completed.returncode, completed.stderr) == (0, '')
+
+
+@pytest.mark.parametrize('config', [('subedit.toml', '[subedit]\n'), ('pyproject.toml', '[tool.subedit.rules]\n')])
+def test_the_wrapper_acts_in_a_subdirectory_of_a_configured_project(
+    tmp_path: pathlib.Path, config: tuple[str, str]
+) -> None:
+    name, text = config
+    (tmp_path / name).write_text(text, encoding='utf-8')
+    (tmp_path / 'packages').mkdir()
+
+    assert 'astral.sh/uv' in run_wrapper(tmp_path / 'packages').stderr
 
 
 def test_the_wrapper_runs_the_released_version() -> None:

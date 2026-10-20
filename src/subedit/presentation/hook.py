@@ -45,7 +45,8 @@ def run(payload: Payload, *, write: bool = True) -> HookResult:
         except (OSError, UnicodeDecodeError):
             continue
         language = language_for(source_path)
-        if language is None:
+        # A plugin installed once reaches every project, so only one that configures subedit opts in.
+        if language is None or not DEFAULT_CONFIG_SOURCE.is_adopted(str(source_path)):
             continue
         document = Document(uri=source_path.resolve().as_uri(), text=source_text, language_id=language.language_id)
         fix_result = fixer.run(document, DEFAULT_CONFIG_SOURCE.resolve(str(source_path)))

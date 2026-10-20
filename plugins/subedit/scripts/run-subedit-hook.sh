@@ -8,6 +8,28 @@ SPEC='subedit[vale]>=0.3.1'
 # A bare uvx takes the first Python it finds, which on a stock Mac is too old for subedit.
 PYTHON='>=3.11'
 
+# The plugin reaches every session, so it acts only in a project that configures subedit,
+# with a subedit.toml or a [tool.subedit] table in pyproject.toml, here or in a parent directory.
+adopts_subedit() {
+    local directory="$1"
+    while :; do
+        if [ -f "$directory/subedit.toml" ]; then
+            return 0
+        fi
+        if [ -f "$directory/pyproject.toml" ] && grep -q '^\[tool\.subedit[].]' "$directory/pyproject.toml"; then
+            return 0
+        fi
+        if [ "$directory" = / ] || [ -z "$directory" ]; then
+            return 1
+        fi
+        directory=$(dirname "$directory")
+    done
+}
+
+if ! adopts_subedit "${CLAUDE_PROJECT_DIR:-$PWD}"; then
+    exit 0
+fi
+
 if ! command -v uvx >/dev/null 2>&1; then
     cat >&2 <<'MESSAGE'
 subedit needs uv, so comment checks are not running.
