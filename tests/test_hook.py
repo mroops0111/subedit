@@ -31,6 +31,25 @@ def seed(tmp_path: pathlib.Path, body: str, name: str = 'probe.py') -> pathlib.P
     return target
 
 
+def test_a_project_without_subedit_config_is_left_alone(tmp_path: pathlib.Path) -> None:
+    body = MIS_WRAPPED + 'def g():\n    # this one carries no comma and runs on' + ' and on' * 16 + '.\n    pass\n'
+    target = tmp_path / 'probe.py'
+    target.write_text(body, encoding='utf-8')
+
+    hook_result = hook.run(payload(target))
+
+    assert hook_result.exit_code == 0
+    assert target.read_text(encoding='utf-8') == body
+
+
+def test_a_tool_subedit_table_in_pyproject_opts_in(tmp_path: pathlib.Path) -> None:
+    (tmp_path / 'pyproject.toml').write_text('[tool.subedit]\nline-width = 74\n', encoding='utf-8')
+    target = tmp_path / 'probe.py'
+    target.write_text(UNBREAKABLE, encoding='utf-8')
+
+    assert hook.run(payload(target), write=False).is_blocking
+
+
 def test_a_non_edit_tool_is_ignored(tmp_path: pathlib.Path) -> None:
     target = seed(tmp_path, MIS_WRAPPED)
     assert hook.run(payload(target, tool='Read')).exit_code == 0

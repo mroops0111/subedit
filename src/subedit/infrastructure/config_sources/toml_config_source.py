@@ -47,6 +47,10 @@ class TomlConfigSource:
             relative = target.resolve().as_posix()
         return any(fnmatch.fnmatch(relative, pattern) for pattern in patterns)
 
+    def is_adopted(self, path: str) -> bool:
+        """Whether a subedit.toml or a pyproject.toml with [tool.subedit] covers the path, as a project opts in."""
+        return self._locate(pathlib.Path(path)) is not None
+
     def root_for(self, path: str) -> pathlib.Path:
         config_path = self._locate(pathlib.Path(path))
         return config_path.parent if config_path else pathlib.Path.cwd()
