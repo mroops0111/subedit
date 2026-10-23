@@ -16,10 +16,6 @@ class RuleContext:
     document: Document
     rule_set: RuleSet
 
-    @property
-    def line_width(self) -> int:
-        return self.rule_set.line_width
-
     def settings(self, rule_id: str) -> RuleSettings:
         return self.rule_set.settings_for(rule_id)
 

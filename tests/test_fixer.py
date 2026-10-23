@@ -111,7 +111,7 @@ def test_targeted_edits_run_before_reflow() -> None:
 
         def check(self, group: CommentGroup, context: RuleContext):
             order.append('reflow')
-            reflowed = group.reflow(context.line_width)
+            reflowed = group.reflow(context.rule_set.line_width)
             if reflowed.render() != group.render():
                 yield Diagnostic(
                     rule_id='reflowing',

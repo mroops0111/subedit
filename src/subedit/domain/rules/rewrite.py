@@ -39,7 +39,7 @@ def prose_sentences(group: CommentGroup) -> tuple[str, ...]:
 def budgeted_sentences(group: CommentGroup, context: RuleContext) -> tuple[tuple[str, int], ...]:
     """Pair each sentence with the budget reflow lays it out in, so no rule judges a layout reflow would not make."""
     return tuple(
-        (sentence, group.text_budget(context.line_width, first_line=index == 0))
+        (sentence, group.text_budget(context.rule_set.line_width, first_line=index == 0))
         for index, sentence in enumerate(prose_sentences(group))
     )
 
@@ -105,7 +105,7 @@ class UnbreakableSentenceRule(Rule[CommentGroup]):
                 message = self._sentence_message(sentence, budget)
             if message is not None:
                 yield Diagnostic(rule_id=self.metadata.rule_id, range=group.range, message=message, fix=Fix.rewrite())
-        for sentence in group.sentences_held_by_a_list(context.line_width, stub_floor(context)):
+        for sentence in group.sentences_held_by_a_list(context.rule_set.line_width, stub_floor(context)):
             yield Diagnostic(
                 rule_id=self.metadata.rule_id,
                 range=group.range,

@@ -24,7 +24,7 @@ class MidClauseBreakRule(Rule[CommentGroup]):
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        reflowed = group.reflow(context.line_width, stub_floor(context))
+        reflowed = group.reflow(context.rule_set.line_width, stub_floor(context))
         if reflowed.render() == group.render():
             return
         yield Diagnostic(
@@ -44,7 +44,7 @@ class LineTooLongRule(Rule[CommentGroup]):
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        width = context.line_width
+        width = context.rule_set.line_width
         if group.longest_line <= width:
             return
         if group.placement is CommentPlacement.TRAILING:

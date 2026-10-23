@@ -34,7 +34,7 @@ class RecordingRule(Rule[CommentGroup]):
         yield Diagnostic(
             rule_id=self.metadata.rule_id,
             range=group.range,
-            message=f'{self.metadata.rule_id} at width {context.line_width}',
+            message=f'{self.metadata.rule_id} at width {context.rule_set.line_width}',
         )
 
 
