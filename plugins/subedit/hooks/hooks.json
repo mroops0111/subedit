@@ -1,5 +1,5 @@
 {
-  "description": "Repair comment layout after every write, and block only on a finding that needs rewriting.",
+  "description": "Repair prose layout after every write, and block only on a finding that needs rewriting.",
   "hooks": {
     "PostToolUse": [
       {

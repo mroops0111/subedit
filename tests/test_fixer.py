@@ -6,8 +6,10 @@ from subedit.domain import (
     Diagnostic,
     Document,
     ExternalLinter,
+    FileType,
     Fix,
     FixKind,
+    ParsedDocument,
     Rule,
     RuleContext,
     RuleMetadata,
@@ -87,7 +89,8 @@ def test_the_document_version_advances_with_each_applied_round() -> None:
 def test_targeted_edits_run_before_reflow() -> None:
     order: list[str] = []
 
-    class TargetedRule(Rule):
+    class TargetedRule(Rule[CommentGroup]):
+        surface = CommentGroup
         metadata = RuleMetadata(rule_id='targeted', summary='t', fix_kind=FixKind.TARGETED)
 
         def check(self, group: CommentGroup, context: RuleContext):
@@ -102,7 +105,8 @@ def test_targeted_edits_run_before_reflow() -> None:
                 fix=Fix.targeted(TextEdit(SourceRange(start, start), '!')),
             )
 
-    class ReflowRule(Rule):
+    class ReflowRule(Rule[CommentGroup]):
+        surface = CommentGroup
         metadata = RuleMetadata(rule_id='reflowing', summary='r', fix_kind=FixKind.REFLOW)
 
         def check(self, group: CommentGroup, context: RuleContext):
@@ -126,7 +130,8 @@ def test_targeted_edits_run_before_reflow() -> None:
 
 
 def test_overlapping_edits_are_deferred_rather_than_dropped() -> None:
-    class DoubleRule(Rule):
+    class DoubleRule(Rule[CommentGroup]):
+        surface = CommentGroup
         metadata = RuleMetadata(rule_id='double', summary='d', fix_kind=FixKind.TARGETED)
 
         def check(self, group: CommentGroup, context: RuleContext):
@@ -161,12 +166,13 @@ def test_fixing_is_idempotent_at_every_width(width: int) -> None:
     assert run(once, width=width).document.text == once
 
 
-class SilentParser(SourceParser):
-    def supports(self, language_id: str) -> bool:
-        return True
+class SilentParser(SourceParser[CommentGroup]):
+    @property
+    def file_types(self) -> tuple[FileType, ...]:
+        return (FileType('python', frozenset({'.py'}), '.py'),)
 
-    def parse(self, document: Document) -> tuple[CommentGroup, ...]:
-        return ()
+    def read(self, document: Document) -> ParsedDocument[CommentGroup]:
+        return ParsedDocument()
 
 
 class ShoutingLinter(ExternalLinter):

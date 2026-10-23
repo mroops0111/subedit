@@ -11,12 +11,12 @@ from subedit.domain import (
     Visibility,
 )
 from subedit.domain.ports import DelimiterSplit
-from subedit.infrastructure import DEFAULT_PARSER, PYTHON, LanguageProfile, TreeSitterParser
+from subedit.infrastructure import COMMENT_PARSER, DEFAULT_PARSER, PYTHON, LanguageProfile, TreeSitterParser
 from subedit.infrastructure.parsers.languages import NodeRole
 
 
 def parse(source: str) -> tuple[CommentGroup, ...]:
-    return DEFAULT_PARSER.parse(Document(uri='file:///a.py', text=source, language_id='python'))
+    return COMMENT_PARSER.parse(Document(uri='file:///a.py', text=source, language_id='python'))
 
 
 def prose_of(source: str) -> list[str]:

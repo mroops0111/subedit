@@ -27,8 +27,9 @@ SIGNATURE_RESTATING_TAG = RuleMetadata(
 )
 
 
-class FileHeaderCommentRule(Rule):
+class FileHeaderCommentRule(Rule[CommentGroup]):
     metadata = FILE_HEADER_COMMENT
+    surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         if group.placement is not CommentPlacement.FILE_HEADER:
@@ -55,8 +56,9 @@ class ConventionsByLanguage:
         return self._by_language.get(context.document.language_id)
 
 
-class PlainCommentOnPublicRule(Rule):
+class PlainCommentOnPublicRule(Rule[CommentGroup]):
     metadata = PLAIN_COMMENT_ON_PUBLIC
+    surface = CommentGroup
 
     def __init__(self, conventions: tuple[LanguageConventions, ...]) -> None:
         self._conventions = ConventionsByLanguage(conventions)
@@ -91,8 +93,9 @@ class PlainCommentOnPublicRule(Rule):
         )
 
 
-class SignatureRestatingTagRule(Rule):
+class SignatureRestatingTagRule(Rule[CommentGroup]):
     metadata = SIGNATURE_RESTATING_TAG
+    surface = CommentGroup
 
     def __init__(self, conventions: tuple[LanguageConventions, ...]) -> None:
         self._conventions = ConventionsByLanguage(conventions)
@@ -143,8 +146,9 @@ DEFAULT_LIMITS = {
 }
 
 
-class BlockTooLongRule(Rule):
+class BlockTooLongRule(Rule[CommentGroup]):
     metadata = BLOCK_TOO_LONG
+    surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         category = self._category(group)

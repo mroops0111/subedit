@@ -55,9 +55,9 @@ def test_a_non_edit_tool_is_ignored(tmp_path: pathlib.Path) -> None:
     assert hook.run(payload(target, tool='Read')).exit_code == 0
 
 
-def test_a_non_python_file_is_ignored(tmp_path: pathlib.Path) -> None:
-    target = tmp_path / 'notes.md'
-    target.write_text('# heading\n', encoding='utf-8')
+def test_a_file_in_no_known_language_is_ignored(tmp_path: pathlib.Path) -> None:
+    target = tmp_path / 'notes.txt'
+    target.write_text('heading\n', encoding='utf-8')
     assert hook.edited_files(payload(target)) == ()
 
 

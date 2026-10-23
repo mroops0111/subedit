@@ -15,19 +15,20 @@ from subedit.domain import (
 )
 from subedit.infrastructure import (
     ALL_RULES,
+    COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
     DEFAULT_PARSER,
     LAYOUT_RULES,
     SUFFIX_ALIASES,
     TYPESCRIPT,
-    language_for,
+    language_id_for,
 )
 from subedit.presentation import hook
 from subedit.presentation.cli import app
 
 
 def parse(source: str, language_id: str = 'typescript'):
-    return DEFAULT_PARSER.parse(Document(uri='file:///a.ts', text=source, language_id=language_id))
+    return COMMENT_PARSER.parse(Document(uri='file:///a.ts', text=source, language_id=language_id))
 
 
 def lint(source: str, width: int = 80, rules=ALL_RULES):
@@ -51,8 +52,7 @@ def fixed(source: str, width: int = 80) -> str:
     [('a.ts', 'typescript'), ('a.mts', 'typescript'), ('a.cts', 'typescript'), ('a.tsx', 'tsx'), ('a.js', None)],
 )
 def test_the_language_follows_the_extension(name: str, language_id: str | None) -> None:
-    language = language_for(pathlib.Path(name))
-    assert (language.language_id if language else None) == language_id
+    assert language_id_for(pathlib.Path(name)) == language_id
 
 
 def test_line_comments_group_and_a_jsdoc_block_is_the_doc_form() -> None:
@@ -288,7 +288,7 @@ def test_an_inline_link_closing_a_jsdoc_line_is_prose() -> None:
 
 
 def test_the_typescript_extensions_alias_to_the_one_prose_tools_know() -> None:
-    assert SUFFIX_ALIASES == {'.mts': '.ts', '.cts': '.ts', '.pyi': '.py'}
+    assert SUFFIX_ALIASES == {'.mts': '.ts', '.cts': '.ts', '.pyi': '.py', '.markdown': '.md'}
 
 
 def test_a_heading_over_several_fields_documents_none_of_them() -> None:

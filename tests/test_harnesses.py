@@ -74,8 +74,8 @@ def test_a_missing_file_is_dropped(tmp_path: pathlib.Path) -> None:
 
 
 def test_a_file_of_another_language_is_dropped(tmp_path: pathlib.Path) -> None:
-    other = tmp_path / 'notes.md'
-    other.write_text('# heading\n', encoding='utf-8')
+    other = tmp_path / 'notes.txt'
+    other.write_text('heading\n', encoding='utf-8')
     payload = {'tool_name': 'Edit', 'tool_input': {'file_path': str(other)}}
     assert edited_files_of(payload) == ()
 

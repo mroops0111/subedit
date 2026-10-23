@@ -1,8 +1,8 @@
 import dataclasses
 
-from .comment import CommentGroup, CommentPlacement
 from .diagnostic import Diagnostic
 from .position import SourceRange
+from .prose_unit import ProseUnit
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -15,26 +15,18 @@ class ProseMap:
 
     editable: tuple[SourceRange, ...] = ()
     code: tuple[SourceRange, ...] = ()
-    # A directive's text, such as the reason after @ts-expect-error, is read by a tool, so nothing reads it as prose.
-    directives: tuple[SourceRange, ...] = ()
 
     @classmethod
-    def of_comments(cls, groups: tuple[CommentGroup, ...], directives: tuple[SourceRange, ...] = ()) -> 'ProseMap':
-        """A trailing comment shares its line with code, so only a comment standing on its own lines is editable."""
+    def of_units(cls, units: tuple[ProseUnit, ...], skipped: tuple[SourceRange, ...] = ()) -> 'ProseMap':
+        """What a document's units hold, with the stretches its parser skipped counted as code."""
         return cls(
-            directives=directives,
-            editable=tuple(
-                line.range
-                for group in groups
-                if group.placement is not CommentPlacement.TRAILING
-                for line in group.lines
-            ),
-            code=tuple(code_range for group in groups for code_range in group.code_ranges()),
+            editable=tuple(region for unit in units for region in unit.editable_ranges()),
+            code=(*(region for unit in units for region in unit.code_ranges()), *skipped),
         )
 
     def admits(self, diagnostic: Diagnostic) -> bool:
         """Whether a finding reads prose rather than code, and any edit it offers stays on lines of prose."""
-        if any(region.start <= diagnostic.range.start < region.end for region in (*self.code, *self.directives)):
+        if any(region.start <= diagnostic.range.start < region.end for region in self.code):
             return False
         if diagnostic.fix is None:
             return True

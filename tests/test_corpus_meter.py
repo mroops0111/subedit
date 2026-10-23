@@ -2,14 +2,14 @@ import pytest
 
 from subedit.application import CorpusMeter, Distribution
 from subedit.domain import Document
-from subedit.infrastructure import DEFAULT_PARSER
+from subedit.infrastructure import COMMENT_PARSER
 
 
 def measure(*sources: str):
     documents = tuple(
         Document(uri=f'file:///a{index}.py', text=source, language_id='python') for index, source in enumerate(sources)
     )
-    return CorpusMeter(DEFAULT_PARSER).run(documents)
+    return CorpusMeter(COMMENT_PARSER).run(documents)
 
 
 def test_an_empty_corpus_reports_nothing() -> None:

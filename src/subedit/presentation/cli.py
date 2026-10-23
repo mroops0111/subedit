@@ -12,12 +12,13 @@ from ..domain.models.text import source_lines
 from ..domain.ports.external_linter import ExternalLinter
 from ..infrastructure import (
     ALL_RULES,
+    COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
     DEFAULT_PARSER,
     EXTENSIONS,
     EXTERNAL_LINTERS,
     VENDOR_DIRECTORIES,
-    language_for,
+    language_id_for,
 )
 from . import report as reporters
 from . import rule_reference
@@ -97,7 +98,7 @@ def fix(
 def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to measure.')) -> None:
     documents = _load(tuple(paths))
     _require(documents)
-    typer.echo(_render(CorpusMeter(DEFAULT_PARSER).run(documents)))
+    typer.echo(_render(CorpusMeter(COMMENT_PARSER).run(documents)))
 
 
 @app.command()
@@ -145,10 +146,10 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
             text = source_path.read_text(encoding='utf-8')
         except (OSError, UnicodeDecodeError):
             continue
-        language = language_for(source_path)
-        if language is None:
+        language_id = language_id_for(source_path)
+        if language_id is None:
             continue
-        documents.append(Document(uri=source_path.resolve().as_uri(), text=text, language_id=language.language_id))
+        documents.append(Document(uri=source_path.resolve().as_uri(), text=text, language_id=language_id))
     return tuple(documents)
 
 

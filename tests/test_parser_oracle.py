@@ -6,7 +6,7 @@ import tokenize
 import pytest
 
 from subedit.domain import CommentForm, Document
-from subedit.infrastructure import DEFAULT_PARSER
+from subedit.infrastructure import COMMENT_PARSER, DEFAULT_PARSER
 
 
 DEFINITIONS = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
@@ -40,16 +40,14 @@ def parsed_lines(source: str) -> tuple[set[int], set[int]]:
     mapper = document.positions
     comments: set[int] = set()
     docstrings: set[int] = set()
-    for group in DEFAULT_PARSER.parse(document):
+    for group in COMMENT_PARSER.parse(document):
         rows = {mapper.to_position(line.range.start).line + 1 for line in group.lines}
         if group.form is CommentForm.DOC:
             docstrings.add(min(rows))
         else:
             comments |= rows
     # A directive such as noqa is a comment to the tokenizer, though no rule reads it as prose.
-    comments |= {
-        mapper.to_position(directive.start).line + 1 for directive in DEFAULT_PARSER.directive_ranges(document)
-    }
+    comments |= {mapper.to_position(directive.start).line + 1 for directive in DEFAULT_PARSER.read(document).skipped}
     return comments, docstrings
 
 

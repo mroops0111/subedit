@@ -1,3 +1,5 @@
+import typing
+
 from ..domain.models.diagnostic import RuleMetadata
 from ..domain.ports.rule import Rule
 
@@ -13,7 +15,7 @@ PREAMBLE = (
 )
 
 
-def render(rules: tuple[Rule, ...]) -> str:
+def render(rules: tuple[Rule[typing.Any], ...]) -> str:
     sorted_rules = sorted(rules, key=lambda rule: (rule.metadata.fix_kind.value, rule.metadata.rule_id))
     lines = [HEADING, '', PREAMBLE, '', '| Rule | Fix kind | Level | Summary |', '| --- | --- | --- | --- |']
     lines.extend(_row(rule.metadata) for rule in sorted_rules)
