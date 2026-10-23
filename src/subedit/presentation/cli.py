@@ -23,7 +23,9 @@ from . import report as reporters
 from . import rule_reference
 
 
-app = typer.Typer(add_completion=False, help='A linter and formatter for the prose inside code comments.')
+app = typer.Typer(
+    add_completion=False, help='A subeditor for AI agents, keeping every sentence they write to your house style.'
+)
 
 FORMATTERS = {
     'full': reporters.full,
