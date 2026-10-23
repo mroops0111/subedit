@@ -24,19 +24,18 @@ Linters keep an agent's code in shape. Almost nothing does the same for its sent
 An editor wraps a comment at whatever column it reaches, so sentences break mid clause.
 
 ```python
-def read_chunk(stream):
-    # Cap the buffer at the runner limit, because an unbounded
-    # read faults the job. Retry once, then give up.
-    return stream.read(LIMIT)
+def reflow(comment: Comment, width: int) -> Comment:
+    # A sentence that fits takes one line, and a longer one
+    # breaks only at a comma that ends a clause.
+    return comment.reflow(width)
 ```
 
 `subedit fix --write` autofixes the layout and says nothing.
 
 ```python
-def read_chunk(stream):
-    # Cap the buffer at the runner limit, because an unbounded read faults the job.
-    # Retry once, then give up.
-    return stream.read(LIMIT)
+def reflow(comment: Comment, width: int) -> Comment:
+    # A sentence that fits takes one line, and a longer one breaks only at a comma that ends a clause.
+    return comment.reflow(width)
 ```
 
 A sentence that runs past the width with no comma has nowhere legal to break, and only its author knows where the meaning divides. That one goes back to the agent that wrote it, or to you.
@@ -245,23 +244,30 @@ Registering the hook with both agents is the normal case. Each agent names its e
 
 Settings come from `subedit.toml`, or from `[tool.subedit]` in `pyproject.toml`, whichever sits closest above the file being checked. Without either, `check` and `fix` run with the defaults.
 
+A rule takes one of two forms, depending on whether it has options to set.
+
+- **Level Only**: a string, `"error"`, `"warning"`, or `"off"`. Every rule takes this form, including the delegated Vale and AutoCorrect rules.
+- **Level and Options**: a `[rules.<name>]` table, holding `severity` and the rule's options. Leave out `severity` to keep the default level. Only `block-too-long` and `stub-fragment` have options, listed in [Rules](#rules).
+
 ```toml
 [subedit]
 line-width = 100
 exclude = ["tests/fixtures/**"]
 
 [rules]
-mid-clause-break = "error"                                       # set a level
-file-header-comment = "off"                                      # switch a rule off
-block-too-long = { severity = "warning", line = 3, doc-public = 20 }  # level and options
-stub-fragment = { minimum_characters = 30 }                      # options only
-
-# Delegated rules are set the same way, by name.
-"subedit.MidSentenceColon" = "error"
+mid-clause-break = "warning"
+file-header-comment = "off"
 "subedit.DateRef" = "off"
+
+[rules.block-too-long]
+severity = "error"
+line = 3
+
+[rules.stub-fragment]
+minimum_characters = 30
 ```
 
-In `pyproject.toml`, the same keys sit under `[tool.subedit]` and `[tool.subedit.rules]`.
+In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, and `[tool.subedit.rules.<name>]`.
 
 <details>
 <summary><b>Configuration Reference</b>: every key and its default</summary>
