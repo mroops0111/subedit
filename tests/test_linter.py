@@ -17,10 +17,12 @@ from subedit.domain import (
     SourceRange,
     TextEdit,
 )
-from subedit.infrastructure import DEFAULT_PARSER
+from subedit.infrastructure import COMMENT_PARSER, DEFAULT_PARSER
 
 
-class RecordingRule(Rule):
+class RecordingRule(Rule[CommentGroup]):
+    surface = CommentGroup
+
     def __init__(self, rule_id: str, fix_kind: FixKind = FixKind.REWRITE) -> None:
         self.metadata = RuleMetadata(rule_id=rule_id, summary='test rule', fix_kind=fix_kind)
         self.seen: list[str] = []
@@ -34,7 +36,8 @@ class RecordingRule(Rule):
         )
 
 
-class SilentRule(Rule):
+class SilentRule(Rule[CommentGroup]):
+    surface = CommentGroup
     metadata = RuleMetadata(rule_id='silent', summary='never fires', fix_kind=FixKind.REWRITE)
 
     def check(self, group: CommentGroup, context: RuleContext):
@@ -123,7 +126,8 @@ def test_rule_settings_read_integer_options_defensively() -> None:
 
 
 def test_a_fix_kind_survives_the_engine() -> None:
-    class FixingRule(Rule):
+    class FixingRule(Rule[CommentGroup]):
+        surface = CommentGroup
         metadata = RuleMetadata(rule_id='fixer', summary='fixes', fix_kind=FixKind.TARGETED)
 
         def check(self, group: CommentGroup, context: RuleContext):
@@ -151,7 +155,7 @@ def test_one_inspection_parses_the_document_once() -> None:
 
         def parse(self, document: Document) -> tuple[CommentGroup, ...]:
             self.parse_count += 1
-            return DEFAULT_PARSER.parse(document)
+            return COMMENT_PARSER.parse(document)
 
     parser = CountingParser()
     document = Document(uri='file:///a.py', text='x = 1  # a note\n# a line\ny = 2\n', language_id='python')

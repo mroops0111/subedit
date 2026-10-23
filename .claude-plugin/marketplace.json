@@ -6,7 +6,7 @@
     {
       "name": "subedit",
       "source": "./plugins/subedit",
-      "description": "Repairs comment layout silently on write, and returns only what needs rewriting."
+      "description": "Repairs prose layout silently on write, and returns only what needs rewriting."
     }
   ]
 }

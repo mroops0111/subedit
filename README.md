@@ -160,6 +160,7 @@ Reflow works on sentences rather than lines, so the result reads the way the aut
 - **Clause Commas Only**: a longer sentence breaks only at a comma that ends a clause, never inside a list, brackets, or a code span.
 - **No Stubs**: no break leaves a line shorter than the `stub-fragment` floor, 24 characters by default.
 - **Verbatim Blocks**: code examples, docstring sections, and JSDoc tags are left as written.
+- **Markdown Paragraphs**: Markdown has no column limit, so a paragraph takes one source line, and a hand-wrapped one is joined.
 
 ### Pipeline
 
@@ -168,8 +169,8 @@ A file takes the same path through `subedit` whether the CLI or the agent hook s
 ![subedit pipeline. An author or agent runs the CLI or the agent hook, which reads subedit.toml. subedit parses the comments and docstrings, lints them with its own rules, Vale, and AutoCorrect, then triages each finding by fix kind and level. An autofix is written back silently, and a rewrite is sent back to the author with its fix stated.](docs/assets/pipeline.svg)
 
 1. **Resolve**: the CLI or the hook finds the closest `subedit.toml`, or `[tool.subedit]` in `pyproject.toml`, and reads the rules and the width.
-2. **Parse**: the language profile parses the file with tree-sitter and builds a ProseMap of every comment and docstring, with its placement and the symbol it documents.
-3. **Lint**: the native rules run over each comment group, while Vale and AutoCorrect run over the file. A delegated finding is kept only when it lands inside comment prose.
+2. **Parse**: the language profile, or the Markdown parser, reads the file with tree-sitter. It builds a ProseMap of every comment, docstring, heading, and paragraph, with what each needs, such as the symbol a comment documents.
+3. **Lint**: each native rule runs over the units of its own surface, while Vale and AutoCorrect run over the file. A delegated finding is kept only when it lands inside prose.
 4. **Autofix**: the Fixer applies targeted edits, then reflow edits, and runs the rules again, for up to ten rounds until nothing mechanical is left.
 5. **Report**: what remains is a rewrite, reported as a blocking error or as advice.
 
@@ -292,7 +293,7 @@ Left unset, `line-width` follows the formatter that would format the file, read 
 
 ### Rules
 
-`subedit` ships 8 native rules, a bundled Vale style of 9 rules, and AutoCorrect. Every rule below is set by name under `[rules]`, as in [Configuration](#configuration).
+`subedit` ships 10 native rules, a bundled Vale style of 9 rules, and AutoCorrect. Every rule below is set by name under `[rules]`, as in [Configuration](#configuration).
 
 - **Level**: every rule accepts `"error"`, `"warning"`, or `"off"` in place of its default.
 - **Fix Kind**: `Targeted` and `Reflow` are autofixes, applied silently by `fix` and the hook. `Rewrite` goes back to the agent or the author, with the fix stated, as [Fix Kinds](#fix-kinds) explains.
@@ -344,6 +345,20 @@ A plain comment right under another declaration may head a group rather than doc
 </details>
 
 <details>
+<summary><b>Markdown</b>: paragraphs and headings in Markdown files</summary>
+
+<br>
+
+| Rule | Catches | Fix Kind | Default | Options |
+| --- | --- | --- | --- | --- |
+| `paragraph-line-break` | A paragraph or list item broken across source lines | Reflow | `error` | None |
+| `heading-wrapped-in-bold` | A heading whose whole text is bold, though a heading already renders bold | Targeted | `error` | None |
+
+GitHub issues, Notion, and Heptabase can show a source newline as a line break, so a hand-wrapped paragraph breaks once it is copied there. Joining puts no space between two CJK characters, and keeps a break the author marked with two trailing spaces or a backslash.
+
+</details>
+
+<details>
 <summary><b>Wording</b>: the bundled Vale style, rewritten by the author</summary>
 
 <br>
@@ -388,7 +403,9 @@ A surface is a kind of file where prose lives. Every surface goes through the sa
 | Surface | Status | Focus |
 | --- | --- | --- |
 | Code comments and docstrings | Available | Layout, because a comment must fit a column limit |
-| Markdown | Planned | Structure, such as headings and lists, because Markdown text wraps on its own |
+| Markdown | In Progress ([#56](https://github.com/mroops0111/subedit/issues/56)) | One line per paragraph and the shape of headings and lists, because Markdown has no column limit |
+
+Markdown is read from `.md` and `.markdown` files. Front matter, code, tables, and HTML blocks hold no prose, so nothing reads or edits them.
 
 Editor diagnostics over LSP are planned as well, so the same findings show as you type ([#19](https://github.com/mroops0111/subedit/issues/19)).
 

@@ -5,7 +5,7 @@ import sys
 
 from ..application import Fixer, Linter, RuleEngine
 from ..domain.models.document import Document
-from ..infrastructure import ALL_RULES, DEFAULT_CONFIG_SOURCE, DEFAULT_PARSER, EXTERNAL_LINTERS, language_for
+from ..infrastructure import ALL_RULES, DEFAULT_CONFIG_SOURCE, DEFAULT_PARSER, EXTERNAL_LINTERS, language_id_for
 from . import report as reporters
 from .harnesses import ALL_HARNESSES, BLOCK_EXIT, Payload, resolve
 
@@ -44,11 +44,11 @@ def run(payload: Payload, *, write: bool = True) -> HookResult:
             source_text = source_path.read_text(encoding='utf-8')
         except (OSError, UnicodeDecodeError):
             continue
-        language = language_for(source_path)
+        language_id = language_id_for(source_path)
         # A plugin installed once reaches every project, so only one that configures subedit opts in.
-        if language is None or not DEFAULT_CONFIG_SOURCE.is_adopted(str(source_path)):
+        if language_id is None or not DEFAULT_CONFIG_SOURCE.is_adopted(str(source_path)):
             continue
-        document = Document(uri=source_path.resolve().as_uri(), text=source_text, language_id=language.language_id)
+        document = Document(uri=source_path.resolve().as_uri(), text=source_text, language_id=language_id)
         fix_result = fixer.run(document, DEFAULT_CONFIG_SOURCE.resolve(str(source_path)))
         if fix_result.has_changes and write:
             source_path.write_text(fix_result.document.text, encoding='utf-8')

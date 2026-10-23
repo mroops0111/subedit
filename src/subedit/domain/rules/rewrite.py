@@ -56,8 +56,9 @@ def stub_floor(context: RuleContext) -> int:
     return context.settings(STUB_FRAGMENT.rule_id).integer('minimum_characters', DEFAULT_MINIMUM_CHARACTERS)
 
 
-class StubFragmentRule(Rule):
+class StubFragmentRule(Rule[CommentGroup]):
     metadata = STUB_FRAGMENT
+    surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # A trailing comment never breaks, so a rule judging where a sentence breaks leaves it to line-too-long.
@@ -86,8 +87,9 @@ class StubFragmentRule(Rule):
             )
 
 
-class UnbreakableSentenceRule(Rule):
+class UnbreakableSentenceRule(Rule[CommentGroup]):
     metadata = UNBREAKABLE_SENTENCE
+    surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # A trailing comment never breaks, so its width is line-too-long's to judge.

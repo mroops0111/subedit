@@ -15,6 +15,7 @@ from subedit.domain import (
 )
 from subedit.infrastructure import (
     ALL_RULES,
+    COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
     DEFAULT_PARSER,
     LAYOUT_RULES,
@@ -27,7 +28,7 @@ from subedit.presentation.cli import app
 
 
 def parse(source: str, language_id: str = 'typescript'):
-    return DEFAULT_PARSER.parse(Document(uri='file:///a.ts', text=source, language_id=language_id))
+    return COMMENT_PARSER.parse(Document(uri='file:///a.ts', text=source, language_id=language_id))
 
 
 def lint(source: str, width: int = 80, rules=ALL_RULES):
@@ -288,7 +289,7 @@ def test_an_inline_link_closing_a_jsdoc_line_is_prose() -> None:
 
 
 def test_the_typescript_extensions_alias_to_the_one_prose_tools_know() -> None:
-    assert SUFFIX_ALIASES == {'.mts': '.ts', '.cts': '.ts', '.pyi': '.py'}
+    assert SUFFIX_ALIASES == {'.mts': '.ts', '.cts': '.ts', '.pyi': '.py', '.markdown': '.md'}
 
 
 def test_a_heading_over_several_fields_documents_none_of_them() -> None:

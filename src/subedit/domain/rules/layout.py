@@ -19,8 +19,9 @@ LINE_TOO_LONG = RuleMetadata(
 )
 
 
-class MidClauseBreakRule(Rule):
+class MidClauseBreakRule(Rule[CommentGroup]):
     metadata = MID_CLAUSE_BREAK
+    surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         reflowed = group.reflow(context.line_width, stub_floor(context))
@@ -38,8 +39,9 @@ class MidClauseBreakRule(Rule):
         )
 
 
-class LineTooLongRule(Rule):
+class LineTooLongRule(Rule[CommentGroup]):
     metadata = LINE_TOO_LONG
+    surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         width = context.line_width

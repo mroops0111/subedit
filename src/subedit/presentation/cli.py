@@ -17,7 +17,7 @@ from ..infrastructure import (
     EXTENSIONS,
     EXTERNAL_LINTERS,
     VENDOR_DIRECTORIES,
-    language_for,
+    language_id_for,
 )
 from . import report as reporters
 from . import rule_reference
@@ -145,10 +145,10 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
             text = source_path.read_text(encoding='utf-8')
         except (OSError, UnicodeDecodeError):
             continue
-        language = language_for(source_path)
-        if language is None:
+        language_id = language_id_for(source_path)
+        if language_id is None:
             continue
-        documents.append(Document(uri=source_path.resolve().as_uri(), text=text, language_id=language.language_id))
+        documents.append(Document(uri=source_path.resolve().as_uri(), text=text, language_id=language_id))
     return tuple(documents)
 
 

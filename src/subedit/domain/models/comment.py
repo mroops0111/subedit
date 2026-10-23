@@ -5,6 +5,7 @@ import itertools
 from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .position import SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence, break_cost, comma_breaks, reflow_sentence
+from .prose_unit import ProseUnit
 from .text import TextEdit
 
 
@@ -42,7 +43,7 @@ class SymbolRef:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class CommentGroup:
+class CommentGroup(ProseUnit):
     range: SourceRange
     lines: tuple[CommentLine, ...]
     form: CommentForm
@@ -85,6 +86,12 @@ class CommentGroup:
             for line in self.lines
         ]
         return Prose('\n'.join(rendered_lines), self.markup)
+
+    def editable_ranges(self) -> tuple[SourceRange, ...]:
+        """A trailing comment shares its line with code, so only a comment standing on its own lines is editable."""
+        if self.placement is CommentPlacement.TRAILING:
+            return ()
+        return tuple(line.range for line in self.lines)
 
     def code_ranges(self) -> tuple[SourceRange, ...]:
         """Where the lines holding code sit, which a prose checker has no business reading."""

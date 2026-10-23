@@ -54,7 +54,8 @@ class CorpusMeter:
         group_count = 0
 
         for document in documents:
-            for group in self._parser.parse(document):
+            # The measures read a comment's lines against a width, which Markdown does not have.
+            for group in (unit for unit in self._parser.parse(document) if isinstance(unit, CommentGroup)):
                 group_count += 1
                 grouped_line_counts.setdefault(self._label_for(group), []).append(group.line_count)
                 physical_widths.extend(line.physical_width for line in group.lines)

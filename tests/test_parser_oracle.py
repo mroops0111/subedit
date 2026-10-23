@@ -6,7 +6,7 @@ import tokenize
 import pytest
 
 from subedit.domain import CommentForm, Document
-from subedit.infrastructure import DEFAULT_PARSER
+from subedit.infrastructure import COMMENT_PARSER, DEFAULT_PARSER
 
 
 DEFINITIONS = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
@@ -40,7 +40,7 @@ def parsed_lines(source: str) -> tuple[set[int], set[int]]:
     mapper = document.positions
     comments: set[int] = set()
     docstrings: set[int] = set()
-    for group in DEFAULT_PARSER.parse(document):
+    for group in COMMENT_PARSER.parse(document):
         rows = {mapper.to_position(line.range.start).line + 1 for line in group.lines}
         if group.form is CommentForm.DOC:
             docstrings.add(min(rows))

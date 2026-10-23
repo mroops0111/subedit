@@ -87,7 +87,8 @@ def test_the_document_version_advances_with_each_applied_round() -> None:
 def test_targeted_edits_run_before_reflow() -> None:
     order: list[str] = []
 
-    class TargetedRule(Rule):
+    class TargetedRule(Rule[CommentGroup]):
+        surface = CommentGroup
         metadata = RuleMetadata(rule_id='targeted', summary='t', fix_kind=FixKind.TARGETED)
 
         def check(self, group: CommentGroup, context: RuleContext):
@@ -102,7 +103,8 @@ def test_targeted_edits_run_before_reflow() -> None:
                 fix=Fix.targeted(TextEdit(SourceRange(start, start), '!')),
             )
 
-    class ReflowRule(Rule):
+    class ReflowRule(Rule[CommentGroup]):
+        surface = CommentGroup
         metadata = RuleMetadata(rule_id='reflowing', summary='r', fix_kind=FixKind.REFLOW)
 
         def check(self, group: CommentGroup, context: RuleContext):
@@ -126,7 +128,8 @@ def test_targeted_edits_run_before_reflow() -> None:
 
 
 def test_overlapping_edits_are_deferred_rather_than_dropped() -> None:
-    class DoubleRule(Rule):
+    class DoubleRule(Rule[CommentGroup]):
+        surface = CommentGroup
         metadata = RuleMetadata(rule_id='double', summary='d', fix_kind=FixKind.TARGETED)
 
         def check(self, group: CommentGroup, context: RuleContext):
