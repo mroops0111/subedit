@@ -11,7 +11,7 @@ from ...domain.ports.external_linter import ExternalLinter
 from .source_path import as_known_path
 
 
-RULE_ID = 'autocorrect/spacing'
+RULE_ID = 'autocorrect.Spacing'
 CONFIG_PATH = pathlib.Path('.autocorrectrc')
 
 

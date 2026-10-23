@@ -104,7 +104,7 @@ class TomlConfigSource:
 
         # A name subedit does not define belongs to a delegated tool, such as subedit.Semicolon from Vale.
         for rule_id, rule_entry in config_file.rules.items():
-            if rule_entry is False or rule_entry == 'off':
+            if rule_entry == 'off':
                 if rule_id in self._available_rule_ids:
                     enabled_ids.discard(rule_id)
                 else:

@@ -21,16 +21,20 @@ def test_a_nonsense_width_falls_back_rather_than_raising(width: object) -> None:
     assert ConfigFile.parse({'subedit': {'line-width': width}}).subedit.line_width is None
 
 
-def test_a_rule_entry_may_be_a_boolean_a_string_or_a_table() -> None:
+def test_a_rule_entry_may_be_a_string_or_a_table() -> None:
     parsed = ConfigFile.parse(
-        {'rules': {'a': False, 'b': 'warning', 'c': {'severity': 'error', 'minimum_characters': 30}}}
+        {'rules': {'a': 'off', 'b': 'warning', 'c': {'severity': 'error', 'minimum_characters': 30}}}
     )
-    assert parsed.rules['a'] is False
+    assert parsed.rules['a'] == 'off'
     assert parsed.rules['b'] == 'warning'
     table = parsed.rules['c']
     assert isinstance(table, RuleTable)
     assert table.resolved_severity is Severity.ERROR
     assert table.options == {'minimum_characters': 30}
+
+
+def test_a_boolean_is_not_a_rule_entry() -> None:
+    assert 'a' not in ConfigFile.parse({'rules': {'a': False}}).rules, 'a rule is switched off with "off"'
 
 
 def test_an_unknown_severity_resolves_to_none_rather_than_raising() -> None:

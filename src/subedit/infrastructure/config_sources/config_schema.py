@@ -19,7 +19,7 @@ class RuleTable(pydantic.BaseModel):
         return dict(self.__pydantic_extra__ or {})
 
 
-RuleEntry = typing.Annotated[bool | str | RuleTable, pydantic.Field(union_mode='left_to_right')]
+RuleEntry = typing.Annotated[str | RuleTable, pydantic.Field(union_mode='left_to_right')]
 
 
 class SubeditSection(pydantic.BaseModel):

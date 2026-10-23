@@ -1,6 +1,8 @@
-# Design notes stay local. The generated rule reference is tracked.
+# Design notes stay local. The generated rule reference and README assets are tracked.
 docs/*
 !docs/rules.md
+!docs/assets/
+
 
 # Python
 __pycache__/

@@ -34,7 +34,7 @@ def test_configuration_is_found_by_walking_upward(tmp_path: pathlib.Path) -> Non
 
 
 def test_a_rule_can_be_switched_off(tmp_path: pathlib.Path) -> None:
-    target = write(tmp_path, '[rules]\nmid-clause-break = false\n')
+    target = write(tmp_path, '[rules]\nmid-clause-break = "off"\n')
     rules = source().resolve(str(target))
     assert not rules.is_enabled('mid-clause-break')
     assert rules.is_enabled('line-too-long')
@@ -54,7 +54,7 @@ def test_a_table_carries_severity_and_options(tmp_path: pathlib.Path) -> None:
 
 
 def test_an_unknown_rule_leaves_the_native_rules_alone(tmp_path: pathlib.Path) -> None:
-    target = write(tmp_path, '[rules]\nnot-a-rule = false\n')
+    target = write(tmp_path, '[rules]\nnot-a-rule = "off"\n')
     assert source().resolve(str(target)).enabled_rule_ids == frozenset(AVAILABLE)
 
 
@@ -87,7 +87,7 @@ def test_settings_are_read_from_pyproject(tmp_path: pathlib.Path) -> None:
 
 
 def test_rules_nest_under_the_tool_table_in_pyproject(tmp_path: pathlib.Path) -> None:
-    body = '[tool.subedit]\nline-width = 96\n\n[tool.subedit.rules]\nmid-clause-break = false\n'
+    body = '[tool.subedit]\nline-width = 96\n\n[tool.subedit.rules]\nmid-clause-break = "off"\n'
     rules = source().resolve(str(write_pyproject(tmp_path, body)))
 
     assert not rules.is_enabled('mid-clause-break')
