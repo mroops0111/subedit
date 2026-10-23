@@ -47,9 +47,7 @@ def parsed_lines(source: str) -> tuple[set[int], set[int]]:
         else:
             comments |= rows
     # A directive such as noqa is a comment to the tokenizer, though no rule reads it as prose.
-    comments |= {
-        mapper.to_position(directive.start).line + 1 for directive in DEFAULT_PARSER.directive_ranges(document)
-    }
+    comments |= {mapper.to_position(directive.start).line + 1 for directive in DEFAULT_PARSER.read(document).skipped}
     return comments, docstrings
 
 

@@ -21,7 +21,7 @@ from subedit.infrastructure import (
     LAYOUT_RULES,
     SUFFIX_ALIASES,
     TYPESCRIPT,
-    language_for,
+    language_id_for,
 )
 from subedit.presentation import hook
 from subedit.presentation.cli import app
@@ -52,8 +52,7 @@ def fixed(source: str, width: int = 80) -> str:
     [('a.ts', 'typescript'), ('a.mts', 'typescript'), ('a.cts', 'typescript'), ('a.tsx', 'tsx'), ('a.js', None)],
 )
 def test_the_language_follows_the_extension(name: str, language_id: str | None) -> None:
-    language = language_for(pathlib.Path(name))
-    assert (language.language_id if language else None) == language_id
+    assert language_id_for(pathlib.Path(name)) == language_id
 
 
 def test_line_comments_group_and_a_jsdoc_block_is_the_doc_form() -> None:

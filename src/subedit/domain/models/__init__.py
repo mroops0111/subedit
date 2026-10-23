@@ -17,6 +17,7 @@ from .comment_layout import (
 )
 from .diagnostic import SEVERITY_BY_NAME, Diagnostic, Fix, FixKind, Report, RuleMetadata, Severity
 from .document import Document
+from .file_type import FileType
 from .markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
 from .position import Encoding, Position, PositionMap, SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence
@@ -39,6 +40,7 @@ __all__ = [
     'Diagnostic',
     'Document',
     'Encoding',
+    'FileType',
     'Fix',
     'FixKind',
     'FramedDocLayout',

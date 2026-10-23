@@ -5,8 +5,10 @@ from subedit.domain import (
     CommentGroup,
     Diagnostic,
     Document,
+    FileType,
     Fix,
     FixKind,
+    ParsedDocument,
     Rule,
     RuleContext,
     RuleMetadata,
@@ -146,16 +148,17 @@ def test_a_fix_kind_survives_the_engine() -> None:
 
 
 def test_one_inspection_parses_the_document_once() -> None:
-    class CountingParser(SourceParser):
+    class CountingParser(SourceParser[CommentGroup]):
         def __init__(self) -> None:
             self.parse_count = 0
 
-        def supports(self, language_id: str) -> bool:
-            return True
+        @property
+        def file_types(self) -> tuple[FileType, ...]:
+            return COMMENT_PARSER.file_types
 
-        def parse(self, document: Document) -> tuple[CommentGroup, ...]:
+        def read(self, document: Document) -> ParsedDocument[CommentGroup]:
             self.parse_count += 1
-            return COMMENT_PARSER.parse(document)
+            return COMMENT_PARSER.read(document)
 
     parser = CountingParser()
     document = Document(uri='file:///a.py', text='x = 1  # a note\n# a line\ny = 2\n', language_id='python')

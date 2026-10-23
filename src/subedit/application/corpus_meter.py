@@ -42,7 +42,9 @@ class CorpusStatistics:
 
 
 class CorpusMeter:
-    def __init__(self, parser: SourceParser, candidate_widths: tuple[int, ...] = (72, 80, 88, 100, 120)) -> None:
+    def __init__(
+        self, parser: SourceParser[CommentGroup], candidate_widths: tuple[int, ...] = (72, 80, 88, 100, 120)
+    ) -> None:
         self._parser = parser
         self._candidate_widths = candidate_widths
 
@@ -53,9 +55,10 @@ class CorpusMeter:
         unbreakable_counts = dict.fromkeys(self._candidate_widths, 0)
         group_count = 0
 
+        # The measures read a comment's lines against a width, so only files the comment parser reads count.
+        documents = tuple(document for document in documents if self._parser.supports(document.language_id))
         for document in documents:
-            # The measures read a comment's lines against a width, which Markdown does not have.
-            for group in (unit for unit in self._parser.parse(document) if isinstance(unit, CommentGroup)):
+            for group in self._parser.parse(document):
                 group_count += 1
                 grouped_line_counts.setdefault(self._label_for(group), []).append(group.line_count)
                 physical_widths.extend(line.physical_width for line in group.lines)

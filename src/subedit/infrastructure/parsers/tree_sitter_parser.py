@@ -2,8 +2,9 @@ from tree_sitter import Node, Parser, Query, QueryCursor
 
 from ...domain.models.comment import CommentForm, CommentGroup, CommentLine, CommentPlacement, SymbolRef
 from ...domain.models.document import Document
+from ...domain.models.file_type import FileType
 from ...domain.models.position import SourceRange
-from ...domain.ports.source_parser import SourceParser
+from ...domain.ports.source_parser import ParsedDocument, SourceParser
 from .languages import LanguageProfile, NodeRole
 
 
@@ -14,14 +15,15 @@ DOC_CAPTURE = 'doc'
 DIRECTIVE_CAPTURE = 'directive'
 
 
-class TreeSitterParser(SourceParser):
+class TreeSitterParser(SourceParser[CommentGroup]):
     def __init__(self, profiles: tuple[LanguageProfile, ...]) -> None:
         self._profiles = {profile.language_id: profile for profile in profiles}
 
-    def supports(self, language_id: str) -> bool:
-        return language_id in self._profiles
+    @property
+    def file_types(self) -> tuple[FileType, ...]:
+        return tuple(profile.file_type for profile in self._profiles.values())
 
-    def parse(self, document: Document) -> tuple[CommentGroup, ...]:
+    def read(self, document: Document) -> ParsedDocument[CommentGroup]:
         """Turn source text into the comment groups the rules read.
 
         1. Look up the profile. An unknown language yields nothing rather than raising.
@@ -31,10 +33,11 @@ class TreeSitterParser(SourceParser):
         5. Group adjacent line comments first,
            because three consecutive hashes are three nodes sharing one sentence.
         6. Sort by position, so a caller reading the result walks the file in order.
+        7. Skip every directive, such as eslint-disable or noqa, which a tool reads instead of a person.
         """
         profile = self._profiles.get(document.language_id)
         if profile is None:
-            return ()
+            return ParsedDocument()
         source_bytes = document.text.encode('utf-8')
         tree = Parser(profile.language()).parse(source_bytes)
         grouped_captures = self._run_query(profile, tree.root_node)
@@ -46,16 +49,9 @@ class TreeSitterParser(SourceParser):
             self._build_line_group(profile, document, group, exported)
             for group in self._group_adjacent_comments(profile, document, grouped_captures[COMMENT_CAPTURE])
         )
-        return tuple(sorted(comment_groups, key=lambda group: group.range.start))
-
-    def directive_ranges(self, document: Document) -> tuple[SourceRange, ...]:
-        profile = self._profiles.get(document.language_id)
-        if profile is None:
-            return ()
-        tree = Parser(profile.language()).parse(document.text.encode('utf-8'))
-        return tuple(
-            SourceRange(node.start_byte, node.end_byte)
-            for node in self._run_query(profile, tree.root_node)[DIRECTIVE_CAPTURE]
+        return ParsedDocument(
+            units=tuple(sorted(comment_groups, key=lambda group: group.range.start)),
+            skipped=tuple(SourceRange(node.start_byte, node.end_byte) for node in grouped_captures[DIRECTIVE_CAPTURE]),
         )
 
     def _run_query(self, profile: LanguageProfile, root: Node) -> dict[str, list[Node]]:

@@ -60,7 +60,7 @@ class Inspection:
 
 
 class Linter:
-    def __init__(self, parser: SourceParser, engine: RuleEngine) -> None:
+    def __init__(self, parser: SourceParser[ProseUnit], engine: RuleEngine) -> None:
         self._parser = parser
         self._engine = engine
 
@@ -70,10 +70,8 @@ class Linter:
     def inspect(self, document: Document, rule_set: RuleSet) -> Inspection:
         if not self._parser.supports(document.language_id):
             return Inspection()
-        units = self._parser.parse(document)
-        diagnostics = self._engine.run(document, units, rule_set)
+        parsed = self._parser.read(document)
+        diagnostics = self._engine.run(document, parsed.units, rule_set)
         sorted_diagnostics = sorted(diagnostics, key=lambda item: (item.range.start, item.rule_id))
-        prose_map = ProseMap.of_units(
-            units, self._parser.directive_ranges(document), self._parser.literal_ranges(document)
-        )
+        prose_map = ProseMap.of_units(parsed.units, parsed.skipped)
         return Inspection(Report(tuple(sorted_diagnostics)), prose_map)

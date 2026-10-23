@@ -15,26 +15,18 @@ class ProseMap:
 
     editable: tuple[SourceRange, ...] = ()
     code: tuple[SourceRange, ...] = ()
-    # A directive's text, such as the reason after @ts-expect-error, is read by a tool, so nothing reads it as prose.
-    directives: tuple[SourceRange, ...] = ()
 
     @classmethod
-    def of_units(
-        cls,
-        units: tuple[ProseUnit, ...],
-        directives: tuple[SourceRange, ...] = (),
-        literals: tuple[SourceRange, ...] = (),
-    ) -> 'ProseMap':
-        """What a document's units hold, with any text the document holds outside prose counted as code."""
+    def of_units(cls, units: tuple[ProseUnit, ...], skipped: tuple[SourceRange, ...] = ()) -> 'ProseMap':
+        """What a document's units hold, with the stretches its parser skipped counted as code."""
         return cls(
-            directives=directives,
             editable=tuple(region for unit in units for region in unit.editable_ranges()),
-            code=(*(region for unit in units for region in unit.code_ranges()), *literals),
+            code=(*(region for unit in units for region in unit.code_ranges()), *skipped),
         )
 
     def admits(self, diagnostic: Diagnostic) -> bool:
         """Whether a finding reads prose rather than code, and any edit it offers stays on lines of prose."""
-        if any(region.start <= diagnostic.range.start < region.end for region in (*self.code, *self.directives)):
+        if any(region.start <= diagnostic.range.start < region.end for region in self.code):
             return False
         if diagnostic.fix is None:
             return True

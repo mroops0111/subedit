@@ -2,13 +2,14 @@ import tree_sitter_markdown
 from tree_sitter import Language, Node, Parser
 
 from ...domain.models.document import Document
+from ...domain.models.file_type import FileType
 from ...domain.models.markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
 from ...domain.models.position import SourceRange
-from ...domain.ports.source_parser import SourceParser
+from ...domain.ports.source_parser import ParsedDocument, SourceParser
 
 
 MARKDOWN_LANGUAGE = Language(tree_sitter_markdown.language())
-MARKDOWN_EXTENSIONS = frozenset({'.md', '.markdown'})
+MARKDOWN = FileType('markdown', frozenset({'.md', '.markdown'}), '.md')
 
 HEADINGS = frozenset({'atx_heading', 'setext_heading'})
 # Code, tables, HTML, and front matter hold no prose, so nothing under them is read.
@@ -25,44 +26,38 @@ LITERAL_BLOCKS = frozenset(
 )
 
 
-class MarkdownParser(SourceParser):
-    language_id = 'markdown'
+class MarkdownParser(SourceParser[MarkdownBlock]):
+    @property
+    def file_types(self) -> tuple[FileType, ...]:
+        return (MARKDOWN,)
 
-    def supports(self, language_id: str) -> bool:
-        return language_id == self.language_id
-
-    def parse(self, document: Document) -> tuple[MarkdownBlock, ...]:
+    def read(self, document: Document) -> ParsedDocument[MarkdownBlock]:
         """Turn a Markdown document into the headings and paragraphs the rules read.
 
         1. Parse the block structure with tree-sitter, keeping byte offsets as every range in this package does.
-        2. Walk the tree, skipping code, tables, HTML, and front matter whole.
+        2. Walk the tree, skipping code, tables, HTML, and front matter whole, and record where each lies.
         3. Take each heading and paragraph's inline node, which spans its text and nothing around it.
         4. Split that text into lines, each carrying apart the indent or quote marker a container gives it.
         """
         if not self.supports(document.language_id):
-            return ()
+            return ParsedDocument()
         source_bytes = document.text.encode('utf-8')
         tree = Parser(MARKDOWN_LANGUAGE).parse(source_bytes)
         blocks: list[MarkdownBlock] = []
-        self._collect(tree.root_node, source_bytes, 0, blocks)
-        return tuple(blocks)
+        literals: list[SourceRange] = []
+        self._collect(tree.root_node, source_bytes, 0, blocks, literals)
+        return ParsedDocument(tuple(blocks), tuple(literals))
 
-    def literal_ranges(self, document: Document) -> tuple[SourceRange, ...]:
-        if not self.supports(document.language_id):
-            return ()
-        tree = Parser(MARKDOWN_LANGUAGE).parse(document.text.encode('utf-8'))
-        ranges: list[SourceRange] = []
-        pending = [tree.root_node]
-        while pending:
-            node = pending.pop()
-            if node.type in LITERAL_BLOCKS:
-                ranges.append(SourceRange(node.start_byte, node.end_byte))
-            else:
-                pending.extend(node.children)
-        return tuple(sorted(ranges, key=lambda region: region.start))
-
-    def _collect(self, node: Node, source_bytes: bytes, list_depth: int, blocks: list[MarkdownBlock]) -> None:
+    def _collect(
+        self,
+        node: Node,
+        source_bytes: bytes,
+        list_depth: int,
+        blocks: list[MarkdownBlock],
+        literals: list[SourceRange],
+    ) -> None:
         if node.type in LITERAL_BLOCKS:
+            literals.append(SourceRange(node.start_byte, node.end_byte))
             return
         if node.type in HEADINGS or node.type == 'paragraph':
             block = self._build_block(node, source_bytes, list_depth)
@@ -71,7 +66,7 @@ class MarkdownParser(SourceParser):
             return
         depth = list_depth + 1 if node.type == 'list' else list_depth
         for child in node.children:
-            self._collect(child, source_bytes, depth, blocks)
+            self._collect(child, source_bytes, depth, blocks, literals)
 
     def _build_block(self, node: Node, source_bytes: bytes, list_depth: int) -> MarkdownBlock | None:
         inline = self._inline_of(node)

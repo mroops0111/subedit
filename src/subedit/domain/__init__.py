@@ -11,6 +11,7 @@ from .models import (
     Diagnostic,
     Document,
     Encoding,
+    FileType,
     Fix,
     FixKind,
     FramedDocLayout,
@@ -38,7 +39,15 @@ from .models import (
     Visibility,
     apply_edits,
 )
-from .ports import DelimiterSplit, ExternalLinter, LanguageConventions, Rule, RuleContext, SourceParser
+from .ports import (
+    DelimiterSplit,
+    ExternalLinter,
+    LanguageConventions,
+    ParsedDocument,
+    Rule,
+    RuleContext,
+    SourceParser,
+)
 
 
 __all__ = [
@@ -56,6 +65,7 @@ __all__ = [
     'Document',
     'Encoding',
     'ExternalLinter',
+    'FileType',
     'Fix',
     'FixKind',
     'FramedDocLayout',
@@ -64,6 +74,7 @@ __all__ = [
     'MarkdownBlock',
     'MarkdownBlockKind',
     'MarkdownLine',
+    'ParsedDocument',
     'Position',
     'PositionMap',
     'Prose',

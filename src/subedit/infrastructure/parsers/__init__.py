@@ -9,12 +9,12 @@ from .languages import (
     PythonProfile,
     TypeScriptProfile,
 )
-from .markdown_parser import MARKDOWN_EXTENSIONS, MarkdownParser
+from .markdown_parser import MARKDOWN, MarkdownParser
 from .tree_sitter_parser import TreeSitterParser
 
 
 __all__ = [
-    'MARKDOWN_EXTENSIONS',
+    'MARKDOWN',
     'PYTHON',
     'TSX',
     'TYPESCRIPT',

@@ -176,7 +176,7 @@ The package follows a layered design, so a new language, rule, or delegated tool
 
 ![subedit layers. presentation holds the CLI, the agent hook, and the reports, and calls application, which holds the Linter, the Fixer, the report aggregator, and the corpus meter. application uses domain, which holds the models, the rules, and the ports. infrastructure holds the tree-sitter parser, the config source, and the Vale and AutoCorrect adapters. presentation wires infrastructure in, and infrastructure implements the domain ports.](docs/assets/layers.svg)
 
-Rules never see a syntax tree. A parser turns the file into prose units, such as a comment group with the symbol it documents or a Markdown paragraph, and each rule reads the units of its own surface. A new language is a `LanguageProfile`, and a new agent is an `AgentHarness`.
+Rules never see a syntax tree. A parser turns the file into prose units, such as a comment group with the symbol it documents or a Markdown paragraph, and each rule reads the units of its own surface. A new surface is a `ProseUnit` with its `SourceParser`, a new language is a `LanguageProfile`, and a new agent is an `AgentHarness`.
 
 ## Reference
 

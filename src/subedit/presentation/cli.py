@@ -12,6 +12,7 @@ from ..domain.models.text import source_lines
 from ..domain.ports.external_linter import ExternalLinter
 from ..infrastructure import (
     ALL_RULES,
+    COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
     DEFAULT_PARSER,
     EXTENSIONS,
@@ -97,7 +98,7 @@ def fix(
 def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to measure.')) -> None:
     documents = _load(tuple(paths))
     _require(documents)
-    typer.echo(_render(CorpusMeter(DEFAULT_PARSER).run(documents)))
+    typer.echo(_render(CorpusMeter(COMMENT_PARSER).run(documents)))
 
 
 @app.command()
