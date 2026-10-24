@@ -1,3 +1,5 @@
+import dataclasses
+
 import tree_sitter_markdown
 from tree_sitter import Language, Node, Parser
 
@@ -26,6 +28,20 @@ LITERAL_BLOCKS = frozenset(
 )
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class _Context:
+    """Where the walk stands, inside how many lists and whether inside a quote."""
+
+    list_depth: int = 0
+    quoted: bool = False
+
+
+@dataclasses.dataclass(slots=True)
+class _Found:
+    blocks: list[MarkdownBlock] = dataclasses.field(default_factory=list)
+    literals: list[SourceRange] = dataclasses.field(default_factory=list)
+
+
 class MarkdownParser(SourceParser[MarkdownBlock]):
     @property
     def file_types(self) -> tuple[FileType, ...]:
@@ -43,32 +59,27 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
             return ParsedDocument()
         source_bytes = document.text.encode('utf-8')
         tree = Parser(MARKDOWN_LANGUAGE).parse(source_bytes)
-        blocks: list[MarkdownBlock] = []
-        literals: list[SourceRange] = []
-        self._collect(tree.root_node, source_bytes, 0, blocks, literals)
-        return ParsedDocument(tuple(blocks), tuple(literals))
+        found = _Found()
+        self._collect(tree.root_node, source_bytes, _Context(), found)
+        return ParsedDocument(tuple(found.blocks), tuple(found.literals))
 
-    def _collect(
-        self,
-        node: Node,
-        source_bytes: bytes,
-        list_depth: int,
-        blocks: list[MarkdownBlock],
-        literals: list[SourceRange],
-    ) -> None:
+    def _collect(self, node: Node, source_bytes: bytes, context: '_Context', found: '_Found') -> None:
         if node.type in LITERAL_BLOCKS:
-            literals.append(SourceRange(node.start_byte, node.end_byte))
+            found.literals.append(SourceRange(node.start_byte, node.end_byte))
             return
         if node.type in HEADINGS or node.type == 'paragraph':
-            block = self._build_block(node, source_bytes, list_depth)
+            block = self._build_block(node, source_bytes, context)
             if block is not None:
-                blocks.append(block)
+                found.blocks.append(block)
             return
-        depth = list_depth + 1 if node.type == 'list' else list_depth
+        if node.type == 'list':
+            context = dataclasses.replace(context, list_depth=context.list_depth + 1)
+        elif node.type == 'block_quote':
+            context = dataclasses.replace(context, quoted=True)
         for child in node.children:
-            self._collect(child, source_bytes, depth, blocks, literals)
+            self._collect(child, source_bytes, context, found)
 
-    def _build_block(self, node: Node, source_bytes: bytes, list_depth: int) -> MarkdownBlock | None:
+    def _build_block(self, node: Node, source_bytes: bytes, context: '_Context') -> MarkdownBlock | None:
         inline = self._inline_of(node)
         if inline is None or inline.start_byte == inline.end_byte:
             return None
@@ -76,13 +87,25 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
             kind, level = MarkdownBlockKind.HEADING, self._heading_level(node)
         else:
             kind, level = MarkdownBlockKind.PARAGRAPH, 0
+        parent = node.parent
         return MarkdownBlock(
             range=SourceRange(inline.start_byte, inline.end_byte),
             kind=kind,
             lines=self._split_lines(inline, source_bytes),
             level=level,
-            list_depth=list_depth,
+            list_depth=context.list_depth,
+            opens_item=parent is not None and parent.type == 'list_item' and self._first_block(parent) == node,
+            quoted=context.quoted,
+            leads_into_list=kind is MarkdownBlockKind.HEADING and self._next_block_type(node) == 'list',
         )
+
+    # A list item's children begin with its marker, so the first block is the first child that holds text.
+    def _first_block(self, item: Node) -> Node | None:
+        return next((child for child in item.children if not child.type.startswith('list_marker')), None)
+
+    def _next_block_type(self, heading: Node) -> str | None:
+        sibling = heading.next_named_sibling
+        return sibling.type if sibling is not None else None
 
     def _inline_of(self, node: Node) -> Node | None:
         for child in node.children:

@@ -1,8 +1,0 @@
-extends: existence
-message: "Colon in running prose. Allowed only as a 'Label:' prefix, or to introduce a list or an indented block."
-level: warning
-nonword: true
-scope: raw
-tokens:
-  - '\w\s+[\w-]+:[ \t]+\w'
-  - '\w[ \t]+[\w-]+:[ \t]*\n[A-Za-z`]'

@@ -22,7 +22,7 @@ from .markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
 from .position import Encoding, Position, PositionMap, SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence
 from .prose_map import ProseMap
-from .prose_unit import ProseUnit
+from .prose_unit import ProseLine, ProseUnit
 from .rule_set import RuleSet, RuleSettings
 from .text import TextEdit, apply_edits
 
@@ -51,6 +51,7 @@ __all__ = [
     'Position',
     'PositionMap',
     'Prose',
+    'ProseLine',
     'ProseMap',
     'ProseMarkup',
     'ProseUnit',

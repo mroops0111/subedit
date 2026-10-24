@@ -1,6 +1,6 @@
 ---
 name: judging-findings
-description: Decide what to do with a subedit finding that no tool can fix, such as subedit.ExternalRef, subedit.DateRef, subedit.MidSentenceColon, block-too-long, or unbreakable-sentence. Use when a subedit hook, `subedit check`, or `subedit fix` reports a finding that needs rewriting or a warning that is a judgment call.
+description: Decide what to do with a subedit finding that no tool can fix, such as subedit.ExternalRef, subedit.DateRef, mid-sentence-colon, block-too-long, or unbreakable-sentence. Use when a subedit hook, `subedit check`, or `subedit fix` reports a finding that needs rewriting or a warning that is a judgment call.
 ---
 
 # Judge subedit Findings
@@ -27,7 +27,9 @@ A warning passes when the text meets its criterion. Leave such text exactly as i
 | --- | --- | --- |
 | `subedit.ExternalRef` | The identifier is public and resolvable by anyone, such as an RFC, an MCP SEP, a PEP, a CVE, or an ISO standard. | It is a private ticket, such as a Jira key or an internal issue number. State the constraint the ticket recorded instead. |
 | `subedit.DateRef` | The date names a version or a spec revision, such as the dated revision an MCP specification is named by. | It records when something happened or changed. State the constraint that holds now. |
-| `subedit.MidSentenceColon` | The colon introduces a list, an indented block, or a label such as `Note:`. | The sentence runs on after the colon. Split it into two sentences, or join the clauses with a comma and a conjunction. |
+| `subedit.EditHistory` | The phrase states a constraint that holds now, as in "a file no longer than 10 lines". | It tells how the code used to behave. State the behavior it has now. |
+| `contrast-framing` | Never in the house style, unless the contrast is the point, written as 是 B 而非 A. | It frames B against what it is not. State B directly. |
+| `heading-not-noun-phrase` | The heading is a noun phrase that happens to open with the flagged word. | It asks a question or gives an instruction. Name the section's subject instead. |
 | `block-too-long` | Every sentence states a constraint the code cannot show. | Some sentences narrate what the code does. Cut them, or move the explanation into a name. |
 | `file-header-comment` | It states a constraint about the whole module that no single declaration owns. | It is a banner or a summary of the file. Delete it, or move the constraint to the declaration it applies to. |
 | `stub-fragment` | Never. A stub reads as a broken clause. | Always. Rewrite the sentence to fit one line, or split it into two complete sentences. |
@@ -36,10 +38,10 @@ A warning passes when the text meets its criterion. Leave such text exactly as i
 
 An error always needs a rewrite. The message states the fix, and these notes cover what it leaves out.
 
-- `unbreakable-sentence`: a line can break only at a comma that ends a clause, and a comma inside brackets or a code span does not count. Add a comma at a clause boundary, or split the sentence in two. When every such comma would split a list, move the list to the end of the sentence. When the message names a style guide that keeps a summary to one line, shorten the summary and move the detail into the body.
-- `line-too-long` (trailing comment): a comment beside code cannot break, so shorten it or move it to its own line above the code.
-- `plain-comment-on-public`: move the text into the doc comment, a docstring in Python or a `/** */` block in TypeScript.
-- `signature-restating-tag` and `subedit.SignatureTag`: delete the tag, since the signature already says it.
-- `subedit.EditHistory`: state the current behavior, not its history.
-- `subedit.Semicolon`, `subedit.EmDash`: split into two sentences, or use a comma or parentheses.
-- `subedit.Ellipsis`: name two or three concrete examples after "such as", as in "a transport failure, such as a connect, timeout, or DNS error". Dropping the trailing word and joining the rest with "or" turns a sample into the whole set, which narrows what the sentence claims.
+- **`unbreakable-sentence`**: a line can break only at a comma that ends a clause, and a comma inside brackets or a code span does not count. Add a comma at a clause boundary, or split the sentence in two. When every such comma would split a list, move the list to the end of the sentence. When the message names a style guide that keeps a summary to one line, shorten the summary and move the detail into the body.
+- **`line-too-long`** (trailing comment): a comment beside code cannot break, so shorten it or move it to its own line above the code.
+- **`plain-comment-on-public`**: move the text into the doc comment, a docstring in Python or a `/** */` block in TypeScript.
+- **`signature-restating-tag` and `subedit.SignatureTag`**: delete the tag, since the signature already says it.
+- **`mid-sentence-colon`**: a colon stands only in a heading, after a short label, or at the end of a line that a list or block follows. Split the sentence in two, or turn the inline list into a list.
+- **`missing-lead-sentence`**: add a sentence or two under the heading that frames what the list holds.
+- **`subedit.Semicolon`, `subedit.EmDash`**: split into two sentences, or use a comma or parentheses.

@@ -116,7 +116,7 @@ def test_a_heading_wrapped_in_bold_loses_the_markers() -> None:
     assert fixed('# **Overview**\n\n## __Detail__\n') == '# Overview\n\n## Detail\n'
 
 
-@pytest.mark.parametrize('heading', ['# **Bold** and plain\n', '# A **bold** word\n', '# **One** and **two**\n'])
+@pytest.mark.parametrize('heading', ['# **Bold** and Plain\n', '# A **Bold** Word\n', '# **One** and **Two**\n'])
 def test_a_heading_with_only_part_in_bold_is_left_alone(heading: str) -> None:
     assert ids(heading) == []
 

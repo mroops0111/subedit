@@ -14,9 +14,7 @@ EXPECTED_RULES = [
     'EmDash',
     'EditHistory',
     'ExternalRef',
-    'MidSentenceColon',
     'Semicolon',
-    'Ellipsis',
     'DateRef',
 ]
 
@@ -67,33 +65,6 @@ def test_subedit_lints_itself_clean() -> None:
     assert run_vale('src', 'tests', 'README.md').strip() == ''
 
 
-@pytest.mark.parametrize(
-    'comment',
-    [
-        '    """The contract is header-shaped, not value-shaped:\n    implementations return headers.\n    """\n',
-        '    """The contract is header-shaped, not value-shaped: implementations return headers."""\n',
-    ],
-)
-def test_a_colon_in_running_prose_is_flagged_at_a_line_end_too(tmp_path: pathlib.Path, comment: str) -> None:
-    staged = tmp_path / 'colon.py'
-    staged.write_text(f'def f():\n{comment}', encoding='utf-8')
-    assert 'subedit.MidSentenceColon' in run_vale(str(staged))
-
-
-@pytest.mark.parametrize(
-    'comment',
-    [
-        '    """Resolve auth.\n\n    The order is fixed:\n    - detect\n    - pick\n    """\n',
-        '    """Resolve auth.\n\n    Run it like this:\n        subedit fix\n    """\n',
-        '    """Resolve auth.\n\n    Two steps follow:\n\n    Detect, then pick.\n    """\n',
-    ],
-)
-def test_a_colon_introducing_a_list_or_block_is_allowed(tmp_path: pathlib.Path, comment: str) -> None:
-    staged = tmp_path / 'colon.py'
-    staged.write_text(f'def f():\n{comment}', encoding='utf-8')
-    assert 'MidSentenceColon' not in run_vale(str(staged))
-
-
 def test_an_external_reference_warns_rather_than_fails(tmp_path: pathlib.Path) -> None:
     staged = tmp_path / 'ref.py'
     staged.write_text('def f():\n    # SEP-990 defines the grant this follows.\n    pass\n', encoding='utf-8')
@@ -122,11 +93,21 @@ def test_a_ticket_reference_ends_at_its_digits(tmp_path: pathlib.Path, reference
     assert ('subedit.ExternalRef' in result.stdout) is flagged
 
 
-@pytest.mark.parametrize(
-    ('sentence', 'flagged'),
-    [('Tags, labels, etc. are skipped.', True), ('It lives under root, not /etc/passwd.', False)],
-)
-def test_etc_is_a_trailing_list_only_outside_a_path(tmp_path: pathlib.Path, sentence: str, flagged: bool) -> None:
-    staged = tmp_path / 'etc.py'
-    staged.write_text(f'def f():\n    # {sentence}\n    pass\n', encoding='utf-8')
-    assert ('subedit.Ellipsis' in run_vale(str(staged))) is flagged
+@pytest.mark.parametrize('name', ['notes.md', 'notes.py'])
+def test_a_full_width_semicolon_is_flagged(tmp_path: pathlib.Path, name: str) -> None:
+    staged = tmp_path / name
+    body = '中文分號；然後繼續。\n'  # noqa: RUF001
+    staged.write_text(body if name.endswith('.md') else f'# {body}', encoding='utf-8')
+    assert 'subedit.Semicolon' in run_vale(str(staged))
+
+
+def test_a_markdown_note_may_tell_a_history_cite_an_issue_and_date_a_release(tmp_path: pathlib.Path) -> None:
+    staged = tmp_path / 'notes.md'
+    staged.write_text('Release 2026-10-24 fixes PROJ-123, which previously returned null.\n', encoding='utf-8')
+    assert run_vale(str(staged)).strip() == ''
+
+
+def test_edit_history_warns_in_a_comment(tmp_path: pathlib.Path) -> None:
+    staged = tmp_path / 'history.py'
+    staged.write_text('def f():\n    # The cache is no longer shared.\n    pass\n', encoding='utf-8')
+    assert 'subedit.EditHistory' in run_vale(str(staged))

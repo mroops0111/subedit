@@ -1,12 +1,16 @@
 import dataclasses
 import enum
 import itertools
+import re
 
 from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .position import SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence, break_cost, comma_breaks, reflow_sentence
-from .prose_unit import ProseUnit
+from .prose_unit import ProseLine, ProseUnit
 from .text import TextEdit
+
+
+_LIST_MARKER = re.compile(r'(?:[0-9]+[.)]|[-*+])\s+')
 
 
 class CommentForm(enum.Enum):
@@ -86,6 +90,44 @@ class CommentGroup(ProseUnit):
             for line in self.lines
         ]
         return Prose('\n'.join(rendered_lines), self.markup)
+
+    def prose_lines(self) -> tuple[ProseLine, ...]:
+        """The lines of prose, without code, a fence, or a tag section, each with its list marker set apart."""
+        shown_lines = self.prose().physical_lines
+        code_indexes = self.prose().code_line_indexes()
+        skipped: set[int] = set(code_indexes)
+        inside_tags = False
+        for index, shown in enumerate(shown_lines):
+            inside_tags = inside_tags or self.markup.opens_tag_section(shown)
+            if inside_tags or not shown.strip() or shown.lstrip().startswith(('```', '~~~')):
+                skipped.add(index)
+        prose_lines: list[ProseLine] = []
+        for index, line in enumerate(self.lines):
+            if index in skipped:
+                continue
+            marker = _LIST_MARKER.match(line.text)
+            marker_length = marker.end() if marker else 0
+            text_start = line.range.start + len((line.indent + line.delimiter).encode('utf-8'))
+            text = line.text[marker_length:]
+            start = text_start + len(line.text[:marker_length].encode('utf-8'))
+            following = index + 1
+            prose_lines.append(
+                ProseLine(
+                    range=SourceRange(start, start + len(text.encode('utf-8'))),
+                    text=text,
+                    opens_item=marker is not None,
+                    ends_paragraph=following >= len(self.lines)
+                    or following in skipped
+                    or _LIST_MARKER.match(self.lines[following].text) is not None,
+                    opens_paragraph=index == 0 or index - 1 in skipped,
+                )
+            )
+        return tuple(prose_lines)
+
+    @property
+    def renders_markup(self) -> bool:
+        """A docstring or a JSDoc block is rendered on hover and in generated docs, while a line comment is not."""
+        return self.form is CommentForm.DOC
 
     def editable_ranges(self) -> tuple[SourceRange, ...]:
         """A trailing comment shares its line with code, so only a comment standing on its own lines is editable."""

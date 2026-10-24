@@ -18,10 +18,17 @@ class ProseMap:
 
     @classmethod
     def of_units(cls, units: tuple[ProseUnit, ...], skipped: tuple[SourceRange, ...] = ()) -> 'ProseMap':
-        """What a document's units hold, with the stretches its parser skipped counted as code."""
+        """What a document's units hold, with the stretches its parser skipped counted as code.
+
+        A quotation holds someone else's words, so a checker leaves it as written too.
+        """
         return cls(
-            editable=tuple(region for unit in units for region in unit.editable_ranges()),
-            code=(*(region for unit in units for region in unit.code_ranges()), *skipped),
+            editable=tuple(region for unit in units if not unit.is_quoted for region in unit.editable_ranges()),
+            code=(
+                *(region for unit in units for region in unit.code_ranges()),
+                *(unit.range for unit in units if unit.is_quoted),
+                *skipped,
+            ),
         )
 
     def admits(self, diagnostic: Diagnostic) -> bool:

@@ -1,8 +1,16 @@
 extends: existence
-message: "Edit history narration '%s'. State the current constraint instead."
-level: error
+message: "'%s' may narrate how the code changed. If so, state the constraint it holds now instead."
+level: warning
 ignorecase: true
+# Phrases that nearly always tell a history. Whether one does here is the author's judgment.
 tokens:
-  - 'previously (returned|was|did)'
-  - 'used to (be|return)'
+  - 'previously (returned|was|were|did|used|called|raised|threw|had)'
+  - 'used to (be|return|call|raise|have|work)'
   - 'changed to avoid'
+  - '(was|were|has been|have been) (changed|renamed|moved|replaced|removed)'
+  - 'no longer'
+  - 'originally'
+  - 'formerly'
+  - 'until recently'
+  - 'before (this|the) (change|refactor|fix)'
+  - 'after (this|the) (change|refactor|fix)'

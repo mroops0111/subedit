@@ -59,9 +59,9 @@ def test_an_unknown_rule_leaves_the_native_rules_alone(tmp_path: pathlib.Path) -
 
 
 def test_a_delegated_rule_can_be_tuned_or_switched_off(tmp_path: pathlib.Path) -> None:
-    target = write(tmp_path, '[rules]\n"subedit.MidSentenceColon" = "error"\n"subedit.DateRef" = "off"\n')
+    target = write(tmp_path, '[rules]\n"subedit.EmDash" = "warning"\n"subedit.DateRef" = "off"\n')
     rules = source().resolve(str(target))
-    assert rules.settings_for('subedit.MidSentenceColon').severity is Severity.ERROR
+    assert rules.settings_for('subedit.EmDash').severity is Severity.WARNING
     assert not rules.allows_external('subedit.DateRef')
     assert rules.allows_external('subedit.Semicolon')
 

@@ -106,6 +106,10 @@ line-ending = "auto"
 "tests/**/*.py" = ["S101", "S105", "S106", "S603", "S607"]
 "examples/**/*.py" = ["RUF001", "T201"]
 "__init__.py" = ["F401"]
+# These modules match CJK punctuation by design, so a full-width character is the point, not a typo.
+"src/subedit/domain/rules/house_style.py" = ["RUF001"]
+"src/subedit/domain/models/wording.py" = ["RUF001"]
+"tests/test_house_style.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["subedit"]

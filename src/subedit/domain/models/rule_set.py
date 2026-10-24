@@ -17,6 +17,12 @@ class RuleSettings:
         option = self.options.get(name, fallback)
         return option if isinstance(option, int) and not isinstance(option, bool) else fallback
 
+    def strings(self, name: str) -> tuple[str, ...]:
+        option = self.options.get(name, ())
+        if not isinstance(option, list | tuple):
+            return ()
+        return tuple(item for item in option if isinstance(item, str))
+
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RuleSet:

@@ -6,7 +6,7 @@ import unicodedata
 
 from .position import SourceRange
 from .prose import Prose
-from .prose_unit import ProseUnit
+from .prose_unit import ProseLine, ProseUnit
 from .text import TextEdit
 
 
@@ -41,6 +41,11 @@ class MarkdownBlock(ProseUnit):
     lines: tuple[MarkdownLine, ...]
     level: int = 0
     list_depth: int = 0
+    # The paragraph is the first in its list item, so its first line carries the item's marker.
+    opens_item: bool = False
+    quoted: bool = False
+    # A heading whose section opens straight into a list, with no sentence to frame it.
+    leads_into_list: bool = False
 
     def __post_init__(self) -> None:
         if not self.lines:
@@ -55,8 +60,33 @@ class MarkdownBlock(ProseUnit):
     def prose(self) -> Prose:
         return Prose(self.joined())
 
+    def prose_lines(self) -> tuple[ProseLine, ...]:
+        last = len(self.lines) - 1
+        return tuple(
+            ProseLine(
+                range=line.range,
+                text=line.text,
+                opens_item=self.opens_item and index == 0,
+                ends_paragraph=index == last,
+                opens_paragraph=index == 0,
+            )
+            for index, line in enumerate(self.lines)
+        )
+
     def editable_ranges(self) -> tuple[SourceRange, ...]:
         return tuple(line.range for line in self.lines)
+
+    @property
+    def renders_markup(self) -> bool:
+        return True
+
+    @property
+    def is_heading(self) -> bool:
+        return self.kind is MarkdownBlockKind.HEADING
+
+    @property
+    def is_quoted(self) -> bool:
+        return self.quoted
 
     def code_ranges(self) -> tuple[SourceRange, ...]:
         return ()

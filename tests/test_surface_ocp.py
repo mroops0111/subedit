@@ -14,6 +14,7 @@ from subedit.domain import (
     FixKind,
     ParsedDocument,
     Prose,
+    ProseLine,
     ProseUnit,
     Rule,
     RuleContext,
@@ -35,6 +36,9 @@ class Subtitle(ProseUnit):
 
     def prose(self) -> Prose:
         return Prose(self.text)
+
+    def prose_lines(self) -> tuple[ProseLine, ...]:
+        return (ProseLine(self.range, self.text, ends_paragraph=True, opens_paragraph=True),)
 
     def editable_ranges(self) -> tuple[SourceRange, ...]:
         return (self.range,)

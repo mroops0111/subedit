@@ -116,7 +116,7 @@ Agents write a lot of comments and docs, and rarely go back to check them. Code 
 
 - **Layout**: comments are wrapped at a fixed column, so sentences break in the middle of a phrase.
 - **Placement**: a public function gets a plain comment instead of a docstring, so it never shows up on hover.
-- **Wording**: change history, ticket numbers, and lists that trail off end up in comments and go out of date.
+- **Wording**: change history and ticket numbers end up in comments and go out of date, and punctuation drifts from the house style.
 
 Telling the agent isn't enough. Even with a style guide or a skill, agents get layout rules wrong and forget them as the conversation grows. A tool that checks every edit doesn't forget, and by fixing what it can itself, it keeps fifty layout complaints out of the agent's context.
 
@@ -276,7 +276,7 @@ Left unset, `line-width` follows the formatter that would format the file, read 
 
 ### Rules
 
-`subedit` ships 10 native rules, a bundled Vale style of 9 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
+`subedit` ships 18 native rules, a bundled Vale style of 6 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
 
 <details>
 <summary><b>Layout</b>: how a comment breaks across lines, autofixed</summary>
@@ -325,6 +325,23 @@ A plain comment right under another declaration may head a group rather than doc
 </details>
 
 <details>
+<summary><b>House Style</b>: punctuation, labels, and wording, in comments and Markdown alike</summary>
+
+<br>
+
+| Rule | Catches | Fix Kind | Default | Options |
+| --- | --- | --- | --- | --- |
+| `mid-sentence-colon` | A colon, `:` or `：`, joining clauses or leading into an inline list | Rewrite | `error` | None |
+| `parenthesis-style` | Full-width parentheses, or half-width ones without a space outside or with one inside | Targeted | `error` | None |
+| `bullet-label-style` | A `label: description` item whose label is not in Title Case, or not bold where the text renders | Targeted | `error` | None |
+| `inclusion-verb` | 包括, which the house style writes as 包含 | Targeted | `error` | None |
+| `contrast-framing` | 不是 A，是 B, which states B against what it is not | Rewrite | `warning` | None |
+
+A colon may stand in a heading, after a short label, or at the end of a line that a list or block follows. Parentheses around code, such as `foo(bar)`, are left alone. Bold goes only where a reader sees it rendered, in Markdown, docstrings, and JSDoc, not in a line comment. Quoted text, in a block quote or quotation marks, is left as written.
+
+</details>
+
+<details>
 <summary><b>Markdown</b>: paragraphs and headings in Markdown files</summary>
 
 <br>
@@ -333,8 +350,13 @@ A plain comment right under another declaration may head a group rather than doc
 | --- | --- | --- | --- | --- |
 | `paragraph-line-break` | A paragraph or list item broken across source lines | Reflow | `error` | None |
 | `heading-wrapped-in-bold` | A heading whose whole text is bold, though a heading already renders bold | Targeted | `error` | None |
+| `heading-title-case` | An English heading not in Title Case | Targeted | `error` | `keep` (`[]`) |
+| `missing-lead-sentence` | A heading that opens straight into a list, with no sentence to frame it | Rewrite | `error` | None |
+| `heading-not-noun-phrase` | A heading that asks a question or gives an instruction | Rewrite | `warning` | None |
 
 GitHub issues, Notion, and Heptabase can show a source newline as a line break, so a hand-wrapped paragraph breaks once it is copied there. Joining puts no space between two CJK characters, and keeps a break the author marked with two trailing spaces or a backslash.
+
+Title Case leaves code, file names, acronyms, and a lone lowercase word alone. A lowercase name such as `npm` goes under `keep`, which list labels follow too.
 
 </details>
 
@@ -348,14 +370,11 @@ These rules run when Vale is installed, and only in a repository without its own
 | Rule | Catches | Fix Kind | Default | Options |
 | --- | --- | --- | --- | --- |
 | `subedit.EmDash` | An em dash, an en dash, or an arrow in prose | Rewrite | `error` | None |
-| `subedit.Semicolon` | A semicolon joining two clauses | Rewrite | `error` | None |
-| `subedit.Ellipsis` | A list that trails off with an ellipsis or its Latin abbreviation, in place of named examples | Rewrite | `error` | None |
-| `subedit.EditHistory` | Narration of how the code behaved before a change, instead of the constraint it holds now | Rewrite | `error` | None |
-| `subedit.SignatureTag` | A tag that restates the signature, matched by text | Rewrite | `error` | None |
-| `subedit.ExternalRef` | An identifier shaped like a ticket number a reader may not be able to open | Rewrite | `warning` | None |
-| `subedit.DateRef` | A date that records when something changed | Rewrite | `warning` | None |
-| `subedit.MidSentenceColon` | A colon joining clauses in code comments | Rewrite | `warning` | None |
-| `subedit.MidSentenceColonMarkup` | The same check for Markdown, with markup taken into account | Rewrite | `warning` | None |
+| `subedit.Semicolon` | A semicolon, `;` or `；`, joining two clauses | Rewrite | `error` | None |
+| `subedit.EditHistory` | A phrase such as "no longer" or "used to" that may narrate a change, in comments only | Rewrite | `warning` | None |
+| `subedit.SignatureTag` | A tag that restates the signature, matched by text, in comments only | Rewrite | `error` | None |
+| `subedit.ExternalRef` | An identifier shaped like a ticket number a reader may not be able to open, in comments only | Rewrite | `warning` | None |
+| `subedit.DateRef` | A date that records when something changed, in comments only | Rewrite | `warning` | None |
 
 Standards such as `UTF-8` and `SHA-256` are exempt from `subedit.ExternalRef`. The `subedit:judging-findings` skill gives an agent the criteria for these judgment calls.
 

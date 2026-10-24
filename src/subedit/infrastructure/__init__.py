@@ -2,11 +2,19 @@ import pathlib
 
 from ..domain.rules import (
     BlockTooLongRule,
+    BulletLabelStyleRule,
+    ContrastFramingRule,
     FileHeaderCommentRule,
+    HeadingNotNounPhraseRule,
+    HeadingTitleCaseRule,
     HeadingWrappedInBoldRule,
+    InclusionVerbRule,
     LineTooLongRule,
     MidClauseBreakRule,
+    MidSentenceColonRule,
+    MissingLeadSentenceRule,
     ParagraphLineBreakRule,
+    ParenthesisStyleRule,
     PlainCommentOnPublicRule,
     SignatureRestatingTagRule,
     StubFragmentRule,
@@ -43,8 +51,21 @@ STRUCTURAL_RULES = (
     SignatureRestatingTagRule(LANGUAGES),
     BlockTooLongRule(),
 )
-MARKDOWN_RULES = (ParagraphLineBreakRule(), HeadingWrappedInBoldRule())
-ALL_RULES = LAYOUT_RULES + REWRITE_RULES + STRUCTURAL_RULES + MARKDOWN_RULES
+WORDING_RULES = (
+    MidSentenceColonRule(),
+    ParenthesisStyleRule(),
+    InclusionVerbRule(),
+    ContrastFramingRule(),
+    BulletLabelStyleRule(),
+)
+MARKDOWN_RULES = (
+    ParagraphLineBreakRule(),
+    HeadingWrappedInBoldRule(),
+    HeadingTitleCaseRule(),
+    MissingLeadSentenceRule(),
+    HeadingNotNounPhraseRule(),
+)
+ALL_RULES = LAYOUT_RULES + REWRITE_RULES + STRUCTURAL_RULES + WORDING_RULES + MARKDOWN_RULES
 
 DEFAULT_CONFIG_SOURCE = TomlConfigSource(
     tuple(rule.metadata.rule_id for rule in ALL_RULES),
@@ -80,6 +101,7 @@ __all__ = [
     'TSX',
     'TYPESCRIPT',
     'VENDOR_DIRECTORIES',
+    'WORDING_RULES',
     'AutoCorrectLinter',
     'CompositeParser',
     'LanguageProfile',
