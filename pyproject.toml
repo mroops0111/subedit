@@ -33,10 +33,10 @@ dependencies = [
 dev = [
     "pytest>=9.0.0",
     "basedpyright>=1.40.1",
-    "ruff>=0.16.7",
+    "ruff>=0.17.2",
 ]
 vale = [
-    "vale>=3.22.0.0",
+    "vale>=3.24.0.0",
 ]
 
 [project.scripts]
