@@ -25,16 +25,17 @@ An editor wraps a comment at whatever column it reaches, so sentences break mid 
 
 ```python
 def reflow(comment: Comment, width: int) -> Comment:
-    # A sentence that fits takes one line, and a longer one
-    # breaks only at a comma that ends a clause.
+    # A sentence that fits the width stays on one line of the comment, and a longer
+    # one breaks only at a comma that ends a clause.
     return comment.reflow(width)
 ```
 
-`subedit fix --write` autofixes the layout and says nothing.
+`subedit fix --write` autofixes the layout and says nothing. The sentence is too long for one line, so it breaks at the comma where its first clause ends.
 
 ```python
 def reflow(comment: Comment, width: int) -> Comment:
-    # A sentence that fits takes one line, and a longer one breaks only at a comma that ends a clause.
+    # A sentence that fits the width stays on one line of the comment,
+    # and a longer one breaks only at a comma that ends a clause.
     return comment.reflow(width)
 ```
 
@@ -278,6 +279,16 @@ Left unset, `line-width` follows the formatter that would format the file, read 
 
 `subedit` ships 18 native rules, a bundled Vale style of 6 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
 
+Each group reads one surface or both. A comment has a column limit, so its rules are about layout and where documentation lives, while Markdown has none, so its rules are about paragraphs and headings.
+
+| Group | Comments | Markdown |
+| --- | --- | --- |
+| Layout, Sentence, Structure | Yes | No |
+| House Style | Yes | Yes |
+| Markdown | No | Yes |
+| Wording | Yes | `subedit.EmDash` and `subedit.Semicolon` only |
+| Spacing | Yes | Yes |
+
 <details>
 <summary><b>Layout</b>: how a comment breaks across lines, autofixed</summary>
 
@@ -331,11 +342,11 @@ A plain comment right under another declaration may head a group rather than doc
 
 | Rule | Catches | Fix Kind | Default | Options |
 | --- | --- | --- | --- | --- |
-| `mid-sentence-colon` | A colon, `:` or `：`, joining clauses or leading into an inline list | Rewrite | `error` | None |
+| `mid-sentence-colon` | A colon, half-width or full-width, joining clauses or leading into an inline list | Rewrite | `error` | None |
 | `parenthesis-style` | Full-width parentheses, or half-width ones without a space outside or with one inside | Targeted | `error` | None |
 | `bullet-label-style` | A `label: description` item whose label is not in Title Case, or not bold where the text renders | Targeted | `error` | None |
-| `inclusion-verb` | 包括, which the house style writes as 包含 | Targeted | `error` | None |
-| `contrast-framing` | 不是 A，是 B, which states B against what it is not | Rewrite | `warning` | None |
+| `inclusion-verb` | The Chinese verb for *include* that the house style does not use, replaced with the one it does | Targeted | `error` | None |
+| `contrast-framing` | A Chinese sentence framed as *not A, but B*, which states B against what it is not | Rewrite | `warning` | None |
 
 A colon may stand in a heading, after a short label, or at the end of a line that a list or block follows. Parentheses around code, such as `foo(bar)`, are left alone. Bold goes only where a reader sees it rendered, in Markdown, docstrings, and JSDoc, not in a line comment. Quoted text, in a block quote or quotation marks, is left as written.
 
@@ -370,7 +381,7 @@ These rules run when Vale is installed, and only in a repository without its own
 | Rule | Catches | Fix Kind | Default | Options |
 | --- | --- | --- | --- | --- |
 | `subedit.EmDash` | An em dash, an en dash, or an arrow in prose | Rewrite | `error` | None |
-| `subedit.Semicolon` | A semicolon, `;` or `；`, joining two clauses | Rewrite | `error` | None |
+| `subedit.Semicolon` | A semicolon, half-width or full-width, joining two clauses | Rewrite | `error` | None |
 | `subedit.EditHistory` | A phrase such as "no longer" or "used to" that may narrate a change, in comments only | Rewrite | `warning` | None |
 | `subedit.SignatureTag` | A tag that restates the signature, matched by text, in comments only | Rewrite | `error` | None |
 | `subedit.ExternalRef` | An identifier shaped like a ticket number a reader may not be able to open, in comments only | Rewrite | `warning` | None |

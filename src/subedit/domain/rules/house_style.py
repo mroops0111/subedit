@@ -21,7 +21,7 @@ PARENTHESIS_STYLE = RuleMetadata(
 
 INCLUSION_VERB = RuleMetadata(
     rule_id='inclusion-verb',
-    summary='The house style writes 包含, not 包括.',
+    summary='Chinese prose uses the verb for include that the house style prefers.',
     fix_kind=FixKind.TARGETED,
 )
 

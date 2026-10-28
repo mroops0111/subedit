@@ -24,5 +24,5 @@ The level says whether a rewrite blocks. An error fails check and stops an agent
 | `bullet-label-style` | targeted | error | A list item label is in Title Case, and bold wherever the text renders. |
 | `heading-title-case` | targeted | error | The English words of a Markdown heading are in Title Case. |
 | `heading-wrapped-in-bold` | targeted | error | A Markdown heading is not wrapped in bold, since a heading already renders bold. |
-| `inclusion-verb` | targeted | error | The house style writes 包含, not 包括. |
+| `inclusion-verb` | targeted | error | Chinese prose uses the verb for include that the house style prefers. |
 | `parenthesis-style` | targeted | error | Parentheses around prose are half-width, spaced from the words outside, and flush with the words inside. |
