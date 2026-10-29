@@ -25,11 +25,14 @@ from subedit.domain import (
     TextEdit,
 )
 from subedit.infrastructure import ALL_RULES, COMMENT_PARSER, CompositeParser, MarkdownParser
+from subedit.presentation import rule_reference
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Subtitle(ProseUnit):
     """One cue of a subtitle file, a surface subedit does not ship."""
+
+    surface_name: typing.ClassVar[str] = 'Subtitles'
 
     range: SourceRange
     text: str
@@ -125,6 +128,19 @@ def test_the_new_rule_never_reads_comments() -> None:
     document = Document(uri='file:///a.py', text='# LOUD COMMENT\nx = 1\n', language_id='python')
     report = Linter(PARSER, RuleEngine((ShoutingCueRule(),))).run(document, rule_set(ShoutingCueRule()))
     assert report.is_clean
+
+
+def test_the_rule_reference_gives_the_new_surface_its_own_section() -> None:
+    reference = rule_reference.render((*ALL_RULES, ShoutingCueRule()))
+    section = reference.split('## Subtitles\n', 1)[1]
+    assert '`shouting-cue`' in section
+    assert '## ' not in section, 'the new surface is no broader than comments or Markdown, so its section comes last'
+
+
+def test_every_shipped_surface_names_itself() -> None:
+    surfaces = {rule.surface for rule in ALL_RULES} - {ProseUnit}
+    unnamed = [surface.__name__ for surface in surfaces if 'surface_name' not in vars(surface)]
+    assert not unnamed, f'surfaces that would borrow the name of every surface: {unnamed}'
 
 
 def test_two_parsers_may_not_claim_one_language() -> None:

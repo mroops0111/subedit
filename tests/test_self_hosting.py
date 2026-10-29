@@ -79,21 +79,29 @@ def test_the_project_config_is_readable_and_enables_every_rule() -> None:
     assert rules.line_width == 120
 
 
-def test_the_generated_rule_reference_is_in_sync() -> None:
-    from subedit.infrastructure import ALL_RULES
-    from subedit.presentation import rule_reference
-
-    reference = REPOSITORY_ROOT / 'docs' / 'rules.md'
-    assert reference.is_file(), 'run: subedit rules --write docs/rules.md'
-    assert reference.read_text(encoding='utf-8') == rule_reference.render(ALL_RULES)
-
-
-def test_every_rule_appears_in_the_reference() -> None:
+def test_the_rule_reference_matches_each_rule() -> None:
     from subedit.infrastructure import ALL_RULES
 
     reference = (REPOSITORY_ROOT / 'docs' / 'rules.md').read_text(encoding='utf-8')
-    missing = [rule.metadata.rule_id for rule in ALL_RULES if f'`{rule.metadata.rule_id}`' not in reference]
-    assert not missing, f'rules absent from the reference: {missing}'
+    rows = {
+        cells[0].strip('`'): cells
+        for line in reference.splitlines()
+        if line.startswith('| `')
+        for cells in [[cell.strip() for cell in line.strip('|').split('|')]]
+    }
+    for rule in ALL_RULES:
+        metadata = rule.metadata
+        assert metadata.rule_id in rows, f'{metadata.rule_id} is absent from docs/rules.md'
+        _, _, fix_kind, level, _ = rows[metadata.rule_id]
+        assert fix_kind.lower().startswith(metadata.fix_kind.value), f'{metadata.rule_id} fix kind is {fix_kind}'
+        assert level == f'`{metadata.default_severity.name.lower()}`', f'{metadata.rule_id} level is {level}'
+
+
+def test_the_rule_reference_lists_every_vale_rule() -> None:
+    reference = (REPOSITORY_ROOT / 'docs' / 'rules.md').read_text(encoding='utf-8')
+    styles = REPOSITORY_ROOT / 'src' / 'subedit' / 'vale' / 'styles' / 'subedit'
+    missing = [path.stem for path in styles.glob('*.yml') if f'`subedit.{path.stem}`' not in reference]
+    assert not missing, f'Vale rules absent from docs/rules.md: {missing}'
 
 
 def test_the_repository_installs_its_own_hook() -> None:

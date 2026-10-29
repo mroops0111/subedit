@@ -2,6 +2,7 @@ import dataclasses
 import enum
 import itertools
 import re
+import typing
 
 from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .position import SourceRange
@@ -48,6 +49,8 @@ class SymbolRef:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class CommentGroup(ProseUnit):
+    surface_name: typing.ClassVar[str] = 'Comments'
+
     range: SourceRange
     lines: tuple[CommentLine, ...]
     form: CommentForm

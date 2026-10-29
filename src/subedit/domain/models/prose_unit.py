@@ -1,5 +1,6 @@
 import abc
 import dataclasses
+import typing
 
 from .position import SourceRange
 from .prose import Prose
@@ -32,6 +33,10 @@ class ProseUnit(abc.ABC):
     """A stretch of prose a rule reads, wherever a document holds it, such as a comment or a Markdown paragraph."""
 
     __slots__ = ()
+
+    # The name a rule reference gives the rules that read this kind of unit,
+    # so a new surface heads its own section with no change to the reference.
+    surface_name: typing.ClassVar[str] = 'Every Surface'
 
     range: SourceRange
 

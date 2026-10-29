@@ -102,14 +102,8 @@ def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directo
 
 
 @app.command()
-def rules(
-    destination: pathlib.Path = typer.Option(None, '--write', help='Write the generated table to this path.'),
-) -> None:
-    rule_table = rule_reference.render(ALL_RULES)
-    if destination is None:
-        typer.echo(rule_table, nl=False)
-        return
-    destination.write_text(rule_table, encoding='utf-8')
+def rules() -> None:
+    typer.echo(rule_reference.render(ALL_RULES), nl=False)
 
 
 @app.command()
