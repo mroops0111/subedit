@@ -1,6 +1,6 @@
 [subedit]
 line-width = 120
-exclude = ["tests/fixtures/**", "examples/probe.py"]
+exclude = ["tests/fixtures/**"]
 
 [rules]
 mid-clause-break = "error"

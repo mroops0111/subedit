@@ -89,7 +89,7 @@ jobs:
       - name: Confirm Vale
         run: vale --version
 
-      - run: uv run subedit check src/ tests/ README.md docs/ examples/README.md
+      - run: uv run subedit check src/ tests/ README.md docs/
 
   build:
     name: Build
