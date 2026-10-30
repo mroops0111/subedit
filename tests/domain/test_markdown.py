@@ -1,11 +1,12 @@
+import dataclasses
 import pathlib
 
 import pytest
-from factories import document, found, lint, markdown, rule_ids, rule_set
+from factories import REPOSITORY_ROOT, document, found, lint, markdown, rule_ids, rule_set
 from factories import fixed as fix_document
 
 from subedit.application import Linter, RuleEngine
-from subedit.domain import CommentGroup, MarkdownBlock, MarkdownBlockKind
+from subedit.domain import CommentGroup, MarkdownBlock, MarkdownBlockKind, RuleSet
 from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, MARKDOWN_RULES, MarkdownParser, language_id_for
 
 
@@ -141,3 +142,60 @@ def test_front_matter_code_and_tables_count_as_code_to_an_outside_checker() -> N
     inspection = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).inspect(markdown(source), rule_set())
     covered = [source.encode()[region.start : region.end].decode() for region in inspection.prose_map.code]
     assert covered == ['---\ntitle: a\n---\n', '```\ncode\n```\n', '| a |\n| --- |\n| 1 |\n']
+
+
+MIS_WRAPPED = '# cap the size so the mmap does not\n# blow past it, an unbounded value faults.\n'
+REFLOWED = '# cap the size so the mmap does not blow past it,\n# an unbounded value faults.\n'
+
+
+def code_blocks(width: int = 60) -> RuleSet:
+    return dataclasses.replace(rule_set(width=width), reads_code_blocks=True)
+
+
+def test_a_code_block_is_left_alone_unless_the_project_opts_in() -> None:
+    source = f'Notes.\n\n```python\n{MIS_WRAPPED}```\n'
+    assert 'mid-clause-break' not in found(lint(markdown(source), rule_set(width=60)))
+    assert 'mid-clause-break' in found(lint(markdown(source), code_blocks()))
+
+
+@pytest.mark.parametrize(
+    ('block', 'expected'),
+    [
+        (f'```python\n{MIS_WRAPPED}```\n', f'```python\n{REFLOWED}```\n'),
+        (
+            '- Item.\n\n  ```py\n' + ''.join(f'  {line}\n' for line in MIS_WRAPPED.splitlines()) + '  ```\n',
+            '- Item.\n\n  ```py\n' + ''.join(f'  {line}\n' for line in REFLOWED.splitlines()) + '  ```\n',
+        ),
+        (
+            '> ```python\n' + ''.join(f'> {line}\n' for line in MIS_WRAPPED.splitlines()) + '> ```\n',
+            '> ```python\n' + ''.join(f'> {line}\n' for line in REFLOWED.splitlines()) + '> ```\n',
+        ),
+    ],
+    ids=['at the top level', 'in a list item', 'in a block quote'],
+)
+def test_a_fix_in_a_code_block_keeps_what_sets_its_lines_apart(block: str, expected: str) -> None:
+    source = f'Notes.\n\n{block}'
+    assert fix_document(markdown(source), code_blocks()) == f'Notes.\n\n{expected}'
+
+
+def test_a_block_in_a_language_subedit_does_not_read_is_left_alone() -> None:
+    source = f'Notes.\n\n```ruby\n{MIS_WRAPPED}```\n'
+    assert found(lint(markdown(source), code_blocks())) == []
+
+
+@pytest.mark.parametrize(
+    ('name', 'language_id'), [('python', 'python'), ('py', 'python'), ('TS', 'typescript'), ('text', None)]
+)
+def test_an_info_string_names_a_language_by_its_id_or_its_extension(name: str, language_id: str | None) -> None:
+    assert DEFAULT_PARSER.language_named(name) == language_id
+
+
+def test_reading_every_code_block_of_a_long_document_holds_up() -> None:
+    # Walking the tokens inside a TOML block's content once crashed the tree-sitter binding partway through this file.
+    readme = (REPOSITORY_ROOT / 'README.md').read_text(encoding='utf-8')
+    assert lint(markdown(readme), code_blocks(width=120)).diagnostics is not None
+
+
+def test_a_markdown_block_inside_markdown_is_an_example_left_alone() -> None:
+    source = 'Notes.\n\n```markdown\n## lowercase heading\n\nA paragraph\nbroken by hand.\n```\n'
+    assert found(lint(markdown(source), code_blocks())) == []

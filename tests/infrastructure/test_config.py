@@ -142,3 +142,8 @@ def test_a_formatter_left_at_its_default_sets_no_width(project: Project) -> None
 def test_subedit_config_sets_the_width_over_the_formatter(project: Project) -> None:
     project.write('pyproject.toml', '[tool.ruff]\nline-length = 88\n\n[tool.subedit]\nline-width = 100\n')
     assert DEFAULT_CONFIG_SOURCE.resolve(str(project.root / 'a.py')).line_width == 100
+
+
+def test_code_blocks_are_read_only_where_the_project_asks(project: Project) -> None:
+    assert not source().resolve(str(configured(project, '[subedit]\n'))).reads_code_blocks
+    assert source().resolve(str(configured(project, '[subedit]\ncode-blocks = true\n'))).reads_code_blocks

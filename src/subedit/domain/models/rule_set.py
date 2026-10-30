@@ -35,6 +35,8 @@ class RuleSet:
     line_width: int = DEFAULT_LINE_WIDTH
     # A delegated tool's rules are not known up front, so they are listed when switched off instead.
     disabled_external_ids: frozenset[str] = frozenset()
+    # The comments in a Markdown code block are often an example, so a project opts in to having them read.
+    reads_code_blocks: bool = False
 
     def is_enabled(self, rule_id: str) -> bool:
         return rule_id in self.enabled_rule_ids

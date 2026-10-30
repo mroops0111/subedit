@@ -3,6 +3,7 @@ import typing
 
 from ..domain.models.diagnostic import Diagnostic, Report, Severity
 from ..domain.models.document import Document
+from ..domain.models.embedded import EmbeddedDocument
 from ..domain.models.prose_map import ProseMap
 from ..domain.models.prose_unit import ProseUnit
 from ..domain.models.rule_set import RuleSet
@@ -76,6 +77,23 @@ class Linter:
             return Inspection()
         parsed = self._parser.read(document)
         diagnostics = self._engine.run(document, parsed.units, rule_set)
+        if rule_set.reads_code_blocks:
+            diagnostics += tuple(
+                finding
+                for embedded in parsed.embedded
+                for finding in self._embedded_findings(document, embedded, rule_set)
+            )
         sorted_diagnostics = sorted(diagnostics, key=lambda item: (item.range.start, item.rule_id))
         prose_map = ProseMap.of_units(parsed.units, parsed.skipped)
         return Inspection(Report(tuple(sorted_diagnostics)), prose_map)
+
+    def _embedded_findings(
+        self, host: Document, embedded: EmbeddedDocument, rule_set: RuleSet
+    ) -> tuple[Diagnostic, ...]:
+        language_id = self._parser.language_named(embedded.language_name)
+        # A block in the host's own language is an example of the host, often a deliberately wrong one.
+        if language_id is None or language_id == host.language_id:
+            return ()
+        inner = Document(uri=host.uri, text=embedded.text, language_id=language_id)
+        units = self._parser.read(inner).units
+        return tuple(embedded.host_diagnostic(finding) for finding in self._engine.run(inner, units, rule_set))
