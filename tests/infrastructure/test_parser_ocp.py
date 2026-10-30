@@ -1,13 +1,14 @@
 import re
 
 import tree_sitter_typescript
+import tree_sitter_yaml
 from factories import document
 from tree_sitter import Language
 
-from subedit.domain import LINE_LAYOUT, CommentForm, CommentPlacement, SymbolKind, Visibility
+from subedit.domain import LINE_LAYOUT, CommentForm, CommentPlacement, Document, SymbolKind, Visibility
 from subedit.domain.ports import DelimiterSplit
 from subedit.infrastructure import TreeSitterParser
-from subedit.infrastructure.parsers.languages import LanguageProfile, NodeRole
+from subedit.infrastructure.parsers.languages import CommentOnlyProfile, LanguageProfile, NodeRole
 
 
 _TS_DELIMITER = re.compile(r'^(/\*\*|/\*|//+)\s?')
@@ -23,6 +24,7 @@ class TypeScriptProfile(LanguageProfile):
     signature_tags = ('@param', '@returns', '@type')
     canonical_extension = '.ts'
     doc_layout = LINE_LAYOUT
+    declares_symbols = True
     _ROLES = {
         'program': NodeRole.ROOT,
         'comment': NodeRole.COMMENT,
@@ -112,3 +114,23 @@ def test_consecutive_lines_group_under_a_different_grammar() -> None:
     assert len(blocks) == 1
     assert blocks[0].line_count == 2
     assert blocks[0].prose().flattened == 'first line, second line.'
+
+
+def test_a_format_with_only_line_comments_is_one_more_instance() -> None:
+    profile = CommentOnlyProfile(
+        'conf',
+        frozenset({'.conf'}),
+        '.conf',
+        Language(tree_sitter_yaml.language()),
+        '(comment) @comment',
+        root_type='stream',
+        line_delimiter=re.compile(r'^(#+\s?)'),
+        code_line=lambda line: False,
+    )
+    parser = TreeSitterParser((profile,))
+    blocks = parser.parse(
+        Document(uri='file:///a.conf', text='# first line,\n# second line.\nkey: 1\n', language_id='conf')
+    )
+
+    assert [block.prose().flattened for block in blocks] == ['first line, second line.']
+    assert parser.file_type_of('conf') == profile.file_type

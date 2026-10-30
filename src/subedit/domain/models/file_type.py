@@ -11,6 +11,8 @@ class FileType:
     canonical_extension: str
     # Directories a package manager fills with files nobody in the project wrote.
     vendor_directories: frozenset[str] = frozenset()
+    # Files a tool writes whole, such as a lock file, which no one reads as prose.
+    generated_names: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         if self.canonical_extension not in self.extensions:

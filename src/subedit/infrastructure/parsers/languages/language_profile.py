@@ -1,14 +1,16 @@
 import abc
 import enum
 import re
+import types
+import typing
 
 from tree_sitter import Language, Node
 
-from ....domain.models.comment import SymbolKind, Visibility
-from ....domain.models.comment_layout import CommentLayout
+from ....domain.models.comment import CommentForm, SymbolKind, Visibility
+from ....domain.models.comment_layout import LINE_LAYOUT, CommentLayout
 from ....domain.models.file_type import FileType
 from ....domain.models.prose import PLAIN_MARKUP, ProseMarkup
-from ....domain.ports.language_conventions import LanguageConventions
+from ....domain.ports.language_conventions import DelimiterSplit, LanguageConventions
 from ...config_sources.formatter_width import WidthSetting
 
 
@@ -39,25 +41,58 @@ class GrammarAdapter(abc.ABC):
 
 
 class LanguageProfile(LanguageConventions, GrammarAdapter):
-    """Everything subedit knows about one language, so supporting another means writing a profile and nothing else."""
+    """Everything subedit knows about one language, so supporting another means writing a profile and nothing else.
 
-    doc_layout: CommentLayout
+    The defaults describe a language whose only prose is its line comments, such as YAML.
+    A language that declares symbols, such as Python,
+    overrides the defaults with its doc comment, roles, and visibility.
+    """
+
     # The extension Vale and AutoCorrect know the language by, since they read an unknown one as plain text.
     canonical_extension: str
+    # What opens a line comment, such as # or //, which every line of one repeats.
+    line_delimiter: re.Pattern[str]
+    doc_layout: CommentLayout = LINE_LAYOUT
     doc_markup: ProseMarkup = PLAIN_MARKUP
     line_markup: ProseMarkup = PLAIN_MARKUP
     # A docstring lives inside what it documents, while a JSDoc block stands above it.
     doc_leads_declaration = False
+    # Whether the language declares symbols a comment documents,
+    # so that a comment opening the file stands before the first of them as a banner.
+    declares_symbols = False
     # Where the language's formatters set a line width, which subedit follows over a default of its own.
     width_settings: tuple[WidthSetting, ...] = ()
     # Directories a package manager fills with code nobody in the project wrote.
     vendor_directories: frozenset[str] = frozenset()
+    # Files a tool writes whole, such as a lock file, which no one reads as prose.
+    generated_names: frozenset[str] = frozenset()
     # A comment a tool reads, such as eslint-disable or noqa, which the query sets apart from prose.
     directive: re.Pattern[str] | None = None
+    # What each grammar node is to the parser, by its type, with every type left out read as other.
+    node_roles: typing.Mapping[str, NodeRole] = types.MappingProxyType({})
 
     @property
     def file_type(self) -> FileType:
-        return FileType(self.language_id, self.extensions, self.canonical_extension, self.vendor_directories)
+        return FileType(
+            self.language_id, self.extensions, self.canonical_extension, self.vendor_directories, self.generated_names
+        )
+
+    def role_of(self, node_type: str) -> NodeRole:
+        return self.node_roles.get(node_type, NodeRole.OTHER)
+
+    def symbol_kind(self, node_type: str) -> SymbolKind:
+        return SymbolKind.FUNCTION
+
+    def visibility_of(self, name: str) -> Visibility:
+        return Visibility.PUBLIC
+
+    def split_delimiter(self, line: str, form: CommentForm) -> DelimiterSplit:
+        """Split a line comment into its indent, its delimiter, and its text, which a doc comment overrides."""
+        indent = line[: len(line) - len(line.lstrip())]
+        rest = line[len(indent) :].rstrip()
+        opening = self.line_delimiter.match(rest)
+        delimiter = opening.group(1) if opening else ''
+        return DelimiterSplit(indent=indent, delimiter=delimiter, text=rest[len(delimiter) :])
 
     def is_directive(self, node: Node) -> bool:
         return self.directive is not None and bool(self.directive.match((node.text or b'').decode('utf-8')))

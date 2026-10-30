@@ -1,9 +1,10 @@
 import pytest
-from factories import document, found, lint, rule_set
+from factories import Project, document, found, lint, rule_set
 from factories import fixed as fix_document
 
 from subedit.domain import CommentGroup, CommentPlacement
 from subedit.infrastructure import COMMENT_PARSER
+from subedit.presentation.cli import app
 
 
 def parse(source: str, language_id: str) -> tuple[CommentGroup, ...]:
@@ -71,3 +72,17 @@ def test_a_block_comment_in_json_is_left_alone() -> None:
 
 def test_a_trailing_comment_stays_beside_its_value() -> None:
     assert [group.placement for group in parse('a: 1  # seconds\n', 'yaml')] == [CommentPlacement.TRAILING]
+
+
+@pytest.mark.parametrize('lock_file', ['package-lock.json', 'pnpm-lock.yaml'])
+def test_check_walks_data_files_but_skips_what_a_tool_writes(
+    project: Project, capsys: pytest.CaptureFixture[str], lock_file: str
+) -> None:
+    project.write('settings.json', '{\n  // Keep the width in step\n  // with Prettier.\n  "a": 1\n}\n')
+    project.write(lock_file, '# Written by the package manager,\n# never by hand.\na: 1\n')
+
+    with pytest.raises(SystemExit):
+        app(['check', '--no-delegate', str(project.root)])
+    output = capsys.readouterr().out
+    assert 'settings.json' in output
+    assert lock_file not in output

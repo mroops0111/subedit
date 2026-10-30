@@ -75,7 +75,9 @@ class PythonProfile(LanguageProfile):
     doc_delimiter = '"""'
     signature_tags = ('Args:', 'Returns:', 'Raises:', 'Yields:', ':param', ':return', ':returns', ':rtype')
     canonical_extension = '.py'
+    line_delimiter = _HASH_DELIMITER
     doc_layout = QUOTED_DOC_LAYOUT
+    declares_symbols = True
     directive = re.compile(_DIRECTIVE)
     doc_markup = ProseMarkup(tag_section=_SECTION, example_tag='Example', code_line=_CODE_LINE)
     line_markup = ProseMarkup(code_line=_CODE_LINE)
@@ -86,7 +88,7 @@ class PythonProfile(LanguageProfile):
         WidthSetting('pyproject.toml', ('tool', 'ruff', 'line-length')),
         WidthSetting('pyproject.toml', ('tool', 'black', 'line-length')),
     )
-    _ROLES = {
+    node_roles = {
         'module': NodeRole.ROOT,
         'comment': NodeRole.COMMENT,
         'function_definition': NodeRole.DEFINITION,
@@ -103,9 +105,6 @@ class PythonProfile(LanguageProfile):
     def query(self) -> str:
         return QUERY
 
-    def role_of(self, node_type: str) -> NodeRole:
-        return self._ROLES.get(node_type, NodeRole.OTHER)
-
     def symbol_kind(self, node_type: str) -> SymbolKind:
         return SymbolKind.CLASS if node_type == 'class_definition' else SymbolKind.FUNCTION
 
@@ -113,17 +112,11 @@ class PythonProfile(LanguageProfile):
         return Visibility.INTERNAL if name.startswith('_') else Visibility.PUBLIC
 
     def split_delimiter(self, line: str, form: CommentForm) -> DelimiterSplit:
+        if form is not CommentForm.DOC:
+            return super().split_delimiter(line, form)
         indent = line[: len(line) - len(line.lstrip())]
-        rest = line[len(indent) :]
-        if form is CommentForm.DOC:
-            delimiter, text, suffix = self._split_doc(rest)
-            return DelimiterSplit(indent=indent, delimiter=delimiter, text=text, suffix=suffix)
-        hash_delimiter = _HASH_DELIMITER.match(rest)
-        if hash_delimiter is None:
-            return DelimiterSplit(indent=indent, delimiter='', text=rest.rstrip())
-        return DelimiterSplit(
-            indent=indent, delimiter=hash_delimiter.group(1), text=rest[hash_delimiter.end() :].rstrip()
-        )
+        delimiter, text, suffix = self._split_doc(line[len(indent) :])
+        return DelimiterSplit(indent=indent, delimiter=delimiter, text=text, suffix=suffix)
 
     def _split_doc(self, rest: str) -> tuple[str, str, str]:
         opening = _DOC_DELIMITER.match(rest)

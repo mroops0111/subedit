@@ -69,7 +69,9 @@ class TypeScriptProfile(LanguageProfile):
 
     doc_delimiter = '/**'
     doc_layout = FramedDocLayout(opening='/**', prefix=' * ', closing_line=' */')
+    line_delimiter = _LINE_DELIMITER
     doc_leads_declaration = True
+    declares_symbols = True
     directive = re.compile(_DIRECTIVE)
     width_settings = (
         *(
@@ -84,7 +86,7 @@ class TypeScriptProfile(LanguageProfile):
         ),
     )
     vendor_directories = frozenset({'node_modules', 'bower_components', 'jspm_packages'})
-    _ROLES = {
+    node_roles = {
         'program': NodeRole.ROOT,
         'comment': NodeRole.COMMENT,
         'export_statement': NodeRole.DEFINITION,
@@ -131,9 +133,6 @@ class TypeScriptProfile(LanguageProfile):
 
     def query(self) -> str:
         return QUERY
-
-    def role_of(self, node_type: str) -> NodeRole:
-        return self._ROLES.get(node_type, NodeRole.OTHER)
 
     def symbol_kind(self, node_type: str) -> SymbolKind:
         if node_type in _CLASS_LIKE:
@@ -188,18 +187,17 @@ class TypeScriptProfile(LanguageProfile):
         return Visibility.INTERNAL
 
     def split_delimiter(self, line: str, form: CommentForm) -> DelimiterSplit:
+        if form is not CommentForm.DOC:
+            return super().split_delimiter(line, form)
         indent = line[: len(line) - len(line.lstrip())]
         rest = line[len(indent) :].rstrip()
-        pattern = _LINE_DELIMITER
-        if form is CommentForm.DOC:
-            pattern = _DOC_OPENING if rest.startswith('/**') else _DOC_PREFIX
-            if rest == _DOC_CLOSING:
-                return DelimiterSplit(indent=indent, delimiter=rest, text='')
-        opening = pattern.match(rest)
+        if rest == _DOC_CLOSING:
+            return DelimiterSplit(indent=indent, delimiter=rest, text='')
+        opening = (_DOC_OPENING if rest.startswith('/**') else _DOC_PREFIX).match(rest)
         delimiter = opening.group(1) if opening else ''
         text = rest[len(delimiter) :]
         suffix = ''
-        if form is CommentForm.DOC and text.endswith(_DOC_CLOSING):
+        if text.endswith(_DOC_CLOSING):
             text = text[: -len(_DOC_CLOSING)]
             suffix = text[len(text.rstrip()) :] + _DOC_CLOSING
             text = text.rstrip()

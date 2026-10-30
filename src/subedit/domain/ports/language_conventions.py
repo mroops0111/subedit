@@ -19,8 +19,9 @@ class LanguageConventions(abc.ABC):
 
     language_id: str
     extensions: frozenset[str]
-    doc_delimiter: str
-    signature_tags: tuple[str, ...]
+    # A format with no doc comment, such as YAML, has no delimiter to name and no tags that restate a signature.
+    doc_delimiter: str | None = None
+    signature_tags: tuple[str, ...] = ()
 
     @abc.abstractmethod
     def visibility_of(self, name: str) -> Visibility: ...

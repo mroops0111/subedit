@@ -1,4 +1,4 @@
-from .data_profile import JSON, YAML, DataProfile
+from .comment_only_profile import JSON, YAML, CommentOnlyProfile
 from .language_profile import GrammarAdapter, LanguageProfile, NodeRole
 from .python_profile import PYTHON, PythonProfile
 from .typescript_profile import JAVASCRIPT, TSX, TYPESCRIPT, TypeScriptProfile
@@ -11,7 +11,7 @@ __all__ = [
     'TSX',
     'TYPESCRIPT',
     'YAML',
-    'DataProfile',
+    'CommentOnlyProfile',
     'GrammarAdapter',
     'LanguageProfile',
     'NodeRole',

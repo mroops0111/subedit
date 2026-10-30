@@ -44,6 +44,7 @@ DEFAULT_PARSER = CompositeParser((COMMENT_PARSER, MarkdownParser()))
 FILE_TYPES = DEFAULT_PARSER.file_types
 EXTENSIONS = frozenset(extension for file_type in FILE_TYPES for extension in file_type.extensions)
 VENDOR_DIRECTORIES = frozenset(directory for file_type in FILE_TYPES for directory in file_type.vendor_directories)
+GENERATED_NAMES = frozenset(name for file_type in FILE_TYPES for name in file_type.generated_names)
 SUFFIX_ALIASES = {alias: canonical for file_type in FILE_TYPES for alias, canonical in file_type.aliases.items()}
 
 LAYOUT_RULES = (MidClauseBreakRule(), LineTooLongRule())
@@ -94,6 +95,7 @@ __all__ = [
     'EXTENSIONS',
     'EXTERNAL_LINTERS',
     'FILE_TYPES',
+    'GENERATED_NAMES',
     'JAVASCRIPT',
     'JSON',
     'LANGUAGES',
