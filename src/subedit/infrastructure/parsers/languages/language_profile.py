@@ -6,6 +6,7 @@ from tree_sitter import Language, Node
 
 from ....domain.models.comment import SymbolKind, Visibility
 from ....domain.models.comment_layout import CommentLayout
+from ....domain.models.file_type import FileType
 from ....domain.models.prose import PLAIN_MARKUP, ProseMarkup
 from ....domain.ports.language_conventions import LanguageConventions
 from ...config_sources.formatter_width import WidthSetting
@@ -50,6 +51,10 @@ class LanguageProfile(LanguageConventions, GrammarAdapter):
     vendor_directories: frozenset[str] = frozenset()
     # A comment a tool reads, such as eslint-disable or noqa, which the query sets apart from prose.
     directive: re.Pattern[str] | None = None
+
+    @property
+    def file_type(self) -> FileType:
+        return FileType(self.language_id, self.extensions, self.canonical_extension, self.vendor_directories)
 
     def is_directive(self, node: Node) -> bool:
         return self.directive is not None and bool(self.directive.match((node.text or b'').decode('utf-8')))

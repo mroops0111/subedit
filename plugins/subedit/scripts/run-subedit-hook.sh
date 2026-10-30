@@ -32,7 +32,7 @@ fi
 
 if ! command -v uvx >/dev/null 2>&1; then
     cat >&2 <<'MESSAGE'
-subedit needs uv, so comment checks are not running.
+subedit needs uv, so prose checks are not running.
 
     curl -LsSf https://astral.sh/uv/install.sh | sh
 

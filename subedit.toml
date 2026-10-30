@@ -11,3 +11,6 @@ file-header-comment = "error"
 plain-comment-on-public = "error"
 signature-restating-tag = "error"
 block-too-long = "error"
+
+[rules.heading-title-case]
+keep = ["subedit"]

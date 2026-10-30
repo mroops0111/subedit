@@ -20,3 +20,6 @@ htmlcov/
 
 # macOS
 .DS_Store
+
+# Internal docs, linked in from project-docs
+.internal

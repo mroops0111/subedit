@@ -24,6 +24,7 @@ dependencies = [
     "autocorrect-py>=2.14.0",
     "pydantic>=2.13.5",
     "tree-sitter>=0.26.0",
+    "tree-sitter-markdown>=0.5.0",
     "tree-sitter-python>=0.25.0",
     "tree-sitter-typescript>=0.23.2",
     "typer>=0.27.2",
@@ -105,6 +106,11 @@ line-ending = "auto"
 "tests/**/*.py" = ["S101", "S105", "S106", "S603", "S607"]
 "examples/**/*.py" = ["RUF001", "T201"]
 "__init__.py" = ["F401"]
+# These modules match CJK punctuation by design, so a full-width character is the point, not a typo.
+"src/subedit/domain/rules/style.py" = ["RUF001"]
+"src/subedit/domain/models/prose.py" = ["RUF001"]
+"src/subedit/domain/models/title_case.py" = ["RUF001"]
+"tests/domain/test_style.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["subedit"]
@@ -114,6 +120,8 @@ split-on-trailing-comma = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The tests share factories.py, which sits beside them rather than in a package.
+pythonpath = ["tests"]
 
 [tool.basedpyright]
 venvPath = "."

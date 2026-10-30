@@ -1,9 +1,0 @@
-extends: existence
-message: "Colon in running prose. Allowed only as a 'Label:' prefix, or to introduce a list or an indented block."
-level: warning
-nonword: true
-# A colon ending a line is still running prose when the sentence carries on, unindented, on the next.
-# Vale drops the indent after a '#', so in line comments an indented block below reads as carrying on.
-tokens:
-  - '\w\s+[\w-]+:[ \t]+\w'
-  - '\w[ \t]+[\w-]+:[ \t]*\n[A-Za-z`]'

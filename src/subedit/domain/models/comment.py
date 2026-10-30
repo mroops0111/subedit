@@ -1,10 +1,12 @@
 import dataclasses
 import enum
-import itertools
+import typing
 
 from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .position import SourceRange
-from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence, break_cost, comma_breaks, reflow_sentence
+from .prose import LIST_MARKER, PLAIN_MARKUP, Prose, ProseMarkup
+from .prose_unit import ProseLine, ProseUnit
+from .reflow import break_cost, is_legal, keeps_given, line_shared_by, occupied_lines, reflow_sentence, strands_stub
 from .text import TextEdit
 
 
@@ -42,7 +44,9 @@ class SymbolRef:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class CommentGroup:
+class CommentGroup(ProseUnit):
+    surface_name: typing.ClassVar[str] = 'Comments'
+
     range: SourceRange
     lines: tuple[CommentLine, ...]
     form: CommentForm
@@ -85,6 +89,50 @@ class CommentGroup:
             for line in self.lines
         ]
         return Prose('\n'.join(rendered_lines), self.markup)
+
+    def prose_lines(self) -> tuple[ProseLine, ...]:
+        """The lines of prose, without code, a fence, or a tag section, each with its list marker set apart."""
+        shown_lines = self.prose().physical_lines
+        code_indexes = self.prose().code_line_indexes()
+        skipped: set[int] = set(code_indexes)
+        inside_tags = False
+        for index, shown in enumerate(shown_lines):
+            inside_tags = inside_tags or self.markup.opens_tag_section(shown)
+            if inside_tags or not shown.strip() or shown.lstrip().startswith(('```', '~~~')):
+                skipped.add(index)
+        prose_lines: list[ProseLine] = []
+        for index, line in enumerate(self.lines):
+            if index in skipped:
+                continue
+            marker = LIST_MARKER.match(line.text)
+            marker_length = marker.end() if marker else 0
+            text_start = line.range.start + len((line.indent + line.delimiter).encode('utf-8'))
+            text = line.text[marker_length:]
+            start = text_start + len(line.text[:marker_length].encode('utf-8'))
+            following = index + 1
+            prose_lines.append(
+                ProseLine(
+                    range=SourceRange(start, start + len(text.encode('utf-8'))),
+                    text=text,
+                    opens_item=marker is not None,
+                    ends_paragraph=following >= len(self.lines)
+                    or following in skipped
+                    or LIST_MARKER.match(self.lines[following].text) is not None,
+                    opens_paragraph=index == 0 or index - 1 in skipped,
+                )
+            )
+        return tuple(prose_lines)
+
+    @property
+    def renders_markup(self) -> bool:
+        """A docstring or a JSDoc block is rendered on hover and in generated docs, while a line comment is not."""
+        return self.form is CommentForm.DOC
+
+    def editable_ranges(self) -> tuple[SourceRange, ...]:
+        """A trailing comment shares its line with code, so only a comment standing on its own lines is editable."""
+        if self.placement is CommentPlacement.TRAILING:
+            return ()
+        return tuple(line.range for line in self.lines)
 
     def code_ranges(self) -> tuple[SourceRange, ...]:
         """Where the lines holding code sit, which a prose checker has no business reading."""
@@ -146,7 +194,7 @@ class CommentGroup:
                     out.append('')
                 first_budget = self.text_budget(width, first_line=not out) - (reserve if not out else 0)
                 is_summary = self.has_summary_line and paragraph_index == 0 and sentence_index == 0
-                shared_line = None if is_summary else _shared_line(lines, sentences[sentence_index:])
+                shared_line = None if is_summary else line_shared_by(lines, sentences[sentence_index:])
                 if shared_line is not None and len(shared_line) <= first_budget:
                     out.append(shared_line)
                     shared_until = sentence.offset + len(shared_line)
@@ -155,18 +203,18 @@ class CommentGroup:
                     best_lines: tuple[str, ...] = (sentence.text,)
                 else:
                     best_lines = reflow_sentence(sentence.text, body_budget, stub_floor, first_width=first_budget)
-                given_lines = _given_lines(lines, sentence)
-                if given_lines and _keeps_given(given_lines, best_lines, (first_budget, body_budget), stub_floor):
+                given_lines = occupied_lines(lines, sentence)
+                if given_lines and keeps_given(given_lines, best_lines, (first_budget, body_budget), stub_floor):
                     out.extend(given_lines)
-                elif _is_legal(best_lines, (first_budget, body_budget), stub_floor) and not (
+                elif is_legal(best_lines, (first_budget, body_budget), stub_floor) and not (
                     given_lines and break_cost(best_lines)
                 ):
                     out.extend(best_lines)
                 elif given_lines:
-                    if held is not None and _is_legal(best_lines, (first_budget, body_budget), stub_floor):
+                    if held is not None and is_legal(best_lines, (first_budget, body_budget), stub_floor):
                         held.append(sentence.text)
                     out.extend(given_lines)
-                elif _strands_stub(best_lines, stub_floor):
+                elif strands_stub(best_lines, stub_floor):
                     return ()
                 else:
                     out.extend(best_lines)
@@ -200,72 +248,3 @@ class CommentGroup:
 
     def as_edit(self) -> TextEdit:
         return TextEdit(self.range, self.render())
-
-
-# A line the author filled with several short sentences, each whole, reads as well as one sentence a line,
-# so it stays while it fits.
-def _shared_line(lines: tuple[str, ...], sentences: tuple[Sentence, ...]) -> str | None:
-    start = 0
-    for line in lines:
-        if start == sentences[0].offset:
-            end = start + len(line)
-            ending_here = [sentence for sentence in sentences[1:] if sentence.end == end]
-            return line if ending_here and sentences[0].end < end else None
-        start += len(line) + 1
-    return None
-
-
-# The lines a sentence already occupies, when it has them to itself.
-def _given_lines(lines: tuple[str, ...], sentence: Sentence) -> tuple[str, ...] | None:
-    covering: list[str] = []
-    start = 0
-    for line in lines:
-        end = start + len(line)
-        if start < sentence.end and end > sentence.offset:
-            if not covering and start != sentence.offset:
-                return None
-            covering.append(line)
-            if end == sentence.end:
-                return tuple(covering)
-            if end > sentence.end:
-                return None
-        start = end + 1
-    return None
-
-
-def _keeps_given(
-    given_lines: tuple[str, ...], best_lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int
-) -> bool:
-    # A colon ending a line in mid sentence is a rewrite finding, so its layout waits for that rewrite.
-    if _breaks_at_a_colon(given_lines):
-        return _fits(given_lines, budgets)
-    return (
-        len(given_lines) == len(best_lines)
-        and _is_legal(given_lines, budgets, stub_floor)
-        and break_cost(given_lines) <= break_cost(best_lines)
-    )
-
-
-def _breaks_at_a_colon(lines: tuple[str, ...]) -> bool:
-    return any(line.endswith(':') for line in lines[:-1])
-
-
-def _fits(lines: tuple[str, ...], budgets: tuple[int, int]) -> bool:
-    first_budget, body_budget = budgets
-    return all(len(line) <= (first_budget if index == 0 else body_budget) for index, line in enumerate(lines))
-
-
-def _is_legal(lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int) -> bool:
-    if not _fits(lines, budgets):
-        return False
-    if len(lines) == 1:
-        return True
-    if _strands_stub(lines, stub_floor):
-        return False
-    breaks = set(comma_breaks(' '.join(lines)))
-    line_ends = itertools.accumulate(len(line) + 1 for line in lines[:-1])
-    return all(line_end - 1 in breaks for line_end in line_ends)
-
-
-def _strands_stub(lines: tuple[str, ...], stub_floor: int) -> bool:
-    return len(lines) > 1 and min(map(len, lines)) < stub_floor

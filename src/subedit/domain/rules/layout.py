@@ -3,7 +3,7 @@ import typing
 from ..models.comment import CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata
 from ..ports.rule import Rule, RuleContext
-from .rewrite import stub_floor
+from .sentence import stub_floor
 
 
 MID_CLAUSE_BREAK = RuleMetadata(
@@ -19,11 +19,12 @@ LINE_TOO_LONG = RuleMetadata(
 )
 
 
-class MidClauseBreakRule(Rule):
+class MidClauseBreakRule(Rule[CommentGroup]):
     metadata = MID_CLAUSE_BREAK
+    surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        reflowed = group.reflow(context.line_width, stub_floor(context))
+        reflowed = group.reflow(context.rule_set.line_width, stub_floor(context))
         if reflowed.render() == group.render():
             return
         yield Diagnostic(
@@ -38,11 +39,12 @@ class MidClauseBreakRule(Rule):
         )
 
 
-class LineTooLongRule(Rule):
+class LineTooLongRule(Rule[CommentGroup]):
     metadata = LINE_TOO_LONG
+    surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        width = context.line_width
+        width = context.rule_set.line_width
         if group.longest_line <= width:
             return
         if group.placement is CommentPlacement.TRAILING:

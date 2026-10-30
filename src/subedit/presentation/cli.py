@@ -12,12 +12,13 @@ from ..domain.models.text import source_lines
 from ..domain.ports.external_linter import ExternalLinter
 from ..infrastructure import (
     ALL_RULES,
+    COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
     DEFAULT_PARSER,
     EXTENSIONS,
     EXTERNAL_LINTERS,
     VENDOR_DIRECTORIES,
-    language_for,
+    language_id_for,
 )
 from . import report as reporters
 from . import rule_reference
@@ -87,7 +88,8 @@ def fix(
 
     action_word = 'rewrote' if write else 'would rewrite'
     typer.echo(
-        f'{action_word} {changed_file_count} of {len(documents)} files, {unresolved_finding_count} findings need an author.',
+        f'{action_word} {changed_file_count} of {len(documents)} {"file" if len(documents) == 1 else "files"}, '
+        f'{unresolved_finding_count} {"finding needs" if unresolved_finding_count == 1 else "findings need"} an author.',
         err=True,
     )
     raise typer.Exit(1 if unresolved_finding_count else 0)
@@ -97,18 +99,12 @@ def fix(
 def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to measure.')) -> None:
     documents = _load(tuple(paths))
     _require(documents)
-    typer.echo(_render(CorpusMeter(DEFAULT_PARSER).run(documents)))
+    typer.echo(_render(CorpusMeter(COMMENT_PARSER).run(documents)))
 
 
 @app.command()
-def rules(
-    destination: pathlib.Path = typer.Option(None, '--write', help='Write the generated table to this path.'),
-) -> None:
-    rule_table = rule_reference.render(ALL_RULES)
-    if destination is None:
-        typer.echo(rule_table, nl=False)
-        return
-    destination.write_text(rule_table, encoding='utf-8')
+def rules() -> None:
+    typer.echo(rule_reference.render(ALL_RULES), nl=False)
 
 
 @app.command()
@@ -145,10 +141,10 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
             text = source_path.read_text(encoding='utf-8')
         except (OSError, UnicodeDecodeError):
             continue
-        language = language_for(source_path)
-        if language is None:
+        language_id = language_id_for(source_path)
+        if language_id is None:
             continue
-        documents.append(Document(uri=source_path.resolve().as_uri(), text=text, language_id=language.language_id))
+        documents.append(Document(uri=source_path.resolve().as_uri(), text=text, language_id=language_id))
     return tuple(documents)
 
 
