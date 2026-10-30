@@ -179,6 +179,11 @@ def test_a_fix_in_a_code_block_keeps_what_sets_its_lines_apart(block: str, expec
     assert fix_document(markdown(source), code_blocks()) == f'Notes.\n\n{expected}'
 
 
+def test_a_code_block_is_a_fragment_so_no_comment_in_it_heads_a_file() -> None:
+    source = 'Notes.\n\n```python\n# Install, then import the client.\nimport subedit\n```\n'
+    assert found(lint(markdown(source), code_blocks())) == []
+
+
 def test_a_block_in_a_language_subedit_does_not_read_is_left_alone() -> None:
     source = f'Notes.\n\n```ruby\n{MIS_WRAPPED}```\n'
     assert found(lint(markdown(source), code_blocks())) == []

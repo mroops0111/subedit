@@ -20,9 +20,16 @@ class RuleEngine:
             raise ValueError(f'Duplicate rule ids registered: {sorted(duplicate_ids)}')
         self._rules = rules
 
-    def run(self, document: Document, units: tuple[ProseUnit, ...], rule_set: RuleSet) -> tuple[Diagnostic, ...]:
+    def run(
+        self, document: Document, units: tuple[ProseUnit, ...], rule_set: RuleSet, *, fragment: bool = False
+    ) -> tuple[Diagnostic, ...]:
+        """Run the enabled rules, leaving out those on a whole file when the document is a fragment of another."""
         context = RuleContext(document=document, rule_set=rule_set)
-        enabled_rules = [rule for rule in self._rules if rule_set.is_enabled(rule.metadata.rule_id)]
+        enabled_rules = [
+            rule
+            for rule in self._rules
+            if rule_set.is_enabled(rule.metadata.rule_id) and not (fragment and rule.reads_whole_file)
+        ]
         diagnostics: list[Diagnostic] = []
         for unit in units:
             for rule in enabled_rules:
@@ -96,4 +103,5 @@ class Linter:
             return ()
         inner = Document(uri=host.uri, text=embedded.text, language_id=language_id)
         units = self._parser.read(inner).units
-        return tuple(embedded.host_diagnostic(finding) for finding in self._engine.run(inner, units, rule_set))
+        found = self._engine.run(inner, units, rule_set, fragment=True)
+        return tuple(embedded.host_diagnostic(finding) for finding in found)

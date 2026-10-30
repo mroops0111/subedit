@@ -306,6 +306,11 @@ def test_every_extension_aliases_to_the_one_prose_tools_know() -> None:
     }
 
 
+def test_a_jsdoc_tag_in_javascript_carries_the_only_type_so_restates_nothing() -> None:
+    source = '/**\n * Builds it.\n * @param {string} name the name\n */\nexport function build(name) {}\n'
+    assert 'signature-restating-tag' not in found(lint_document(document(source, 'javascript'), rule_set()))
+
+
 def test_javascript_reads_jsdoc_and_jsx_as_typescript_does() -> None:
     source = '/** Renders it. */\nexport function Card() {\n  // Wraps the title.\n  return <div>hi</div>;\n}\n'
     groups = parse(source, 'javascript')

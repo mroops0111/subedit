@@ -24,6 +24,7 @@ class FileHeaderCommentRule(Rule[CommentGroup]):
         default_severity=Severity.WARNING,
     )
     surface = CommentGroup
+    reads_whole_file = True
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         if group.placement is not CommentPlacement.FILE_HEADER:

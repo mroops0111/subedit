@@ -35,6 +35,19 @@ def test_a_blank_line_takes_the_prefix_without_its_trailing_space() -> None:
     assert moved.new_text == '# one\n>\n> # two'
 
 
+def test_a_range_ending_where_a_line_starts_stops_short_of_its_prefix() -> None:
+    assert QUOTED.host_range(SourceRange(0, 6)) == SourceRange(12, 18)
+
+
+def test_an_edit_ending_in_a_newline_leaves_the_next_prefix_alone() -> None:
+    finding = Diagnostic(
+        rule_id='mid-clause-break', range=SourceRange(0, 6), message='m', fix=Fix.reflow(edit(0, 6, '# a\n# b\n'))
+    )
+    [moved] = moved_edits(finding)
+    assert moved.range == SourceRange(12, 18)
+    assert moved.new_text == '# a\n> # b\n'
+
+
 def test_a_document_needs_a_host_start_and_a_prefix_for_each_line() -> None:
     with pytest.raises(ValueError, match='one host start and one prefix per line'):
         EmbeddedDocument(language_name='py', text='# one\n# two\n', host_starts=(0,), prefixes=('',))

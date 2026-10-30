@@ -83,7 +83,6 @@ class TypeScriptProfile(LanguageProfile):
             for key_path in (('javascript', 'formatter', 'lineWidth'), ('formatter', 'lineWidth'))
         ),
     )
-    signature_tags = ('@param', '@returns', '@return', '@type')
     vendor_directories = frozenset({'node_modules', 'bower_components', 'jspm_packages'})
     _ROLES = {
         'program': NodeRole.ROOT,
@@ -111,9 +110,15 @@ class TypeScriptProfile(LanguageProfile):
     }
 
     def __init__(
-        self, language_id: str, extensions: frozenset[str], canonical_extension: str, language: Language
+        self,
+        language_id: str,
+        extensions: frozenset[str],
+        canonical_extension: str,
+        language: Language,
+        signature_tags: tuple[str, ...] = ('@param', '@returns', '@return', '@type'),
     ) -> None:
         self.language_id = language_id
+        self.signature_tags = signature_tags
         self.extensions = extensions
         self.canonical_extension = canonical_extension
         self._language = language
@@ -208,11 +213,13 @@ TYPESCRIPT = TypeScriptProfile(
 TSX = TypeScriptProfile('tsx', frozenset({'.tsx'}), '.tsx', Language(tree_sitter_typescript.language_tsx()))
 
 # JavaScript is TypeScript without the types, and the TSX grammar reads JSX as well.
+# Its JSDoc tags carry the only types it has, so no tag restates a signature.
 JAVASCRIPT = TypeScriptProfile(
     'javascript',
     frozenset({'.js', '.mjs', '.cjs', '.jsx'}),
     '.js',
     Language(tree_sitter_typescript.language_tsx()),
+    signature_tags=(),
 )
 
 
