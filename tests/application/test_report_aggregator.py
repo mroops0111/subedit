@@ -283,3 +283,18 @@ def test_vale_leaves_a_directive_alone_as_the_native_rules_do(
         rule_set(),
     )
     assert report.diagnostics == (), 'a tool reads the directive, so no rule reads its reason as prose'
+
+
+@pytest.mark.skipif(shutil.which('vale') is None, reason='vale is not installed')
+def test_vale_reads_a_code_block_as_its_own_language(tmp_path: pathlib.Path) -> None:
+    text = 'Notes.\n\n```python\n# Keep it short; it runs often.\nx = "a; b"\n```\n'
+    linter = ReportAggregator(
+        Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (ValeLinter(suffix_aliases=SUFFIX_ALIASES),)
+    )
+    report = linter.run(
+        Document(uri=(tmp_path / 'notes.md').as_uri(), text=text, language_id='markdown'),
+        dataclasses.replace(rule_set(), reads_embedded=True),
+    )
+    assert [(item.rule_id, item.range.start) for item in report.diagnostics] == [
+        ('subedit.Semicolon', text.index(';'))
+    ], 'only the comment is prose, so the string in the code is left alone'

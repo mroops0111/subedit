@@ -323,7 +323,7 @@ A surface is a kind of file where prose lives. Every surface goes through the sa
 | Code comments and docstrings | Available | Layout, because a comment must fit a column limit |
 | Markdown | Available | One line per paragraph and the shape of headings, because Markdown has no column limit |
 
-Markdown is read from `.md` and `.markdown` files, leaving front matter, code, tables, and HTML blocks alone. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
+Markdown is read from `.md` and `.markdown` files, leaving front matter, code, tables, and HTML blocks alone. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. Each block is checked as a file of that language would be, by Vale and AutoCorrect as well, except for the rules on a whole file. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
 
 #### Languages
 

@@ -1,7 +1,7 @@
 import pathlib
 import typing
 
-from subedit.application import Fixer, Linter, RuleEngine
+from subedit.application import Fixer, Linter, ReportAggregator, RuleEngine
 from subedit.domain import (
     Document,
     Report,
@@ -54,8 +54,8 @@ def rule_set(
 
 
 def lint(subject: Document, rules: RuleSet | None = None, engine: tuple[Rule[typing.Any], ...] = ALL_RULES) -> Report:
-    """What the linter reports on a document, under every native rule unless told otherwise."""
-    return Linter(DEFAULT_PARSER, RuleEngine(engine)).run(subject, rules or rule_set())
+    """What subedit reports on a document and the documents it holds, under every native rule unless told otherwise."""
+    return ReportAggregator(Linter(DEFAULT_PARSER, RuleEngine(engine))).run(subject, rules or rule_set())
 
 
 def found(report: Report) -> list[str]:

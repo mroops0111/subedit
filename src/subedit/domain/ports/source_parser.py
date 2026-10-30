@@ -46,6 +46,9 @@ class SourceParser(abc.ABC, typing.Generic[UnitT]):
             return None
         return lowered if self.supports(lowered) else self.language_id_for(f'.{lowered}')
 
+    def file_type_of(self, language_id: str) -> FileType | None:
+        return next((file_type for file_type in self.file_types if file_type.language_id == language_id), None)
+
     def language_id_for(self, extension: str) -> str | None:
         """The language a file is read as, from its extension."""
         return next((file_type.language_id for file_type in self.file_types if extension in file_type.extensions), None)

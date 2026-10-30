@@ -145,5 +145,5 @@ def test_subedit_config_sets_the_width_over_the_formatter(project: Project) -> N
 
 
 def test_code_blocks_are_read_only_where_the_project_asks(project: Project) -> None:
-    assert not source().resolve(str(configured(project, '[subedit]\n'))).reads_code_blocks
-    assert source().resolve(str(configured(project, '[subedit]\ncode-blocks = true\n'))).reads_code_blocks
+    assert not source().resolve(str(configured(project, '[subedit]\n'))).reads_embedded
+    assert source().resolve(str(configured(project, '[subedit]\ncode-blocks = true\n'))).reads_embedded

@@ -5,9 +5,16 @@ import pytest
 from factories import REPOSITORY_ROOT, document, found, lint, markdown, rule_ids, rule_set
 from factories import fixed as fix_document
 
-from subedit.application import Linter, RuleEngine
+from subedit.application import Fixer, Linter, ReportAggregator, RuleEngine
 from subedit.domain import CommentGroup, MarkdownBlock, MarkdownBlockKind, RuleSet
-from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, MARKDOWN_RULES, MarkdownParser, language_id_for
+from subedit.infrastructure import (
+    ALL_RULES,
+    DEFAULT_PARSER,
+    MARKDOWN_RULES,
+    AutoCorrectLinter,
+    MarkdownParser,
+    language_id_for,
+)
 
 
 def blocks(source: str) -> tuple[MarkdownBlock, ...]:
@@ -149,7 +156,7 @@ REFLOWED = '# cap the size so the mmap does not blow past it,\n# an unbounded va
 
 
 def code_blocks(width: int = 60) -> RuleSet:
-    return dataclasses.replace(rule_set(width=width), reads_code_blocks=True)
+    return dataclasses.replace(rule_set(width=width), reads_embedded=True)
 
 
 def test_a_code_block_is_left_alone_unless_the_project_opts_in() -> None:
@@ -182,6 +189,16 @@ def test_a_fix_in_a_code_block_keeps_what_sets_its_lines_apart(block: str, expec
 def test_a_code_block_is_a_fragment_so_no_comment_in_it_heads_a_file() -> None:
     source = 'Notes.\n\n```python\n# Install, then import the client.\nimport subedit\n```\n'
     assert found(lint(markdown(source), code_blocks())) == []
+
+
+def test_a_checker_reads_a_code_block_as_its_own_language() -> None:
+    source = 'Notes.\n\n- Item.\n\n  ```python\n  # 中文English\n  ```\n'
+    aggregator = ReportAggregator(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (AutoCorrectLinter(),))
+    fixed_text = Fixer(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (AutoCorrectLinter(),)).run(
+        markdown(source), code_blocks()
+    )
+    assert 'autocorrect.Spacing' in found(aggregator.run(markdown(source), code_blocks()))
+    assert fixed_text.document.text == source.replace('中文English', '中文 English')
 
 
 def test_a_block_in_a_language_subedit_does_not_read_is_left_alone() -> None:
