@@ -88,7 +88,8 @@ def fix(
 
     action_word = 'rewrote' if write else 'would rewrite'
     typer.echo(
-        f'{action_word} {changed_file_count} of {len(documents)} files, {unresolved_finding_count} findings need an author.',
+        f'{action_word} {changed_file_count} of {len(documents)} {"file" if len(documents) == 1 else "files"}, '
+        f'{unresolved_finding_count} {"finding needs" if unresolved_finding_count == 1 else "findings need"} an author.',
         err=True,
     )
     raise typer.Exit(1 if unresolved_finding_count else 0)

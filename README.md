@@ -59,7 +59,7 @@ The cache keeps one entry per file, and drops it when the file changes.
 A sentence in a comment that runs past the width with no comma has nowhere legal to break, and only its author knows where the meaning divides, so it goes back to the agent that wrote it.
 
 ```text
-1 comment finding needs rewriting in src/cache.py.
+1 finding needs rewriting in src/cache.py.
 Each states the fix. Apply it in place, do not add a suppression comment.
 
 line 2  [unbreakable-sentence]
