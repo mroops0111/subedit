@@ -6,21 +6,12 @@ from ..ports.rule import Rule, RuleContext
 from .sentence import stub_floor
 
 
-MID_CLAUSE_BREAK = RuleMetadata(
-    rule_id='mid-clause-break',
-    summary='A sentence sits on one line when it fits, and otherwise breaks at clause commas, on as few lines as it can.',
-    fix_kind=FixKind.REFLOW,
-)
-
-LINE_TOO_LONG = RuleMetadata(
-    rule_id='line-too-long',
-    summary='A physical comment line must fit the configured width, counting indent and delimiter.',
-    fix_kind=FixKind.REFLOW,
-)
-
-
 class MidClauseBreakRule(Rule[CommentGroup]):
-    metadata = MID_CLAUSE_BREAK
+    metadata = RuleMetadata(
+        rule_id='mid-clause-break',
+        summary='A sentence sits on one line when it fits, and otherwise breaks at clause commas, on as few lines as it can.',
+        fix_kind=FixKind.REFLOW,
+    )
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -40,7 +31,11 @@ class MidClauseBreakRule(Rule[CommentGroup]):
 
 
 class LineTooLongRule(Rule[CommentGroup]):
-    metadata = LINE_TOO_LONG
+    metadata = RuleMetadata(
+        rule_id='line-too-long',
+        summary='A physical comment line must fit the configured width, counting indent and delimiter.',
+        fix_kind=FixKind.REFLOW,
+    )
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:

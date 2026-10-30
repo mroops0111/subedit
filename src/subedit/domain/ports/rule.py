@@ -13,6 +13,8 @@ UnitT = typing.TypeVar('UnitT', bound=ProseUnit)
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RuleContext:
+    """What a rule may read besides the unit, which is the document and the rule set."""
+
     document: Document
     rule_set: RuleSet
 
@@ -21,6 +23,8 @@ class RuleContext:
 
 
 class Rule(abc.ABC, typing.Generic[UnitT]):
+    """A check on one surface, which reports findings on each unit it reads and never edits text itself."""
+
     metadata: RuleMetadata
     # The kind of unit the rule reads,
     # so a comment rule never meets a heading and a Markdown rule never meets a docstring.

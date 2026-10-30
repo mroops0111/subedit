@@ -24,6 +24,7 @@ _DIRECTIVE = (
     '^(///|//[ \t]*(eslint|@ts-|prettier-ignore|biome-ignore|istanbul |c8 |#region|#endregion)'
     '|/[*][ \t]*(eslint|prettier-ignore|biome-ignore|istanbul |c8 ))'
 )
+
 QUERY = f"""
 ((comment) @comment (#match? @comment "^//") (#not-match? @comment "{_DIRECTIVE}"))
 ((comment) @directive (#match? @directive "{_DIRECTIVE}"))
@@ -33,12 +34,14 @@ QUERY = f"""
 _CLASS_LIKE = frozenset(
     {'class_declaration', 'abstract_class_declaration', 'interface_declaration', 'enum_declaration'}
 )
+
 _PRIVATE_MODIFIERS = frozenset({b'private', b'protected'})
 # A declaration inside one of these is local to a body, so nothing outside it can see the name.
 _LOCAL_SCOPES = frozenset({'statement_block', 'class_static_block'})
 # A line that opens or closes a bracket, or ends a statement, is code though it cannot parse alone.
 # A brace closing on a word is an inline tag such as {@link Store}, which prose holds.
 _BLOCK_LINE = re.compile(r'(^\s*[)\]}]|[(\[{;]\s*$|[\s{]}\s*$)')
+
 _STATEMENT_TYPES = frozenset(
     {
         'call_expression',
@@ -56,6 +59,7 @@ _STATEMENT_TYPES = frozenset(
         'class_declaration',
     }
 )
+
 # A block tag such as @example or @throws opens the tag section, which runs to the end and holds no prose to lay out.
 _BLOCK_TAG = re.compile(r'^\s*@[A-Za-z]')
 
@@ -197,6 +201,13 @@ class TypeScriptProfile(LanguageProfile):
         return DelimiterSplit(indent=indent, delimiter=delimiter, text=text, suffix=suffix)
 
 
+TYPESCRIPT = TypeScriptProfile(
+    'typescript', frozenset({'.ts', '.mts', '.cts'}), '.ts', Language(tree_sitter_typescript.language_typescript())
+)
+
+TSX = TypeScriptProfile('tsx', frozenset({'.tsx'}), '.tsx', Language(tree_sitter_typescript.language_tsx()))
+
+
 def _text(node: Node) -> str:
     return (node.text or b'').decode('utf-8')
 
@@ -212,9 +223,3 @@ def _declared_names(statement: Node) -> frozenset[str]:
         if declarator.type == 'variable_declarator'
         and (declarator_name := declarator.child_by_field_name('name')) is not None
     )
-
-
-TYPESCRIPT = TypeScriptProfile(
-    'typescript', frozenset({'.ts', '.mts', '.cts'}), '.ts', Language(tree_sitter_typescript.language_typescript())
-)
-TSX = TypeScriptProfile('tsx', frozenset({'.tsx'}), '.tsx', Language(tree_sitter_typescript.language_tsx()))

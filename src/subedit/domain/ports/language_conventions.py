@@ -6,6 +6,8 @@ from ..models.comment import CommentForm, Visibility
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class DelimiterSplit:
+    """A comment line split into its indent, its delimiter, its text, and what closes it."""
+
     indent: str
     delimiter: str
     text: str
@@ -13,6 +15,8 @@ class DelimiterSplit:
 
 
 class LanguageConventions(abc.ABC):
+    """How a language writes its comments, which the rules ask about without knowing its grammar."""
+
     language_id: str
     extensions: frozenset[str]
     doc_delimiter: str

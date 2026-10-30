@@ -11,11 +11,6 @@ _JSON_COMMENT = re.compile(r'("(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/', re.DOTALL)
 _TRAILING_COMMA = re.compile(r',(\s*[}\]])')
 
 
-def _without_comments(text: str) -> str:
-    """JSON with the comments and trailing commas that JSONC allows taken out, as biome.jsonc writes it."""
-    return _TRAILING_COMMA.sub(r'\1', _JSON_COMMENT.sub(lambda found: found.group(1) or '', text))
-
-
 @dataclasses.dataclass(frozen=True, slots=True)
 class WidthSetting:
     """Where a formatter keeps its line width, such as line-length under [tool.ruff] in pyproject.toml."""
@@ -90,3 +85,8 @@ class FormatterWidths:
                 if width is not None:
                     return width
         return None
+
+
+def _without_comments(text: str) -> str:
+    """JSON with the comments and trailing commas that JSONC allows taken out, as biome.jsonc writes it."""
+    return _TRAILING_COMMA.sub(r'\1', _JSON_COMMENT.sub(lambda found: found.group(1) or '', text))

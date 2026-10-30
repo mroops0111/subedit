@@ -6,6 +6,8 @@ from .text import TextEdit
 
 
 class Severity(enum.IntEnum):
+    """How much a finding weighs, where an error blocks and anything lower reaches the author as advice."""
+
     SUGGESTION = 1
     WARNING = 2
     ERROR = 3
@@ -15,6 +17,8 @@ SEVERITY_BY_NAME = {severity.name.lower(): severity for severity in Severity}
 
 
 class FixKind(enum.Enum):
+    """Who resolves a finding, the fixer for a targeted edit or a reflow, and the author for a rewrite."""
+
     TARGETED = 'targeted'
     REFLOW = 'reflow'
     REWRITE = 'rewrite'
@@ -26,6 +30,8 @@ class FixKind(enum.Enum):
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Fix:
+    """The edits that resolve a finding, which a rewrite never carries, since only its author can make it."""
+
     kind: FixKind
     edits: tuple[TextEdit, ...] = ()
 
@@ -87,6 +93,8 @@ class Diagnostic:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Report:
+    """The findings on one document, sorted by who resolves them and whether they block."""
+
     diagnostics: tuple[Diagnostic, ...] = ()
     unavailable_sources: tuple[str, ...] = ()
 

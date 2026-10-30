@@ -28,12 +28,12 @@ app = typer.Typer(
     add_completion=False, help='A subeditor for AI agents, keeping every sentence they write to your house style.'
 )
 
-FORMATTERS = {
+_FORMATTERS = {
     'full': reporters.full,
     'actionable': reporters.actionable,
     'json': reporters.as_json,
 }
-PERCENTILES = (0.5, 0.75, 0.9, 0.95, 0.99)
+_PERCENTILES = (0.5, 0.75, 0.9, 0.95, 0.99)
 
 
 @app.command()
@@ -42,9 +42,10 @@ def check(
     output: str = typer.Option('full', '--output', help='full, actionable, or json.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
 ) -> None:
+    """Report findings, and exit non-zero when any is an error."""
     documents = _load(tuple(paths))
     _require(documents)
-    formatter = FORMATTERS.get(output)
+    formatter = _FORMATTERS.get(output)
     if formatter is None:
         typer.echo(f'Unknown output format {output!r}. Choose full, actionable, or json.', err=True)
         raise typer.Exit(2)
@@ -66,6 +67,7 @@ def fix(
     write: bool = typer.Option(False, '--write', help='Write changes instead of printing a diff.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
 ) -> None:
+    """Apply mechanical fixes, printing a diff unless told to write, and report what needs an author."""
     documents = _load(tuple(paths))
     _require(documents)
 
@@ -97,6 +99,7 @@ def fix(
 
 @app.command()
 def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to measure.')) -> None:
+    """Measure a codebase's comments, to set limits from what it already holds."""
     documents = _load(tuple(paths))
     _require(documents)
     typer.echo(_render(CorpusMeter(COMMENT_PARSER).run(documents)))
@@ -104,11 +107,13 @@ def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directo
 
 @app.command()
 def rules() -> None:
+    """Print the native rules, grouped by the surface they read."""
     typer.echo(rule_reference.render(ALL_RULES), nl=False)
 
 
 @app.command()
 def version() -> None:
+    """Print the version."""
     typer.echo(f'subedit {__version__}')
 
 
@@ -201,7 +206,7 @@ def _diff(before: Document, after: Document) -> str:
 def _render(statistics: CorpusStatistics) -> str:
     heading = (
         f'{"group":24s} {"n":>6s} {"med":>5s} '
-        + ' '.join(f'p{int(fraction * 100):<3d}' for fraction in PERCENTILES)
+        + ' '.join(f'p{int(fraction * 100):<3d}' for fraction in _PERCENTILES)
         + '  max'
     )
     lines = [
@@ -223,7 +228,7 @@ def _render(statistics: CorpusStatistics) -> str:
 
 
 def _row(label: str, distribution: typing.Any) -> str:
-    cells = ' '.join(f'{distribution.percentile(fraction):<4d}' for fraction in PERCENTILES)
+    cells = ' '.join(f'{distribution.percentile(fraction):<4d}' for fraction in _PERCENTILES)
     return f'{label:24s} {distribution.count:6d} {distribution.median:5d} {cells} {distribution.maximum:4d}'
 
 

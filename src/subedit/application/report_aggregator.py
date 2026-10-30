@@ -8,6 +8,8 @@ from .linter import Linter
 
 
 class ReportAggregator:
+    """Joins the native report with what each outside checker finds in prose, as the project configures it."""
+
     def __init__(self, linter: Linter, external_linters: tuple[ExternalLinter, ...] = ()) -> None:
         self._linter = linter
         self._external_linters = external_linters

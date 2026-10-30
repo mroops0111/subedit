@@ -4,6 +4,38 @@ import re
 from .prose import Sentence, enclosed_spans
 
 
+# Words that open a clause, so a comma before one is where a sentence divides in meaning.
+# As is left out, since it opens an aside such as "as this once did" as often as a clause.
+_CLAUSE_OPENERS = frozenset(
+    {
+        'although',
+        'and',
+        'because',
+        'but',
+        'nor',
+        'or',
+        'otherwise',
+        'since',
+        'so',
+        'then',
+        'though',
+        'unless',
+        'until',
+        'whereas',
+        'which',
+        'while',
+        'yet',
+    }
+)
+
+# A piece this short between two commas is an item in a list, such as "base URL,", not a clause.
+_LIST_ITEM_WORDS = 3
+_LIST_CLOSERS = frozenset({'and', 'or'})
+_ARTICLES = frozenset({'a', 'an', 'the'})
+# Prepositions that open a sentence's framing phrase, such as "By default,", rather than its first item.
+_LEAD_IN_WORDS = frozenset({'after', 'at', 'before', 'by', 'during', 'for', 'from', 'in', 'on', 'once', 'when', 'with'})
+
+
 def reflow_sentence(sentence: str, width: int, stub_floor: int = 0, first_width: int | None = None) -> tuple[str, ...]:
     """Lay a sentence out on as few lines as fit, breaking only at clause commas.
 
@@ -21,10 +53,83 @@ def reflow_sentence(sentence: str, width: int, stub_floor: int = 0, first_width:
     return _best_layout(pieces, width, opening_width, stub_floor) or _pack(pieces, width)
 
 
+def break_cost(lines: tuple[str, ...]) -> int:
+    """Count the breaks in a laid out sentence that split a list."""
+    pieces = _comma_pieces(' '.join(lines))
+    piece_ends = itertools.accumulate(len(_comma_pieces(line)) for line in lines[:-1])
+    return sum(_splits_a_list(pieces, piece_end) for piece_end in piece_ends)
+
+
+def line_shared_by(lines: tuple[str, ...], sentences: tuple[Sentence, ...]) -> str | None:
+    """The line the first sentence shares with the whole sentences after it, if the author wrote one.
+
+    A line filled with several short sentences, each whole, reads as well as one sentence a line,
+    so it stays while it fits.
+    """
+    start = 0
+    for line in lines:
+        if start == sentences[0].offset:
+            end = start + len(line)
+            ending_here = [sentence for sentence in sentences[1:] if sentence.end == end]
+            return line if ending_here and sentences[0].end < end else None
+        start += len(line) + 1
+    return None
+
+
+def occupied_lines(lines: tuple[str, ...], sentence: Sentence) -> tuple[str, ...] | None:
+    """The lines a sentence already occupies, when it has them to itself."""
+    covering: list[str] = []
+    start = 0
+    for line in lines:
+        end = start + len(line)
+        if start < sentence.end and end > sentence.offset:
+            if not covering and start != sentence.offset:
+                return None
+            covering.append(line)
+            if end == sentence.end:
+                return tuple(covering)
+            if end > sentence.end:
+                return None
+        start = end + 1
+    return None
+
+
+def keeps_given(
+    given_lines: tuple[str, ...], best_lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int
+) -> bool:
+    """Whether the author's layout of a sentence stays, since it breaks no worse than the best one."""
+    # A colon ending a line in mid sentence is a rewrite finding, so its layout waits for that rewrite.
+    if _breaks_at_a_colon(given_lines):
+        return _fits(given_lines, budgets)
+    return (
+        len(given_lines) == len(best_lines)
+        and is_legal(given_lines, budgets, stub_floor)
+        and break_cost(given_lines) <= break_cost(best_lines)
+    )
+
+
+def is_legal(lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int) -> bool:
+    """Whether a layout fits its budgets, strands no stub, and breaks only at clause commas."""
+    if not _fits(lines, budgets):
+        return False
+    if len(lines) == 1:
+        return True
+    if strands_stub(lines, stub_floor):
+        return False
+    breaks = set(_comma_breaks(' '.join(lines)))
+    line_ends = itertools.accumulate(len(line) + 1 for line in lines[:-1])
+    return all(line_end - 1 in breaks for line_end in line_ends)
+
+
+def strands_stub(lines: tuple[str, ...], stub_floor: int) -> bool:
+    """Whether a layout of several lines leaves one shorter than the stub floor."""
+    return len(lines) > 1 and min(map(len, lines)) < stub_floor
+
+
 def _comma_pieces(sentence: str) -> tuple[str, ...]:
     pieces: list[str] = []
     start = 0
-    for offset in comma_breaks(sentence):
+    for offset in _comma_breaks(sentence):
         pieces.append(sentence[start:offset].strip())
         start = offset
     tail = sentence[start:].strip()
@@ -33,7 +138,7 @@ def _comma_pieces(sentence: str) -> tuple[str, ...]:
     return tuple(pieces) if pieces else (sentence,)
 
 
-def comma_breaks(sentence: str) -> tuple[int, ...]:
+def _comma_breaks(sentence: str) -> tuple[int, ...]:
     """Offsets just past each comma that ends a clause, which are the only places a sentence may break.
 
     A comma inside brackets or a code span separates items of one phrase, so a break there splits the phrase.
@@ -59,37 +164,6 @@ def _pack(pieces: tuple[str, ...], width: int) -> tuple[str, ...]:
     if current_line:
         lines.append(current_line)
     return tuple(lines)
-
-
-# Words that open a clause, so a comma before one is where a sentence divides in meaning.
-# As is left out, since it opens an aside such as "as this once did" as often as a clause.
-CLAUSE_OPENERS = frozenset(
-    {
-        'although',
-        'and',
-        'because',
-        'but',
-        'nor',
-        'or',
-        'otherwise',
-        'since',
-        'so',
-        'then',
-        'though',
-        'unless',
-        'until',
-        'whereas',
-        'which',
-        'while',
-        'yet',
-    }
-)
-# A piece this short between two commas is an item in a list, such as "base URL,", not a clause.
-LIST_ITEM_WORDS = 3
-LIST_CLOSERS = frozenset({'and', 'or'})
-ARTICLES = frozenset({'a', 'an', 'the'})
-# Prepositions that open a sentence's framing phrase, such as "By default,", rather than its first item.
-LEAD_IN_WORDS = frozenset({'after', 'at', 'before', 'by', 'during', 'for', 'from', 'in', 'on', 'once', 'when', 'with'})
 
 
 def _best_layout(pieces: tuple[str, ...], width: int, opening_width: int, stub_floor: int) -> tuple[str, ...] | None:
@@ -160,85 +234,31 @@ def _reads_as_item(pieces: tuple[str, ...], index: int) -> bool:
     if not _is_short(piece) or _is_appositive(piece, pieces[index + 1].split()):
         return False
     words = piece.split()
-    return index > 0 or (len(words) > 1 and words[0].lower() not in LEAD_IN_WORDS)
+    return index > 0 or (len(words) > 1 and words[0].lower() not in _LEAD_IN_WORDS)
 
 
 def _closes_a_run(piece: str) -> bool:
     words = piece.split()
-    return bool(words) and words[0].lower() in LIST_CLOSERS
+    return bool(words) and words[0].lower() in _LIST_CLOSERS
 
 
 # "``owner``, a ``Person``," renames what came before it,
 # unless the next piece runs on in parallel, as in "a cat, a dog".
 def _is_appositive(piece: str, following: list[str]) -> bool:
     words = piece.split()
-    if not words or words[0].lower() not in ARTICLES:
+    if not words or words[0].lower() not in _ARTICLES:
         return False
-    parallel = following[1:] if following and following[0].lower() in LIST_CLOSERS else following
-    return not parallel or parallel[0].lower() not in ARTICLES
+    parallel = following[1:] if following and following[0].lower() in _LIST_CLOSERS else following
+    return not parallel or parallel[0].lower() not in _ARTICLES
 
 
 def _is_short(piece: str) -> bool:
-    return len(piece.split()) <= LIST_ITEM_WORDS
+    return len(piece.split()) <= _LIST_ITEM_WORDS
 
 
 def _opens_a_clause(piece: str) -> bool:
     words = piece.split()
-    return bool(words) and words[0].lower() in CLAUSE_OPENERS
-
-
-def break_cost(lines: tuple[str, ...]) -> int:
-    """Count the breaks in a laid out sentence that split a list."""
-    pieces = _comma_pieces(' '.join(lines))
-    piece_ends = itertools.accumulate(len(_comma_pieces(line)) for line in lines[:-1])
-    return sum(_splits_a_list(pieces, piece_end) for piece_end in piece_ends)
-
-
-def line_shared_by(lines: tuple[str, ...], sentences: tuple[Sentence, ...]) -> str | None:
-    """The line the first sentence shares with the whole sentences after it, if the author wrote one.
-
-    A line filled with several short sentences, each whole, reads as well as one sentence a line,
-    so it stays while it fits.
-    """
-    start = 0
-    for line in lines:
-        if start == sentences[0].offset:
-            end = start + len(line)
-            ending_here = [sentence for sentence in sentences[1:] if sentence.end == end]
-            return line if ending_here and sentences[0].end < end else None
-        start += len(line) + 1
-    return None
-
-
-def occupied_lines(lines: tuple[str, ...], sentence: Sentence) -> tuple[str, ...] | None:
-    """The lines a sentence already occupies, when it has them to itself."""
-    covering: list[str] = []
-    start = 0
-    for line in lines:
-        end = start + len(line)
-        if start < sentence.end and end > sentence.offset:
-            if not covering and start != sentence.offset:
-                return None
-            covering.append(line)
-            if end == sentence.end:
-                return tuple(covering)
-            if end > sentence.end:
-                return None
-        start = end + 1
-    return None
-
-
-def keeps_given(
-    given_lines: tuple[str, ...], best_lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int
-) -> bool:
-    # A colon ending a line in mid sentence is a rewrite finding, so its layout waits for that rewrite.
-    if _breaks_at_a_colon(given_lines):
-        return _fits(given_lines, budgets)
-    return (
-        len(given_lines) == len(best_lines)
-        and is_legal(given_lines, budgets, stub_floor)
-        and break_cost(given_lines) <= break_cost(best_lines)
-    )
+    return bool(words) and words[0].lower() in _CLAUSE_OPENERS
 
 
 def _breaks_at_a_colon(lines: tuple[str, ...]) -> bool:
@@ -248,19 +268,3 @@ def _breaks_at_a_colon(lines: tuple[str, ...]) -> bool:
 def _fits(lines: tuple[str, ...], budgets: tuple[int, int]) -> bool:
     first_budget, body_budget = budgets
     return all(len(line) <= (first_budget if index == 0 else body_budget) for index, line in enumerate(lines))
-
-
-def is_legal(lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int) -> bool:
-    if not _fits(lines, budgets):
-        return False
-    if len(lines) == 1:
-        return True
-    if strands_stub(lines, stub_floor):
-        return False
-    breaks = set(comma_breaks(' '.join(lines)))
-    line_ends = itertools.accumulate(len(line) + 1 for line in lines[:-1])
-    return all(line_end - 1 in breaks for line_end in line_ends)
-
-
-def strands_stub(lines: tuple[str, ...], stub_floor: int) -> bool:
-    return len(lines) > 1 and min(map(len, lines)) < stub_floor

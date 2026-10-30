@@ -10,12 +10,13 @@ from ...domain.models.position import SourceRange
 from ...domain.ports.source_parser import ParsedDocument, SourceParser
 
 
-MARKDOWN_LANGUAGE = Language(tree_sitter_markdown.language())
 MARKDOWN = FileType('markdown', frozenset({'.md', '.markdown'}), '.md')
 
-HEADINGS = frozenset({'atx_heading', 'setext_heading'})
+_MARKDOWN_LANGUAGE = Language(tree_sitter_markdown.language())
+_HEADINGS = frozenset({'atx_heading', 'setext_heading'})
+
 # Code, tables, HTML, and front matter hold no prose, so nothing under them is read.
-LITERAL_BLOCKS = frozenset(
+_LITERAL_BLOCKS = frozenset(
     {
         'fenced_code_block',
         'indented_code_block',
@@ -28,21 +29,9 @@ LITERAL_BLOCKS = frozenset(
 )
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
-class _Context:
-    """Where the walk stands, inside how many lists and whether inside a quote."""
-
-    list_depth: int = 0
-    quoted: bool = False
-
-
-@dataclasses.dataclass(slots=True)
-class _Found:
-    blocks: list[MarkdownBlock] = dataclasses.field(default_factory=list)
-    literals: list[SourceRange] = dataclasses.field(default_factory=list)
-
-
 class MarkdownParser(SourceParser[MarkdownBlock]):
+    """Finds the headings and paragraphs of a Markdown document, and skips code, tables, HTML, and quotes."""
+
     @property
     def file_types(self) -> tuple[FileType, ...]:
         return (MARKDOWN,)
@@ -58,16 +47,16 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
         if not self.supports(document.language_id):
             return ParsedDocument()
         source_bytes = document.text.encode('utf-8')
-        tree = Parser(MARKDOWN_LANGUAGE).parse(source_bytes)
+        tree = Parser(_MARKDOWN_LANGUAGE).parse(source_bytes)
         found = _Found()
         self._collect(tree.root_node, source_bytes, _Context(), found)
         return ParsedDocument(tuple(found.blocks), tuple(found.literals))
 
     def _collect(self, node: Node, source_bytes: bytes, context: '_Context', found: '_Found') -> None:
-        if node.type in LITERAL_BLOCKS:
+        if node.type in _LITERAL_BLOCKS:
             found.literals.append(SourceRange(node.start_byte, node.end_byte))
             return
-        if node.type in HEADINGS or node.type == 'paragraph':
+        if node.type in _HEADINGS or node.type == 'paragraph':
             block = self._build_block(node, source_bytes, context)
             if block is not None:
                 found.blocks.append(block)
@@ -83,7 +72,7 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
         inline = self._inline_of(node)
         if inline is None or inline.start_byte == inline.end_byte:
             return None
-        if node.type in HEADINGS:
+        if node.type in _HEADINGS:
             kind, level = MarkdownBlockKind.HEADING, self._heading_level(node)
         else:
             kind, level = MarkdownBlockKind.PARAGRAPH, 0
@@ -158,3 +147,17 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
             line_start = newline + 1
             row += 1
         return tuple(lines)
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class _Context:
+    """Where the walk stands, inside how many lists and whether inside a quote."""
+
+    list_depth: int = 0
+    quoted: bool = False
+
+
+@dataclasses.dataclass(slots=True)
+class _Found:
+    blocks: list[MarkdownBlock] = dataclasses.field(default_factory=list)
+    literals: list[SourceRange] = dataclasses.field(default_factory=list)

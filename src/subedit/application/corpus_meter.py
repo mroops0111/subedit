@@ -42,6 +42,8 @@ class CorpusStatistics:
 
 
 class CorpusMeter:
+    """Measures how long comments run across a corpus, which is where the default limits come from."""
+
     def __init__(
         self, parser: SourceParser[CommentGroup], candidate_widths: tuple[int, ...] = (72, 80, 88, 100, 120)
     ) -> None:

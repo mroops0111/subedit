@@ -6,39 +6,7 @@ from ..models.prose import is_protected, is_wide, protected_spans
 from ..models.prose_unit import ProseLine, ProseUnit
 from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
-from .markdown import HEADING_TITLE_CASE
-
-
-MID_SENTENCE_COLON = RuleMetadata(
-    rule_id='mid-sentence-colon',
-    summary='A colon stands only in a heading, after a label, or at the end of a line leading into a list or block.',
-    fix_kind=FixKind.REWRITE,
-)
-
-PARENTHESIS_STYLE = RuleMetadata(
-    rule_id='parenthesis-style',
-    summary='Parentheses around prose are half-width, spaced from the words outside, and flush with the words inside.',
-    fix_kind=FixKind.TARGETED,
-)
-
-INCLUSION_VERB = RuleMetadata(
-    rule_id='inclusion-verb',
-    summary='Prose uses the verb for include that the house style prefers.',
-    fix_kind=FixKind.TARGETED,
-)
-
-CONTRAST_FRAMING = RuleMetadata(
-    rule_id='contrast-framing',
-    summary='A sentence states what something is, rather than framing it against what it is not.',
-    fix_kind=FixKind.REWRITE,
-    default_severity=Severity.WARNING,
-)
-
-BULLET_LABEL_STYLE = RuleMetadata(
-    rule_id='bullet-label-style',
-    summary='A list item label is in Title Case, and bold wherever the text renders.',
-    fix_kind=FixKind.TARGETED,
-)
+from .markdown import HeadingTitleCaseRule
 
 
 _COLON = re.compile(r'[:：]')
@@ -64,7 +32,11 @@ _CONTRAST = re.compile(r'不是[^，,。；;！!？?]{1,40}[，,]\s*(?:而)?是'
 
 
 class MidSentenceColonRule(Rule[ProseUnit]):
-    metadata = MID_SENTENCE_COLON
+    metadata = RuleMetadata(
+        rule_id='mid-sentence-colon',
+        summary='A colon stands only in a heading, after a label, or at the end of a line leading into a list or block.',
+        fix_kind=FixKind.REWRITE,
+    )
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -93,7 +65,11 @@ class MidSentenceColonRule(Rule[ProseUnit]):
 
 
 class ParenthesisStyleRule(Rule[ProseUnit]):
-    metadata = PARENTHESIS_STYLE
+    metadata = RuleMetadata(
+        rule_id='parenthesis-style',
+        summary='Parentheses around prose are half-width, spaced from the words outside, and flush with the words inside.',
+        fix_kind=FixKind.TARGETED,
+    )
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -131,7 +107,11 @@ class ParenthesisStyleRule(Rule[ProseUnit]):
 
 
 class InclusionVerbRule(Rule[ProseUnit]):
-    metadata = INCLUSION_VERB
+    metadata = RuleMetadata(
+        rule_id='inclusion-verb',
+        summary='Prose uses the verb for include that the house style prefers.',
+        fix_kind=FixKind.TARGETED,
+    )
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -151,7 +131,12 @@ class InclusionVerbRule(Rule[ProseUnit]):
 
 
 class ContrastFramingRule(Rule[ProseUnit]):
-    metadata = CONTRAST_FRAMING
+    metadata = RuleMetadata(
+        rule_id='contrast-framing',
+        summary='A sentence states what something is, rather than framing it against what it is not.',
+        fix_kind=FixKind.REWRITE,
+        default_severity=Severity.WARNING,
+    )
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -171,12 +156,16 @@ class ContrastFramingRule(Rule[ProseUnit]):
 
 
 class BulletLabelStyleRule(Rule[ProseUnit]):
-    metadata = BULLET_LABEL_STYLE
+    metadata = RuleMetadata(
+        rule_id='bullet-label-style',
+        summary='A list item label is in Title Case, and bold wherever the text renders.',
+        fix_kind=FixKind.TARGETED,
+    )
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # Title Case and the names it leaves lowercase are set once, on the heading rule, and labels follow them.
-        keep = context.settings(HEADING_TITLE_CASE.rule_id).strings('keep')
+        keep = context.settings(HeadingTitleCaseRule.metadata.rule_id).strings('keep')
         for line in unit.prose_lines():
             if not line.opens_item:
                 continue

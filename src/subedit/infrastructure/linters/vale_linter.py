@@ -15,14 +15,14 @@ from ...domain.ports.external_linter import ExternalLinter
 from .source_path import as_known_path
 
 
-TIMEOUT_SECONDS = 30
+_TIMEOUT_SECONDS = 30
 # The first run of the vale extra downloads the binary, which a slow link can take minutes over.
-PREPARE_TIMEOUT_SECONDS = 900
-BUNDLED_CONFIG = pathlib.Path(__file__).resolve().parents[2] / 'vale' / 'vale.ini'
+_PREPARE_TIMEOUT_SECONDS = 900
+_BUNDLED_CONFIG = pathlib.Path(__file__).resolve().parents[2] / 'vale' / 'vale.ini'
 # Vale exits with this code when its own search finds no config.
-NO_CONFIG_CODE = 'E100'
+_NO_CONFIG_CODE = 'E100'
 # The vale extra's placeholder is smaller than this until the real binary replaces it.
-PLACEHOLDER_BYTES = 1000
+_PLACEHOLDER_BYTES = 1000
 
 
 class ValeAlert(pydantic.BaseModel):
@@ -50,12 +50,14 @@ class ValeReport(pydantic.RootModel[dict[str, list[ValeAlert]]]):
 
 
 class ValeLinter(ExternalLinter):
+    """Runs Vale with the repository's own config, or with the bundled subedit style when it has none."""
+
     name = 'vale'
 
     def __init__(
         self,
         executable: str | None = None,
-        fallback_config: pathlib.Path = BUNDLED_CONFIG,
+        fallback_config: pathlib.Path = _BUNDLED_CONFIG,
         suffix_aliases: typing.Mapping[str, str] | None = None,
     ) -> None:
         self._executable = executable or _default_executable()
@@ -75,7 +77,7 @@ class ValeLinter(ExternalLinter):
                 [self._executable, '--version'],
                 stdout=subprocess.DEVNULL,
                 check=False,
-                timeout=PREPARE_TIMEOUT_SECONDS,
+                timeout=_PREPARE_TIMEOUT_SECONDS,
             )
         except (OSError, subprocess.TimeoutExpired):
             return
@@ -90,7 +92,7 @@ class ValeLinter(ExternalLinter):
             process = self._run_vale(document, source_path)
             if process is None:
                 return ()
-            if NO_CONFIG_CODE not in process.stderr:
+            if _NO_CONFIG_CODE not in process.stderr:
                 return self._decode(document, process.stdout)
             # A repo with no config of its own gets the bundled one, and every later file skips the miss.
             self._needs_fallback = True
@@ -107,7 +109,7 @@ class ValeLinter(ExternalLinter):
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=TIMEOUT_SECONDS,
+                timeout=_TIMEOUT_SECONDS,
             )
         except (OSError, subprocess.TimeoutExpired):
             return None
@@ -160,6 +162,6 @@ def _launcher_is_ready() -> bool:
         return True
     placeholder = pathlib.Path(spec.origin).parent / 'vale_bin'
     try:
-        return placeholder.stat().st_size >= PLACEHOLDER_BYTES
+        return placeholder.stat().st_size >= _PLACEHOLDER_BYTES
     except OSError:
         return True

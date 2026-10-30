@@ -10,11 +10,13 @@ from . import report as reporters
 from .harnesses import ALL_HARNESSES, BLOCK_EXIT, Payload, resolve
 
 
-HELP_FLAGS = frozenset({'--help', '-h', '--harnesses'})
+_HELP_FLAGS = frozenset({'--help', '-h', '--harnesses'})
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class HookResult:
+    """What the hook tells the agent, through its exit code and output, and which files it repaired."""
+
     exit_code: int
     stderr: str = ''
     stdout: str = ''
@@ -27,6 +29,7 @@ class HookResult:
 
 
 def run(payload: Payload, *, write: bool = True) -> HookResult:
+    """Fix the files an agent's edit touched, and block the agent only on a finding that needs it."""
     recognition = resolve(payload)
     if recognition is None:
         return HookResult(exit_code=0)
@@ -77,6 +80,7 @@ def run(payload: Payload, *, write: bool = True) -> HookResult:
 
 
 def edited_files(payload: Payload) -> tuple[pathlib.Path, ...]:
+    """The files a payload edited, whichever agent sent it."""
     recognition = resolve(payload)
     if recognition is None:
         return ()
@@ -104,7 +108,7 @@ def describe_harnesses() -> str:
 
 
 def main() -> int:
-    if HELP_FLAGS & set(sys.argv[1:]):
+    if _HELP_FLAGS & set(sys.argv[1:]):
         sys.stdout.write(describe_harnesses() + '\n')
         return 0
     try:

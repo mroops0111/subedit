@@ -6,6 +6,8 @@ from .position import SourceRange
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class TextEdit:
+    """Text that replaces a range of bytes."""
+
     range: SourceRange
     new_text: str
 
@@ -24,6 +26,7 @@ def source_lines(text: str) -> list[str]:
 
 
 def apply_edits(text: str, edits: tuple[TextEdit, ...]) -> str:
+    """The text with every edit applied from the last to the first, so no edit moves the offsets of another."""
     if not edits:
         return text
     sorted_edits = sorted(edits, key=lambda edit: (edit.range.start, edit.range.end))

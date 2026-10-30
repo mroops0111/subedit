@@ -13,6 +13,8 @@ from ...config_sources.formatter_width import WidthSetting
 
 
 class NodeRole(enum.Enum):
+    """What a grammar node is to the parser, which reads only definitions, imports, and comments by name."""
+
     ROOT = 'root'
     DEFINITION = 'definition'
     IMPORT = 'import'
@@ -21,7 +23,8 @@ class NodeRole(enum.Enum):
 
 
 class GrammarAdapter(abc.ABC):
-    # The grammar ships as a wheel, so a first run never reaches the network.
+    """What the parser needs from a language's tree-sitter grammar, which ships as a wheel so no run downloads it."""
+
     @abc.abstractmethod
     def language(self) -> Language: ...
 

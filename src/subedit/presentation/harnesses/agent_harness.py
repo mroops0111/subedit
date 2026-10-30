@@ -23,6 +23,8 @@ class HarnessMetadata:
 
 
 class AgentHarness(abc.ABC):
+    """One agent's way of telling the hook what it edited, and of hearing back."""
+
     metadata: HarnessMetadata
 
     @abc.abstractmethod

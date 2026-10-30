@@ -9,11 +9,13 @@ from .linter import Linter
 from .report_aggregator import ReportAggregator
 
 
-MAX_ROUNDS = 10
+_MAX_ROUNDS = 10
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class FixResult:
+    """The fixed document, the findings left in it, and how much the fixer changed."""
+
     document: Document
     report: Report
     round_count: int
@@ -29,11 +31,13 @@ class FixResult:
 
 
 class Fixer:
+    """Applies mechanical fixes in rounds, targeted edits before reflow, until none remain."""
+
     def __init__(
         self,
         linter: Linter,
         external_linters: tuple[ExternalLinter, ...] = (),
-        max_rounds: int = MAX_ROUNDS,
+        max_rounds: int = _MAX_ROUNDS,
     ) -> None:
         # External findings join every round, so an edit they carry is applied like a native one.
         self._aggregator = ReportAggregator(linter, external_linters)

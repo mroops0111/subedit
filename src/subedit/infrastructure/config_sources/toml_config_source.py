@@ -8,10 +8,12 @@ from .formatter_width import FormatterWidths
 
 
 CONFIG_NAME = 'subedit.toml'
-PYPROJECT_NAME = 'pyproject.toml'
+_PYPROJECT_NAME = 'pyproject.toml'
 
 
 class TomlConfigSource:
+    """Reads subedit.toml or the tool table in pyproject.toml, found by walking up from the file checked."""
+
     def __init__(
         self,
         available_rule_ids: tuple[str, ...],
@@ -63,7 +65,7 @@ class TomlConfigSource:
             raw_table = tomllib.loads(config_path.read_text(encoding='utf-8'))
         except (OSError, tomllib.TOMLDecodeError):
             return None
-        if config_path.name == PYPROJECT_NAME:
+        if config_path.name == _PYPROJECT_NAME:
             raw_table = self._reshape_pyproject(raw_table)
             if raw_table is None:
                 return None
@@ -82,14 +84,14 @@ class TomlConfigSource:
     def _locate(self, start: pathlib.Path) -> pathlib.Path | None:
         base = start if start.is_dir() else start.parent
         for directory in (base.resolve(), *base.resolve().parents):
-            for name in (CONFIG_NAME, PYPROJECT_NAME):
+            for name in (CONFIG_NAME, _PYPROJECT_NAME):
                 config_path = directory / name
                 if config_path.is_file() and self._carries_settings(config_path):
                     return config_path
         return None
 
     def _carries_settings(self, config_path: pathlib.Path) -> bool:
-        if config_path.name != PYPROJECT_NAME:
+        if config_path.name != _PYPROJECT_NAME:
             return True
         try:
             tools = tomllib.loads(config_path.read_text(encoding='utf-8')).get('tool')

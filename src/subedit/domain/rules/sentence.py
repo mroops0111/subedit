@@ -7,42 +7,8 @@ from ..models.reflow import reflow_sentence
 from ..ports.rule import Rule, RuleContext
 
 
-STUB_FRAGMENT = RuleMetadata(
-    rule_id='stub-fragment',
-    summary='A sentence forced to break must not leave a stub of a line behind.',
-    fix_kind=FixKind.REWRITE,
-    default_severity=Severity.WARNING,
-)
-
-UNBREAKABLE_SENTENCE = RuleMetadata(
-    rule_id='unbreakable-sentence',
-    summary=(
-        'A sentence over the width must carry a clause comma, splitting no list, wherever it has to break, '
-        'and a summary its style guide keeps to one line must fit it.'
-    ),
-    fix_kind=FixKind.REWRITE,
-)
-
-
-DEFAULT_MINIMUM_CHARACTERS = 24
-BRACKET_NOTE = 'A comma inside brackets or a code span separates items, so it is no place to break. '
-
-
-def prose_sentences(group: CommentGroup) -> tuple[str, ...]:
-    return tuple(
-        sentence.text
-        for segment in group.prose().segments()
-        if not segment.is_literal
-        for sentence in Prose(segment.text, group.markup).sentences()
-    )
-
-
-def budgeted_sentences(group: CommentGroup, context: RuleContext) -> tuple[tuple[str, int], ...]:
-    """Pair each sentence with the budget reflow lays it out in, so no rule judges a layout reflow would not make."""
-    return tuple(
-        (sentence, group.text_budget(context.rule_set.line_width, first_line=index == 0))
-        for index, sentence in enumerate(prose_sentences(group))
-    )
+_DEFAULT_MINIMUM_CHARACTERS = 24
+_BRACKET_NOTE = 'A comma inside brackets or a code span separates items, so it is no place to break. '
 
 
 def is_summary(group: CommentGroup, index: int) -> bool:
@@ -52,13 +18,20 @@ def is_summary(group: CommentGroup, index: int) -> bool:
 
 def stub_floor(context: RuleContext) -> int:
     """Reflow reads the same floor, so a fix never lays out a stub that this rule then rejects."""
-    if not context.rule_set.is_enabled(STUB_FRAGMENT.rule_id):
+    if not context.rule_set.is_enabled(StubFragmentRule.metadata.rule_id):
         return 0
-    return context.settings(STUB_FRAGMENT.rule_id).integer('minimum_characters', DEFAULT_MINIMUM_CHARACTERS)
+    return context.settings(StubFragmentRule.metadata.rule_id).integer(
+        'minimum_characters', _DEFAULT_MINIMUM_CHARACTERS
+    )
 
 
 class StubFragmentRule(Rule[CommentGroup]):
-    metadata = STUB_FRAGMENT
+    metadata = RuleMetadata(
+        rule_id='stub-fragment',
+        summary='A sentence forced to break must not leave a stub of a line behind.',
+        fix_kind=FixKind.REWRITE,
+        default_severity=Severity.WARNING,
+    )
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -66,7 +39,7 @@ class StubFragmentRule(Rule[CommentGroup]):
         if group.placement is CommentPlacement.TRAILING:
             return
         minimum_length = stub_floor(context)
-        for index, (sentence, budget) in enumerate(budgeted_sentences(group, context)):
+        for index, (sentence, budget) in enumerate(_budgeted_sentences(group, context)):
             if is_summary(group, index):
                 continue
             split_pieces = reflow_sentence(sentence, budget, minimum_length)
@@ -89,14 +62,21 @@ class StubFragmentRule(Rule[CommentGroup]):
 
 
 class UnbreakableSentenceRule(Rule[CommentGroup]):
-    metadata = UNBREAKABLE_SENTENCE
+    metadata = RuleMetadata(
+        rule_id='unbreakable-sentence',
+        summary=(
+            'A sentence over the width must carry a clause comma, splitting no list, wherever it has to break, '
+            'and a summary its style guide keeps to one line must fit it.'
+        ),
+        fix_kind=FixKind.REWRITE,
+    )
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # A trailing comment never breaks, so its width is line-too-long's to judge.
         if group.placement is CommentPlacement.TRAILING:
             return
-        sentences = budgeted_sentences(group, context)
+        sentences = _budgeted_sentences(group, context)
         for index, (sentence, budget) in enumerate(sentences):
             if is_summary(group, index):
                 # A summary with nothing after it closes on its own line, so the quotes share its budget.
@@ -134,7 +114,7 @@ class UnbreakableSentenceRule(Rule[CommentGroup]):
         return (
             f'This sentence runs to {len(sentence)} characters against a budget of {budget} characters '
             f'and {cause}. '
-            f'{BRACKET_NOTE if "," in sentence else ""}'
+            f'{_BRACKET_NOTE if "," in sentence else ""}'
             'Add a comma at a clause boundary, or split it into two sentences. '
             f'The part that does not fit is "{longest_line}".'
         )
@@ -146,3 +126,20 @@ class UnbreakableSentenceRule(Rule[CommentGroup]):
             'Move the list to the end of the sentence, or split it into two sentences. '
             f'The sentence opens with "{" ".join(sentence.split()[:8])}".'
         )
+
+
+def _prose_sentences(group: CommentGroup) -> tuple[str, ...]:
+    return tuple(
+        sentence.text
+        for segment in group.prose().segments()
+        if not segment.is_literal
+        for sentence in Prose(segment.text, group.markup).sentences()
+    )
+
+
+def _budgeted_sentences(group: CommentGroup, context: RuleContext) -> tuple[tuple[str, int], ...]:
+    """Pair each sentence with the budget reflow lays it out in, so no rule judges a layout reflow would not make."""
+    return tuple(
+        (sentence, group.text_budget(context.rule_set.line_width, first_line=index == 0))
+        for index, sentence in enumerate(_prose_sentences(group))
+    )

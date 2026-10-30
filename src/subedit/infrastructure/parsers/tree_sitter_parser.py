@@ -10,12 +10,14 @@ from .languages import LanguageProfile, NodeRole
 
 # Every profile must spell its captures this way, and the type system cannot check it.
 # A query that names them otherwise yields nothing, silently.
-COMMENT_CAPTURE = 'comment'
-DOC_CAPTURE = 'doc'
-DIRECTIVE_CAPTURE = 'directive'
+_COMMENT_CAPTURE = 'comment'
+_DOC_CAPTURE = 'doc'
+_DIRECTIVE_CAPTURE = 'directive'
 
 
 class TreeSitterParser(SourceParser[CommentGroup]):
+    """Finds comments and docstrings with each language profile's tree-sitter query."""
+
     def __init__(self, profiles: tuple[LanguageProfile, ...]) -> None:
         self._profiles = {profile.language_id: profile for profile in profiles}
 
@@ -43,22 +45,22 @@ class TreeSitterParser(SourceParser[CommentGroup]):
         grouped_captures = self._run_query(profile, tree.root_node)
         exported = profile.exported_names(tree.root_node)
         comment_groups = [
-            self._build_doc_group(profile, document, node, exported) for node in grouped_captures[DOC_CAPTURE]
+            self._build_doc_group(profile, document, node, exported) for node in grouped_captures[_DOC_CAPTURE]
         ]
         comment_groups.extend(
             self._build_line_group(profile, document, group, exported)
-            for group in self._group_adjacent_comments(profile, document, grouped_captures[COMMENT_CAPTURE])
+            for group in self._group_adjacent_comments(profile, document, grouped_captures[_COMMENT_CAPTURE])
         )
         return ParsedDocument(
             units=tuple(sorted(comment_groups, key=lambda group: group.range.start)),
-            skipped=tuple(SourceRange(node.start_byte, node.end_byte) for node in grouped_captures[DIRECTIVE_CAPTURE]),
+            skipped=tuple(SourceRange(node.start_byte, node.end_byte) for node in grouped_captures[_DIRECTIVE_CAPTURE]),
         )
 
     def _run_query(self, profile: LanguageProfile, root: Node) -> dict[str, list[Node]]:
         query = Query(profile.language(), profile.query())
         captures_by_name = QueryCursor(query).captures(root)
         # A node can match several patterns at once, so the same byte offset arrives twice.
-        grouped_captures: dict[str, list[Node]] = {COMMENT_CAPTURE: [], DOC_CAPTURE: [], DIRECTIVE_CAPTURE: []}
+        grouped_captures: dict[str, list[Node]] = {_COMMENT_CAPTURE: [], _DOC_CAPTURE: [], _DIRECTIVE_CAPTURE: []}
         for name, nodes in captures_by_name.items():
             grouped_captures.setdefault(name, []).extend(nodes)
         for name, nodes in grouped_captures.items():
