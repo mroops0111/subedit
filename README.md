@@ -180,10 +180,10 @@ Reflow works on sentences rather than lines, so the result reads the way the aut
 
 A file takes the same path through `subedit` whether the CLI or the agent hook started it.
 
-![subedit pipeline. An author or agent runs the CLI or the agent hook, which reads subedit.toml. subedit parses the comments and docstrings, lints them with its own rules, Vale, and AutoCorrect, then triages each finding by fix kind and level. An autofix is written back silently, and a rewrite is sent back to the author with its fix stated.](docs/assets/pipeline.svg)
+![subedit pipeline. An author or agent runs the CLI or the agent hook, which reads subedit.toml. subedit parses the comments, docstrings, and Markdown, lints them with its own rules, Vale, and AutoCorrect, then triages each finding by fix kind and level. An autofix is written back silently, and a rewrite is sent back to the author with its fix stated.](docs/assets/pipeline.svg)
 
 1. **Resolve**: the closest `subedit.toml`, or `[tool.subedit]` in `pyproject.toml`, gives the rules and the width.
-2. **Parse**: tree-sitter finds the prose, such as comments, docstrings, headings, and paragraphs, and maps where code sits.
+2. **Parse**: tree-sitter finds the prose, such as comments, docstrings, headings, and paragraphs, and maps where code sits. A Markdown code block is read as its own language when the project sets `code-blocks`.
 3. **Lint**: each native rule reads its own surface, and a Vale or AutoCorrect finding is kept only inside prose.
 4. **Autofix**: targeted edits, then reflow, rerun until nothing mechanical is left, for up to ten rounds.
 5. **Report**: what remains is a rewrite, reported as a blocking error or as advice.
