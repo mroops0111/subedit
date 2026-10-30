@@ -5,7 +5,7 @@ import pytest
 from factories import REPOSITORY_ROOT, document, found, lint, markdown, rule_ids, rule_set
 from factories import fixed as fix_document
 
-from subedit.application import Fixer, Linter, ReportAggregator, RuleEngine
+from subedit.application import Linter, RuleEngine
 from subedit.domain import CommentGroup, MarkdownBlock, MarkdownBlockKind, RuleSet
 from subedit.infrastructure import (
     ALL_RULES,
@@ -193,12 +193,11 @@ def test_a_code_block_is_a_fragment_so_no_comment_in_it_heads_a_file() -> None:
 
 def test_a_checker_reads_a_code_block_as_its_own_language() -> None:
     source = 'Notes.\n\n- Item.\n\n  ```python\n  # 中文English\n  ```\n'
-    aggregator = ReportAggregator(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (AutoCorrectLinter(),))
-    fixed_text = Fixer(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (AutoCorrectLinter(),)).run(
-        markdown(source), code_blocks()
+    checkers = (AutoCorrectLinter(),)
+    assert 'autocorrect.Spacing' in found(lint(markdown(source), code_blocks(), checkers=checkers))
+    assert fix_document(markdown(source), code_blocks(), checkers=checkers) == source.replace(
+        '中文English', '中文 English'
     )
-    assert 'autocorrect.Spacing' in found(aggregator.run(markdown(source), code_blocks()))
-    assert fixed_text.document.text == source.replace('中文English', '中文 English')
 
 
 def test_a_block_in_a_language_subedit_does_not_read_is_left_alone() -> None:
@@ -219,7 +218,8 @@ def test_a_block_in_a_language_subedit_does_not_read_is_left_alone() -> None:
     ],
 )
 def test_an_info_string_names_a_language_by_its_id_or_its_extension(name: str, language_id: str | None) -> None:
-    assert DEFAULT_PARSER.language_named(name) == language_id
+    file_type = DEFAULT_PARSER.file_type_named(name)
+    assert (file_type.language_id if file_type else None) == language_id
 
 
 def test_reading_every_code_block_of_a_long_document_holds_up() -> None:

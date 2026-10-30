@@ -35,7 +35,7 @@ class RuleSet:
     line_width: int = DEFAULT_LINE_WIDTH
     # A delegated tool's rules are not known up front, so they are listed when switched off instead.
     disabled_external_ids: frozenset[str] = frozenset()
-    # A document held inside another, such as a Markdown code block, is often an example,
+    # A document embedded in another, such as a Markdown code block, is often an example,
     # so a project opts in to having it read.
     reads_embedded: bool = False
 

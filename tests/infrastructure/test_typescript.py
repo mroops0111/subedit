@@ -2,7 +2,7 @@ import pathlib
 import typing
 
 import pytest
-from factories import Project, document, first_fix_applied, found, rule_ids, rule_set
+from factories import Project, comments, document, first_fix_applied, found, rule_ids, rule_set
 from factories import lint as lint_document
 
 from subedit.domain import (
@@ -17,7 +17,6 @@ from subedit.domain import (
 )
 from subedit.infrastructure import (
     ALL_RULES,
-    COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
     LAYOUT_RULES,
     SUFFIX_ALIASES,
@@ -29,7 +28,7 @@ from subedit.presentation.cli import app
 
 
 def parse(source: str, language_id: str = 'typescript') -> tuple[CommentGroup, ...]:
-    return COMMENT_PARSER.parse(document(source, language_id))
+    return comments(source, language_id)
 
 
 def lint(source: str, width: int = 80, rules: tuple[Rule[typing.Any], ...] = ALL_RULES) -> Report:

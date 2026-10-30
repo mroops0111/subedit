@@ -62,20 +62,20 @@ class RuleEngine:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class HeldDocument:
-    """A document held inside another, as its own language reads it, with where each of its lines sits in the host."""
+class Embedding:
+    """An embedded document paired with the document its language reads it as, so it is checked as one of its own."""
 
-    placement: EmbeddedDocument
+    embedded: EmbeddedDocument
     document: Document
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Inspection:
-    """What one parse of a document yields, the findings, the map of where its prose lies, and what it holds."""
+    """What one parse of a document yields, the findings, the map of where its prose lies, and what it embeds."""
 
     report: Report = dataclasses.field(default_factory=Report)
     prose_map: ProseMap = dataclasses.field(default_factory=ProseMap)
-    held: tuple[HeldDocument, ...] = ()
+    embeddings: tuple[Embedding, ...] = ()
 
 
 class Linter:
@@ -89,31 +89,29 @@ class Linter:
         return self.inspect(document, rule_set).report
 
     def inspect(self, document: Document, rule_set: RuleSet, *, fragment: bool = False) -> Inspection:
-        """Check one document, and hand back the documents it holds when the project reads them.
+        """Check one document, and hand back the documents embedded in it when the project reads them.
 
-        A fragment is a document held inside another, which the rules on a whole file leave alone.
+        A fragment is a document embedded in another, which the rules on a whole file leave alone.
         """
         if not self._parser.supports(document.language_id):
             return Inspection()
         parsed = self._parser.read(document)
         diagnostics = self._engine.run(document, parsed.units, rule_set, fragment=fragment)
         sorted_diagnostics = sorted(diagnostics, key=lambda item: (item.range.start, item.rule_id))
-        held = tuple(
-            held_document
+        embeddings = tuple(
+            embedding
             for embedded in (parsed.embedded if rule_set.reads_embedded else ())
-            if (held_document := self._held_document(document, embedded)) is not None
+            if (embedding := self._embedding(document, embedded)) is not None
         )
-        return Inspection(Report(tuple(sorted_diagnostics)), ProseMap.of_units(parsed.units, parsed.skipped), held)
+        prose_map = ProseMap.of_units(parsed.units, parsed.skipped)
+        return Inspection(Report(tuple(sorted_diagnostics)), prose_map, embeddings)
 
-    # The held document is named with its language's extension beside the host,
+    # The embedded document is named with its language's extension beside the host,
     # so an outside checker parses it as that language and finds the host's config.
-    def _held_document(self, host: Document, embedded: EmbeddedDocument) -> HeldDocument | None:
-        language_id = self._parser.language_named(embedded.language_name)
+    def _embedding(self, host: Document, embedded: EmbeddedDocument) -> Embedding | None:
+        file_type = self._parser.file_type_named(embedded.language_name)
         # A block in the host's own language is an example of the host, often a deliberately wrong one.
-        if language_id is None or language_id == host.language_id:
-            return None
-        file_type = self._parser.file_type_of(language_id)
-        if file_type is None:
+        if file_type is None or file_type.language_id == host.language_id:
             return None
         uri = f'{host.uri}{file_type.canonical_extension}'
-        return HeldDocument(embedded, Document(uri=uri, text=embedded.text, language_id=language_id))
+        return Embedding(embedded, Document(uri=uri, text=embedded.text, language_id=file_type.language_id))

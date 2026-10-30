@@ -8,7 +8,7 @@ from .text import TextEdit
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class EmbeddedDocument:
-    """A document held inside another, such as a code block in Markdown, and where each of its lines sits in its host.
+    """A document embedded in another, such as a code block in Markdown, and where each of its lines sits in its host.
 
     A host may set every line apart with a prefix, such as a list item's indent or a block quote's marker,
     so a finding maps back line by line, and an edit that spans lines puts each prefix back.

@@ -48,6 +48,14 @@ def test_an_edit_ending_in_a_newline_leaves_the_next_prefix_alone() -> None:
     assert moved.new_text == '# a\n> # b\n'
 
 
+def test_an_edit_within_one_line_maps_its_range_alone() -> None:
+    finding = Diagnostic(
+        rule_id='autocorrect.Spacing', range=SourceRange(8, 11), message='m', fix=Fix.reflow(edit(8, 11, 'two'))
+    )
+    [moved] = moved_edits(finding)
+    assert (moved.range, moved.new_text) == (SourceRange(22, 25), 'two')
+
+
 def test_a_document_needs_a_host_start_and_a_prefix_for_each_line() -> None:
     with pytest.raises(ValueError, match='one host start and one prefix per line'):
         EmbeddedDocument(language_name='py', text='# one\n# two\n', host_starts=(0,), prefixes=('',))

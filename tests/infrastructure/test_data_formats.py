@@ -1,18 +1,8 @@
 import pytest
-from factories import Project, document, found, lint, rule_set
-from factories import fixed as fix_document
+from factories import Project, comments, document, fixed, found, lint, rule_set
 
-from subedit.domain import CommentGroup, CommentPlacement
-from subedit.infrastructure import COMMENT_PARSER
+from subedit.domain import CommentPlacement
 from subedit.presentation.cli import app
-
-
-def parse(source: str, language_id: str) -> tuple[CommentGroup, ...]:
-    return COMMENT_PARSER.parse(document(source, language_id))
-
-
-def fixed(source: str, language_id: str, width: int = 80) -> str:
-    return fix_document(document(source, language_id), rule_set(width=width))
 
 
 @pytest.mark.parametrize(
@@ -31,7 +21,7 @@ def fixed(source: str, language_id: str, width: int = 80) -> str:
     ],
 )
 def test_a_comment_broken_mid_clause_is_joined(source: str, expected: str, language_id: str) -> None:
-    assert fixed(source, language_id) == expected
+    assert fixed(document(source, language_id), rule_set(width=80)) == expected
 
 
 @pytest.mark.parametrize(
@@ -46,32 +36,33 @@ def test_a_comment_broken_mid_clause_is_joined(source: str, expected: str, langu
     ],
 )
 def test_a_setting_commented_out_is_code(source: str, language_id: str) -> None:
-    assert fixed(source, language_id, width=20) == source
+    assert fixed(document(source, language_id), rule_set(width=20)) == source
 
 
 def test_a_label_closing_on_a_period_is_prose() -> None:
-    group = parse('a:\n  # Note: this runs first.\n  b: 1\n', 'yaml')[0]
+    [group] = comments('a:\n  # Note: this runs first.\n  b: 1\n', 'yaml')
     assert group.prose().flattened == 'Note: this runs first.'
 
 
 def test_a_note_at_the_top_of_a_data_file_is_no_file_header() -> None:
     source = '# Runs the tests on every push.\n\nname: CI\n'
-    assert [group.placement for group in parse(source, 'yaml')] == [CommentPlacement.INLINE_BODY]
+    assert [group.placement for group in comments(source, 'yaml')] == [CommentPlacement.INLINE_BODY]
     assert 'file-header-comment' not in found(lint(document(source, 'yaml')))
 
 
 def test_a_comment_a_tool_reads_is_no_prose() -> None:
     assert (
-        parse('# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json\na: 1\n', 'yaml') == ()
+        comments('# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json\na: 1\n', 'yaml')
+        == ()
     )
 
 
 def test_a_block_comment_in_json_is_left_alone() -> None:
-    assert parse('{\n  /* "semi": false */\n  "a": 1\n}\n', 'json') == ()
+    assert comments('{\n  /* "semi": false */\n  "a": 1\n}\n', 'json') == ()
 
 
 def test_a_trailing_comment_stays_beside_its_value() -> None:
-    assert [group.placement for group in parse('a: 1  # seconds\n', 'yaml')] == [CommentPlacement.TRAILING]
+    assert [group.placement for group in comments('a: 1  # seconds\n', 'yaml')] == [CommentPlacement.TRAILING]
 
 
 @pytest.mark.parametrize('lock_file', ['package-lock.json', 'pnpm-lock.yaml'])

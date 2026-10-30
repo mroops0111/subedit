@@ -5,7 +5,7 @@ import pathlib
 import shutil
 
 import pytest
-from factories import FIXTURES, Project, document, rule_set
+from factories import FIXTURES, Project, document, found, lint, rule_set
 
 from subedit.application import Linter, ReportAggregator, RuleEngine
 from subedit.domain import (
@@ -105,15 +105,12 @@ def test_a_finding_outside_every_comment_is_dropped() -> None:
     """A checker that reads YAML as plain text reaches its keys and values, which hold no prose."""
     text = 'name: a; b\n# Keep it short.\nrun: make\n'
     linter = StubLinter('stub', diagnostics=(finding('stub.Value', text.index(';')), finding('stub.Note', 13)))
-    core = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES))
-    report = ReportAggregator(core, (linter,)).run(document(text, 'yaml'), rule_set())
-    assert [item.rule_id for item in report.diagnostics] == ['stub.Note']
+    assert found(lint(document(text, 'yaml'), checkers=(linter,))) == ['stub.Note']
 
 
 def test_a_file_with_no_prose_runs_no_checker() -> None:
     linter = StubLinter('stub')
-    core = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES))
-    ReportAggregator(core, (linter,)).run(document('{\n  "a": 1\n}\n', 'json'), rule_set())
+    lint(document('{\n  "a": 1\n}\n', 'json'), checkers=(linter,))
     assert linter.calls == 0
 
 
@@ -288,12 +285,10 @@ def test_vale_leaves_a_directive_alone_as_the_native_rules_do(
 @pytest.mark.skipif(shutil.which('vale') is None, reason='vale is not installed')
 def test_vale_reads_a_code_block_as_its_own_language(tmp_path: pathlib.Path) -> None:
     text = 'Notes.\n\n```python\n# Keep it short; it runs often.\nx = "a; b"\n```\n'
-    linter = ReportAggregator(
-        Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (ValeLinter(suffix_aliases=SUFFIX_ALIASES),)
-    )
-    report = linter.run(
+    report = lint(
         Document(uri=(tmp_path / 'notes.md').as_uri(), text=text, language_id='markdown'),
         dataclasses.replace(rule_set(), reads_embedded=True),
+        checkers=(ValeLinter(suffix_aliases=SUFFIX_ALIASES),),
     )
     assert [(item.rule_id, item.range.start) for item in report.diagnostics] == [
         ('subedit.Semicolon', text.index(';'))

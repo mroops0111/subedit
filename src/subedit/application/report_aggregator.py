@@ -16,16 +16,16 @@ class ReportAggregator:
         self._external_linters = external_linters
 
     def run(self, document: Document, rule_set: RuleSet) -> Report:
-        """Check a document with every rule and checker, and each document it holds the same way, mapped back."""
+        """Check a document with every rule and checker, and each document embedded in it the same way, mapped back."""
         return self._run(document, rule_set, fragment=False)
 
     def _run(self, document: Document, rule_set: RuleSet, *, fragment: bool) -> Report:
         inspection = self._linter.inspect(document, rule_set, fragment=fragment)
         report = inspection.report.merged_with(self._external_report(document, inspection.prose_map, rule_set))
-        for held in inspection.held:
-            held_report = self._run(held.document, rule_set, fragment=True)
-            mapped = tuple(held.placement.host_diagnostic(item) for item in held_report.diagnostics)
-            report = report.merged_with(Report(mapped, held_report.unavailable_sources))
+        for embedding in inspection.embeddings:
+            embedded_report = self._run(embedding.document, rule_set, fragment=True)
+            mapped = tuple(embedding.embedded.host_diagnostic(item) for item in embedded_report.diagnostics)
+            report = report.merged_with(Report(mapped, embedded_report.unavailable_sources))
         return report
 
     def _external_report(self, document: Document, prose_map: ProseMap, rule_set: RuleSet) -> Report:

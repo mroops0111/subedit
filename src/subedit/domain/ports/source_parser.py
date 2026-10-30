@@ -19,7 +19,7 @@ class ParsedDocument(typing.Generic[UnitT]):
     units: tuple[UnitT, ...] = ()
     # Text such as a lint directive or a Markdown code block, which a prose checker has no business reading.
     skipped: tuple[SourceRange, ...] = ()
-    # Documents in another language held inside this one, such as the code blocks of a Markdown file.
+    # Documents in another language embedded in this one, such as the code blocks of a Markdown file.
     embedded: tuple[EmbeddedDocument, ...] = ()
 
 
@@ -39,15 +39,17 @@ class SourceParser(abc.ABC, typing.Generic[UnitT]):
     def supports(self, language_id: str) -> bool:
         return any(file_type.language_id == language_id for file_type in self.file_types)
 
-    def language_named(self, name: str) -> str | None:
-        """The language a name such as a code block's info string calls for, by its ID or by its extension."""
+    def file_type_named(self, name: str) -> FileType | None:
+        """The file type a name such as a code block's info string calls for, by its language ID or an extension."""
         lowered = name.strip().lower()
-        if not lowered:
-            return None
-        return lowered if self.supports(lowered) else self.language_id_for(f'.{lowered}')
-
-    def file_type_of(self, language_id: str) -> FileType | None:
-        return next((file_type for file_type in self.file_types if file_type.language_id == language_id), None)
+        return next(
+            (
+                file_type
+                for file_type in self.file_types
+                if lowered == file_type.language_id or f'.{lowered}' in file_type.extensions
+            ),
+            None,
+        )
 
     def language_id_for(self, extension: str) -> str | None:
         """The language a file is read as, from its extension."""

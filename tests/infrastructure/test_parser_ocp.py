@@ -133,4 +133,4 @@ def test_a_format_with_only_line_comments_is_one_more_instance() -> None:
     )
 
     assert [block.prose().flattened for block in blocks] == ['first line, second line.']
-    assert parser.file_type_of('conf') == profile.file_type
+    assert parser.file_type_named('conf') == profile.file_type
