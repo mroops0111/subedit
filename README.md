@@ -39,7 +39,24 @@ def reflow(comment: Comment, width: int) -> Comment:
     return comment.reflow(width)
 ```
 
-A sentence past the width with no comma has nowhere legal to break, and only its author knows where the meaning divides, so it goes back to the agent that wrote it.
+Markdown has no column limit, yet an agent often wraps a paragraph by hand, and GitHub, Notion, and Heptabase may show each of those newlines as a break.
+
+```markdown
+## cache layout
+
+The cache keeps one entry per file,
+and drops it when the file changes.
+```
+
+The same command joins the paragraph into one line and puts the heading in Title Case, again without a word.
+
+```markdown
+## Cache Layout
+
+The cache keeps one entry per file, and drops it when the file changes.
+```
+
+A sentence in a comment that runs past the width with no comma has nowhere legal to break, and only its author knows where the meaning divides, so it goes back to the agent that wrote it.
 
 ```text
 1 comment finding needs rewriting in src/cache.py.
