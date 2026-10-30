@@ -37,6 +37,7 @@ dev = [
     "pytest>=9.0.0",
     "basedpyright>=1.40.1",
     "ruff>=0.16.7",
+    "pytest-cov>=7.0.0",
 ]
 vale = [
     "vale>=3.22.0.0",
@@ -123,6 +124,16 @@ split-on-trailing-comma = true
 testpaths = ["tests"]
 # The tests share factories.py, which sits beside them rather than in a package.
 pythonpath = ["tests"]
+
+[tool.coverage.run]
+source = ["subedit"]
+branch = true
+
+[tool.coverage.report]
+# The floor every project of this author's shares, below which new code arrived without the tests that pin it.
+fail_under = 80
+show_missing = true
+skip_covered = true
 
 [tool.basedpyright]
 venvPath = "."
