@@ -3,7 +3,7 @@ import typing
 from ..models.comment import CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata
 from ..ports.rule import Rule, RuleContext
-from .rewrite import stub_floor
+from .sentence import stub_floor
 
 
 MID_CLAUSE_BREAK = RuleMetadata(

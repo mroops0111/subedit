@@ -1,13 +1,13 @@
 import dataclasses
 import enum
-import itertools
 import re
 import typing
 
 from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .position import SourceRange
-from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence, break_cost, comma_breaks, reflow_sentence
+from .prose import PLAIN_MARKUP, Prose, ProseMarkup
 from .prose_unit import ProseLine, ProseUnit
+from .reflow import break_cost, is_legal, keeps_given, line_shared_by, occupied_lines, reflow_sentence, strands_stub
 from .text import TextEdit
 
 
@@ -198,7 +198,7 @@ class CommentGroup(ProseUnit):
                     out.append('')
                 first_budget = self.text_budget(width, first_line=not out) - (reserve if not out else 0)
                 is_summary = self.has_summary_line and paragraph_index == 0 and sentence_index == 0
-                shared_line = None if is_summary else _shared_line(lines, sentences[sentence_index:])
+                shared_line = None if is_summary else line_shared_by(lines, sentences[sentence_index:])
                 if shared_line is not None and len(shared_line) <= first_budget:
                     out.append(shared_line)
                     shared_until = sentence.offset + len(shared_line)
@@ -207,18 +207,18 @@ class CommentGroup(ProseUnit):
                     best_lines: tuple[str, ...] = (sentence.text,)
                 else:
                     best_lines = reflow_sentence(sentence.text, body_budget, stub_floor, first_width=first_budget)
-                given_lines = _given_lines(lines, sentence)
-                if given_lines and _keeps_given(given_lines, best_lines, (first_budget, body_budget), stub_floor):
+                given_lines = occupied_lines(lines, sentence)
+                if given_lines and keeps_given(given_lines, best_lines, (first_budget, body_budget), stub_floor):
                     out.extend(given_lines)
-                elif _is_legal(best_lines, (first_budget, body_budget), stub_floor) and not (
+                elif is_legal(best_lines, (first_budget, body_budget), stub_floor) and not (
                     given_lines and break_cost(best_lines)
                 ):
                     out.extend(best_lines)
                 elif given_lines:
-                    if held is not None and _is_legal(best_lines, (first_budget, body_budget), stub_floor):
+                    if held is not None and is_legal(best_lines, (first_budget, body_budget), stub_floor):
                         held.append(sentence.text)
                     out.extend(given_lines)
-                elif _strands_stub(best_lines, stub_floor):
+                elif strands_stub(best_lines, stub_floor):
                     return ()
                 else:
                     out.extend(best_lines)
@@ -252,72 +252,3 @@ class CommentGroup(ProseUnit):
 
     def as_edit(self) -> TextEdit:
         return TextEdit(self.range, self.render())
-
-
-# A line the author filled with several short sentences, each whole, reads as well as one sentence a line,
-# so it stays while it fits.
-def _shared_line(lines: tuple[str, ...], sentences: tuple[Sentence, ...]) -> str | None:
-    start = 0
-    for line in lines:
-        if start == sentences[0].offset:
-            end = start + len(line)
-            ending_here = [sentence for sentence in sentences[1:] if sentence.end == end]
-            return line if ending_here and sentences[0].end < end else None
-        start += len(line) + 1
-    return None
-
-
-# The lines a sentence already occupies, when it has them to itself.
-def _given_lines(lines: tuple[str, ...], sentence: Sentence) -> tuple[str, ...] | None:
-    covering: list[str] = []
-    start = 0
-    for line in lines:
-        end = start + len(line)
-        if start < sentence.end and end > sentence.offset:
-            if not covering and start != sentence.offset:
-                return None
-            covering.append(line)
-            if end == sentence.end:
-                return tuple(covering)
-            if end > sentence.end:
-                return None
-        start = end + 1
-    return None
-
-
-def _keeps_given(
-    given_lines: tuple[str, ...], best_lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int
-) -> bool:
-    # A colon ending a line in mid sentence is a rewrite finding, so its layout waits for that rewrite.
-    if _breaks_at_a_colon(given_lines):
-        return _fits(given_lines, budgets)
-    return (
-        len(given_lines) == len(best_lines)
-        and _is_legal(given_lines, budgets, stub_floor)
-        and break_cost(given_lines) <= break_cost(best_lines)
-    )
-
-
-def _breaks_at_a_colon(lines: tuple[str, ...]) -> bool:
-    return any(line.endswith(':') for line in lines[:-1])
-
-
-def _fits(lines: tuple[str, ...], budgets: tuple[int, int]) -> bool:
-    first_budget, body_budget = budgets
-    return all(len(line) <= (first_budget if index == 0 else body_budget) for index, line in enumerate(lines))
-
-
-def _is_legal(lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int) -> bool:
-    if not _fits(lines, budgets):
-        return False
-    if len(lines) == 1:
-        return True
-    if _strands_stub(lines, stub_floor):
-        return False
-    breaks = set(comma_breaks(' '.join(lines)))
-    line_ends = itertools.accumulate(len(line) + 1 for line in lines[:-1])
-    return all(line_end - 1 in breaks for line_end in line_ends)
-
-
-def _strands_stub(lines: tuple[str, ...], stub_floor: int) -> bool:
-    return len(lines) > 1 and min(map(len, lines)) < stub_floor

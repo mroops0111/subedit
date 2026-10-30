@@ -2,9 +2,11 @@ import re
 import typing
 
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.prose import is_protected, protected_spans
 from ..models.prose_unit import ProseLine, ProseUnit
-from ..models.wording import is_protected, protected_spans, title_case
+from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
+from .markdown import HEADING_TITLE_CASE
 
 
 MID_SENTENCE_COLON = RuleMetadata(
@@ -174,7 +176,8 @@ class BulletLabelStyleRule(Rule[ProseUnit]):
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        keep = context.settings(HEADING_TITLE_CASE_ID).strings('keep')
+        # Title Case and the names it leaves lowercase are set once, on the heading rule, and labels follow them.
+        keep = context.settings(HEADING_TITLE_CASE.rule_id).strings('keep')
         for line in unit.prose_lines():
             if not line.opens_item:
                 continue
@@ -197,10 +200,6 @@ class BulletLabelStyleRule(Rule[ProseUnit]):
                 message=f'A list item label is in Title Case, and bold where the text renders, so it reads "{styled}".',
                 fix=Fix.targeted(line.edit(0, end, styled)),
             )
-
-
-# Title Case and the names it leaves lowercase are set once, on the heading rule, and labels follow them.
-HEADING_TITLE_CASE_ID = 'heading-title-case'
 
 
 # A list item may open with any short label, while a paragraph opens with one only as a capitalized tag such as Note.

@@ -3,7 +3,7 @@ import typing
 
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.markdown import MarkdownBlock, MarkdownBlockKind
-from ..models.wording import title_case
+from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
 
 

@@ -300,10 +300,10 @@ Comments and Markdown share one house style, and differ where their forms differ
 
 | Concern | Comments | Markdown | Rules |
 | --- | --- | --- | --- |
-| Punctuation | No mid-sentence colon, semicolon, dash, or arrow | Same | [House Style](docs/rules.md#house-style), [Wording](docs/rules.md#wording) |
-| Parentheses | Half-width, spaced outside, flush inside | Same | [House Style](docs/rules.md#house-style) |
-| List Labels | Title Case, and bold only in docstrings and JSDoc | Title Case and bold | [House Style](docs/rules.md#house-style) |
-| Word Choice | The house verb for *include*, and no *not A, but B* framing | Same | [House Style](docs/rules.md#house-style) |
+| Punctuation | No mid-sentence colon, semicolon, dash, or arrow | Same | [Style](docs/rules.md#style), [Wording](docs/rules.md#wording) |
+| Parentheses | Half-width, spaced outside, flush inside | Same | [Style](docs/rules.md#style) |
+| List Labels | Title Case, and bold only in docstrings and JSDoc | Title Case and bold | [Style](docs/rules.md#style) |
+| Word Choice | The house verb for *include*, and no *not A, but B* framing | Same | [Style](docs/rules.md#style) |
 | CJK Spacing | A space between CJK and Latin text | Same | [Spacing](docs/rules.md#spacing) |
 | Line Breaks | Within the width, only at clause commas | One source line per paragraph or list item | [Layout](docs/rules.md#layout), [Markdown](docs/rules.md#markdown) |
 | Long Sentences | Rewritten when no clause comma can carry the break | Not checked, since no line breaks | [Sentence](docs/rules.md#sentence) |

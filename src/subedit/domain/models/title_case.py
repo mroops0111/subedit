@@ -1,13 +1,14 @@
 import re
 
+from .prose import is_protected, protected_spans
 
-# A rule reading prose steps over code, a URL, an image's alt text, a link target, an autolink, and quoted words.
-_PROTECTED = re.compile(r'(`+).+?\1|\bhttps?://\S+|!\[[^\]]*\]|\]\([^)]*\)|<[^>\s]+>|"[^"]*"|“[^”]*”|「[^」]*」')
+
 _WORD = re.compile(r"[A-Za-z][A-Za-z'’]*")
 # A token joined to a dot, slash, underscore, or at sign is a name such as a file, a path, or a handle.
 _NAME_JOINERS = frozenset('./_@\\')
+_RUN = re.compile(r'\S+')
 # Articles, short prepositions, and coordinating conjunctions stay lowercase inside a title.
-MINOR_WORDS = frozenset(
+_MINOR_WORDS = frozenset(
     {
         'a',
         'an',
@@ -31,14 +32,6 @@ MINOR_WORDS = frozenset(
         'vs',
     }
 )
-
-
-def protected_spans(text: str) -> tuple[tuple[int, int], ...]:
-    return tuple((match.start(), match.end()) for match in _PROTECTED.finditer(text))
-
-
-def is_protected(offset: int, spans: tuple[tuple[int, int], ...]) -> bool:
-    return any(start <= offset < end for start, end in spans)
 
 
 def title_case(text: str, keep: tuple[str, ...] = ()) -> str:
@@ -78,13 +71,11 @@ def _cased(word: str, kept: dict[str, str], *, opens: bool, closes: bool) -> str
         return kept[word.lower()]
     if any(character.isupper() for character in word[1:]):
         return word
-    if word.lower() in MINOR_WORDS and not (opens or closes):
+    if word.lower() in _MINOR_WORDS and not (opens or closes):
         return word.lower()
     return word[0].upper() + word[1:]
 
 
 def _name_spans(text: str) -> tuple[tuple[int, int], ...]:
     """A run of text holding a dot, slash, underscore, or at sign is a name, such as a file, a path, or a package."""
-    return tuple(
-        (chunk.start(), chunk.end()) for chunk in re.finditer(r'\S+', text) if _NAME_JOINERS & set(chunk.group())
-    )
+    return tuple((chunk.start(), chunk.end()) for chunk in _RUN.finditer(text) if _NAME_JOINERS & set(chunk.group()))

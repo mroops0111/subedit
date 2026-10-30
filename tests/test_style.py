@@ -2,7 +2,7 @@ import pytest
 
 from subedit.application import Fixer, Linter, RuleEngine
 from subedit.domain import Document, RuleSet, RuleSettings
-from subedit.domain.models.wording import title_case
+from subedit.domain.models.title_case import title_case
 from subedit.infrastructure import DEFAULT_PARSER, MARKDOWN_RULES, WORDING_RULES
 
 

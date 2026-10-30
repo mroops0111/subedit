@@ -1,7 +1,7 @@
 import pytest
 
 from subedit.domain.models import Prose
-from subedit.domain.models.prose import break_cost, reflow_sentence
+from subedit.domain.models.reflow import break_cost, reflow_sentence
 
 
 def texts(prose: Prose) -> list[str]:

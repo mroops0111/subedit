@@ -1,10 +1,3 @@
-from .house_style import (
-    BulletLabelStyleRule,
-    ContrastFramingRule,
-    InclusionVerbRule,
-    MidSentenceColonRule,
-    ParenthesisStyleRule,
-)
 from .layout import LineTooLongRule, MidClauseBreakRule
 from .markdown import (
     HeadingNotNounPhraseRule,
@@ -13,8 +6,15 @@ from .markdown import (
     MissingLeadSentenceRule,
     ParagraphLineBreakRule,
 )
-from .rewrite import StubFragmentRule, UnbreakableSentenceRule
+from .sentence import StubFragmentRule, UnbreakableSentenceRule
 from .structure import BlockTooLongRule, FileHeaderCommentRule, PlainCommentOnPublicRule, SignatureRestatingTagRule
+from .style import (
+    BulletLabelStyleRule,
+    ContrastFramingRule,
+    InclusionVerbRule,
+    MidSentenceColonRule,
+    ParenthesisStyleRule,
+)
 
 
 __all__ = [

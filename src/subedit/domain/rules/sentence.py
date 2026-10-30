@@ -2,7 +2,8 @@ import typing
 
 from ..models.comment import CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
-from ..models.prose import Prose, reflow_sentence
+from ..models.prose import Prose
+from ..models.reflow import reflow_sentence
 from ..ports.rule import Rule, RuleContext
 
 

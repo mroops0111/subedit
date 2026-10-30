@@ -4,7 +4,7 @@
 
 Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, as in `"subedit.DateRef" = "off"`. An error fails `check` and stops an agent, while a warning is shown as advice. The fix kind states who resolves a finding, as [Fix Kinds](../README.md#fix-kinds) describes.
 
-## House Style
+## Style
 
 These rules read comments and Markdown alike, and hold the punctuation, labels, and wording of the house style.
 
