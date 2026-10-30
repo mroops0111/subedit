@@ -2,7 +2,7 @@ import re
 import typing
 
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
-from ..models.prose import is_protected, protected_spans
+from ..models.prose import is_protected, is_wide, protected_spans
 from ..models.prose_unit import ProseLine, ProseUnit
 from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
@@ -56,9 +56,8 @@ _FINITE_VERBS = frozenset(
 )
 _MAX_TAG_WORDS = 3
 _MAX_BOLD_LABEL_WORDS = 10
-_MAX_CJK_LABEL = 12
+_MAX_WIDE_LABEL = 12
 _PARENTHESES = re.compile(r'[(（](?P<inside>[^()（）]*)[)）]')
-_CJK = re.compile(r'[぀-ヿ㐀-鿿豈-﫿]')
 # No space goes between a parenthesis and the punctuation or bracket beside it.
 _HUGS_A_PARENTHESIS = frozenset('.,;:!?，。、；：！？「」『』"\'[]{}<>/')
 _CONTRAST = re.compile(r'不是[^，,。；;！!？?]{1,40}[，,]\s*(?:而)?是')
@@ -109,7 +108,7 @@ class ParenthesisStyleRule(Rule[ProseUnit]):
                 inside = parentheses.group('inside')
                 full_width = parentheses.group().startswith('（') or parentheses.group().endswith('）')
                 # A call such as foo(bar) holds no space and no CJK text, so it is code, not an aside.
-                if not full_width and not (_CJK.search(inside) or ' ' in inside):
+                if not full_width and not (any(map(is_wide, inside)) or ' ' in inside):
                     continue
                 before = line.text[start - 1] if start else ''
                 after = line.text[end] if end < len(line.text) else ''
@@ -218,8 +217,8 @@ def _label_colon(line: ProseLine) -> int | None:
 
 
 def _is_label(text: str) -> bool:
-    if _CJK.search(text):
-        return len(text.strip()) <= _MAX_CJK_LABEL
+    if any(map(is_wide, text)):
+        return len(text.strip()) <= _MAX_WIDE_LABEL
     words = text.split()
     if any(word.lower() in _FINITE_VERBS for word in words):
         return False

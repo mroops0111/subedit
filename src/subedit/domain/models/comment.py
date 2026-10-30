@@ -1,17 +1,13 @@
 import dataclasses
 import enum
-import re
 import typing
 
 from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .position import SourceRange
-from .prose import PLAIN_MARKUP, Prose, ProseMarkup
+from .prose import LIST_MARKER, PLAIN_MARKUP, Prose, ProseMarkup
 from .prose_unit import ProseLine, ProseUnit
 from .reflow import break_cost, is_legal, keeps_given, line_shared_by, occupied_lines, reflow_sentence, strands_stub
 from .text import TextEdit
-
-
-_LIST_MARKER = re.compile(r'(?:[0-9]+[.)]|[-*+])\s+')
 
 
 class CommentForm(enum.Enum):
@@ -108,7 +104,7 @@ class CommentGroup(ProseUnit):
         for index, line in enumerate(self.lines):
             if index in skipped:
                 continue
-            marker = _LIST_MARKER.match(line.text)
+            marker = LIST_MARKER.match(line.text)
             marker_length = marker.end() if marker else 0
             text_start = line.range.start + len((line.indent + line.delimiter).encode('utf-8'))
             text = line.text[marker_length:]
@@ -121,7 +117,7 @@ class CommentGroup(ProseUnit):
                     opens_item=marker is not None,
                     ends_paragraph=following >= len(self.lines)
                     or following in skipped
-                    or _LIST_MARKER.match(self.lines[following].text) is not None,
+                    or LIST_MARKER.match(self.lines[following].text) is not None,
                     opens_paragraph=index == 0 or index - 1 in skipped,
                 )
             )

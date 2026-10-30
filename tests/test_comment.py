@@ -153,3 +153,8 @@ def test_prose_keeps_uniformly_indented_lines_flush() -> None:
         placement=CommentPlacement.INLINE_BODY,
     )
     assert group.prose().physical_lines == ('one', 'two')
+
+
+def test_a_lettered_item_opens_a_list_item_as_a_numbered_one_does() -> None:
+    subject = group('Two steps follow.', '', 'a) Read the file.', 'b) Write it back.')
+    assert [line.opens_item for line in subject.prose_lines()] == [False, True, True]

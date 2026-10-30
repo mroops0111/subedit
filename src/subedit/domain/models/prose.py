@@ -1,6 +1,7 @@
 import dataclasses
 import re
 import typing
+import unicodedata
 
 
 # Abbreviations whose period does not end a sentence, written without that period.
@@ -24,13 +25,26 @@ _SENTENCE_END = re.compile(r'[.!?]')
 _ENDS_A_SENTENCE = re.compile(r'[.!?:]["\')\]]*\s*$')
 _TRAILING_WORD = re.compile(r'([A-Za-z][A-Za-z.]*)$')
 _URL = re.compile(r'\b(?:https?://|www\.)\S+')
-# A rule reading prose steps over code, a URL, an image's alt text, a link target, an autolink, and quoted words.
-_PROTECTED = re.compile(r'(`+).+?\1|\bhttps?://\S+|!\[[^\]]*\]|\]\([^)]*\)|<[^>\s]+>|"[^"]*"|“[^”]*”|「[^」]*」')
 # A span opened by two backticks, as reStructuredText writes code, closes on two.
 _CODE_RUN = re.compile(r'(`+).+?\1')
+# A rule reading prose steps over code, a URL, an image's alt text, a link target, an autolink, and quoted words.
+# The code run comes first, since its backreference counts on being the first group.
+_PROTECTED = re.compile(
+    '|'.join(
+        (
+            _CODE_RUN.pattern,
+            _URL.pattern,
+            r'!\[[^\]]*\]',
+            r'\]\([^)]*\)',
+            r'<[^>\s]+>',
+            r'"[^"]*"',
+            '“[^”]*”',
+            '「[^」]*」',
+        )
+    )
+)
 _BRACKET_PAIRS = {'(': ')', '[': ']', '{': '}'}
 _FENCE = re.compile(r'^\s*(```|~~~)')
-_LIST_DELIMITER = re.compile(r'^\s*(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s')
 _LITERAL_DELIMITER = '\\b'
 _CLOSING_MARKS = '"\')]}'
 _OPENING_MARKS = '"\'([{'
@@ -38,6 +52,8 @@ _APOSTROPHES = ("'", '\u2019')
 
 # Only before a number, since "No. 5" abbreviates while a trailing no ends its sentence.
 NUMBER_ABBREVIATION = 'no'
+# A numbered, bulleted, or lettered list item's marker, with the space after it.
+LIST_MARKER = re.compile(r'(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s+')
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -184,7 +200,7 @@ class Prose:
         return inside_list and (line[:1].isspace() or not _ENDS_A_SENTENCE.search(previous_line))
 
     def _is_list_item(self, line: str) -> bool:
-        return bool(_LIST_DELIMITER.match(line))
+        return bool(LIST_MARKER.match(line.lstrip()))
 
     @property
     def flattened(self) -> str:
@@ -291,3 +307,8 @@ def protected_spans(text: str) -> tuple[tuple[int, int], ...]:
 def is_protected(offset: int, spans: tuple[tuple[int, int], ...]) -> bool:
     """Whether an offset falls inside any of the spans."""
     return any(start <= offset < end for start, end in spans)
+
+
+def is_wide(character: str) -> bool:
+    """Whether a character is set full width, as Chinese, Japanese, and Korean text and its punctuation are."""
+    return bool(character) and unicodedata.east_asian_width(character) in {'W', 'F'}

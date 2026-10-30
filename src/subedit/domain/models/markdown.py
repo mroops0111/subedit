@@ -6,7 +6,7 @@ import typing
 import unicodedata
 
 from .position import SourceRange
-from .prose import Prose
+from .prose import Prose, is_wide
 from .prose_unit import ProseLine, ProseUnit
 from .text import TextEdit
 
@@ -116,16 +116,12 @@ class MarkdownBlock(ProseUnit):
 # A line break inside Chinese or Japanese text renders as nothing, and anywhere else as a space,
 # and no space sits beside full-width punctuation.
 def _joiner(before: str, after: str) -> str:
-    if _is_wide(before) and _is_wide(after):
+    if is_wide(before) and is_wide(after):
         return ''
     if _is_wide_punctuation(before) or _is_wide_punctuation(after):
         return ''
     return ' '
 
 
-def _is_wide(character: str) -> bool:
-    return bool(character) and unicodedata.east_asian_width(character) in {'W', 'F'}
-
-
 def _is_wide_punctuation(character: str) -> bool:
-    return _is_wide(character) and unicodedata.category(character).startswith('P')
+    return is_wide(character) and unicodedata.category(character).startswith('P')

@@ -231,3 +231,11 @@ def test_a_lone_lowercase_label_gets_bold_but_keeps_its_case() -> None:
         fixed(markdown('# Title\n\nLead.\n\n- skills: the prompts\n'))
         == '# Title\n\nLead.\n\n- **skills**: the prompts\n'
     )
+
+
+def test_a_bare_www_address_is_stepped_over_like_any_url() -> None:
+    assert 'parenthesis-style' not in ids(markdown('Open www.example.com/a(b c) to see it.\n'))
+
+
+def test_parentheses_around_korean_are_an_aside_rather_than_a_call() -> None:
+    assert fixed(markdown('이 설명(한국어)은 짧다.\n')) == '이 설명 (한국어) 은 짧다.\n'
