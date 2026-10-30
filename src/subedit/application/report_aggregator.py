@@ -17,6 +17,9 @@ class ReportAggregator:
     def run(self, document: Document, rule_set: RuleSet) -> Report:
         inspection = self._linter.inspect(document, rule_set)
         report = inspection.report
+        # A checker keeps only what it finds in prose, so a file with none, such as a lock file, skips them all.
+        if not inspection.prose_map.prose:
+            return report
         missing_sources: list[str] = []
         for external_linter in self._external_linters:
             if not external_linter.is_available():

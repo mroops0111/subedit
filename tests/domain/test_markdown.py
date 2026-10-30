@@ -170,8 +170,9 @@ def test_a_code_block_is_left_alone_unless_the_project_opts_in() -> None:
             '> ```python\n' + ''.join(f'> {line}\n' for line in MIS_WRAPPED.splitlines()) + '> ```\n',
             '> ```python\n' + ''.join(f'> {line}\n' for line in REFLOWED.splitlines()) + '> ```\n',
         ),
+        (f'```yaml\n{MIS_WRAPPED}key: 1\n```\n', f'```yaml\n{REFLOWED}key: 1\n```\n'),
     ],
-    ids=['at the top level', 'in a list item', 'in a block quote'],
+    ids=['at the top level', 'in a list item', 'in a block quote', 'in YAML'],
 )
 def test_a_fix_in_a_code_block_keeps_what_sets_its_lines_apart(block: str, expected: str) -> None:
     source = f'Notes.\n\n{block}'
@@ -184,7 +185,16 @@ def test_a_block_in_a_language_subedit_does_not_read_is_left_alone() -> None:
 
 
 @pytest.mark.parametrize(
-    ('name', 'language_id'), [('python', 'python'), ('py', 'python'), ('TS', 'typescript'), ('text', None)]
+    ('name', 'language_id'),
+    [
+        ('python', 'python'),
+        ('py', 'python'),
+        ('TS', 'typescript'),
+        ('js', 'javascript'),
+        ('yml', 'yaml'),
+        ('jsonc', 'json'),
+        ('text', None),
+    ],
 )
 def test_an_info_string_names_a_language_by_its_id_or_its_extension(name: str, language_id: str | None) -> None:
     assert DEFAULT_PARSER.language_named(name) == language_id

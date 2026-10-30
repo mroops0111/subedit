@@ -23,9 +23,12 @@ from ..domain.rules import (
 from .config_sources import CONFIG_NAME, FormatterWidths, TomlConfigSource
 from .linters import AutoCorrectLinter, ValeLinter
 from .parsers import (
+    JAVASCRIPT,
+    JSON,
     PYTHON,
     TSX,
     TYPESCRIPT,
+    YAML,
     CompositeParser,
     LanguageProfile,
     MarkdownParser,
@@ -34,7 +37,7 @@ from .parsers import (
 )
 
 
-LANGUAGES: tuple[LanguageProfile, ...] = (PYTHON, TYPESCRIPT, TSX)
+LANGUAGES: tuple[LanguageProfile, ...] = (PYTHON, TYPESCRIPT, TSX, JAVASCRIPT, YAML, JSON)
 COMMENT_PARSER = TreeSitterParser(LANGUAGES)
 DEFAULT_PARSER = CompositeParser((COMMENT_PARSER, MarkdownParser()))
 
@@ -91,6 +94,8 @@ __all__ = [
     'EXTENSIONS',
     'EXTERNAL_LINTERS',
     'FILE_TYPES',
+    'JAVASCRIPT',
+    'JSON',
     'LANGUAGES',
     'LAYOUT_RULES',
     'MARKDOWN_RULES',
@@ -102,6 +107,7 @@ __all__ = [
     'TYPESCRIPT',
     'VENDOR_DIRECTORIES',
     'WORDING_RULES',
+    'YAML',
     'AutoCorrectLinter',
     'CompositeParser',
     'LanguageProfile',

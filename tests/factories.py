@@ -18,7 +18,15 @@ from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 FIXTURES = REPOSITORY_ROOT / 'tests' / 'fixtures'
-SUFFIXES = {'python': '.py', 'typescript': '.ts', 'tsx': '.tsx', 'javascript': '.js', 'markdown': '.md'}
+SUFFIXES = {
+    'python': '.py',
+    'typescript': '.ts',
+    'tsx': '.tsx',
+    'javascript': '.js',
+    'yaml': '.yml',
+    'json': '.json',
+    'markdown': '.md',
+}
 
 
 def document(text: str, language_id: str = 'python') -> Document:

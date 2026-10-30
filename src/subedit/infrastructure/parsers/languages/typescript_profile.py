@@ -65,7 +65,7 @@ _BLOCK_TAG = re.compile(r'^\s*@[A-Za-z]')
 
 
 class TypeScriptProfile(LanguageProfile):
-    """TypeScript, whose doc comment is a JSDoc block standing above the declaration it documents."""
+    """TypeScript or JavaScript, whose doc comment is a JSDoc block standing above the declaration it documents."""
 
     doc_delimiter = '/**'
     doc_layout = FramedDocLayout(opening='/**', prefix=' * ', closing_line=' */')
@@ -206,6 +206,14 @@ TYPESCRIPT = TypeScriptProfile(
 )
 
 TSX = TypeScriptProfile('tsx', frozenset({'.tsx'}), '.tsx', Language(tree_sitter_typescript.language_tsx()))
+
+# JavaScript is TypeScript without the types, and the TSX grammar reads JSX as well.
+JAVASCRIPT = TypeScriptProfile(
+    'javascript',
+    frozenset({'.js', '.mjs', '.cjs', '.jsx'}),
+    '.js',
+    Language(tree_sitter_typescript.language_tsx()),
+)
 
 
 def _text(node: Node) -> str:

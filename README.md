@@ -289,7 +289,7 @@ Left unset, `line-width` follows the formatter that would format the file, read 
 | Language | Width Read From |
 | --- | --- |
 | Python | `line-length` for ruff or black |
-| TypeScript | `printWidth` for Prettier, `lineWidth` for Biome |
+| TypeScript, JavaScript | `printWidth` for Prettier, `lineWidth` for Biome |
 
 </details>
 
@@ -323,27 +323,30 @@ A surface is a kind of file where prose lives. Every surface goes through the sa
 | Code comments and docstrings | Available | Layout, because a comment must fit a column limit |
 | Markdown | Available | One line per paragraph and the shape of headings, because Markdown has no column limit |
 
-Markdown is read from `.md` and `.markdown` files, leaving front matter, code, tables, and HTML blocks alone. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python` or `ts`. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
+Markdown is read from `.md` and `.markdown` files, leaving front matter, code, tables, and HTML blocks alone. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
 
 #### Languages
 
-Each language is a profile that knows its comment forms, its doc comment, and what counts as public.
+Each language is a profile that knows its comment forms, its doc comment, and what counts as public. A data format has no doc comment or public symbol, so only the rules on wording and layout apply to its comments.
 
 | Language | Files | Doc Comment | Public Symbol |
 | --- | --- | --- | --- |
 | Python | `.py`, `.pyi` | Docstring, `"""` | A name without a leading underscore |
 | TypeScript | `.ts`, `.mts`, `.cts`, `.tsx` | JSDoc, `/** */` | An exported symbol, and its members unless `private`, `protected`, or `#named` |
+| JavaScript | `.js`, `.mjs`, `.cjs`, `.jsx` | JSDoc, `/** */` | A symbol exported with `export`, and its members unless `#named` |
+| YAML | `.yml`, `.yaml` | None | None |
+| JSON | `.json`, `.jsonc` | None | None |
 
 <details>
 <summary><b>Content Left Alone</b>: what every profile skips</summary>
 
 <br>
 
-- **Commented-Out Code**: a comment line the language's own grammar reads as code, such as `// return result` or `# client.send(`, is left as written.
+- **Commented-Out Code**: a comment line the language's own grammar reads as code, such as `// return result` or `# client.send(`, is left as written. In YAML and JSON, a setting commented out, such as `# timeout: 30` or `// "semi": false,`, is too.
 - **Doc Sections**: a docstring's sections from `Args:`, `Parameters`, or `:param` onward, and a JSDoc block's tags from the first one such as `@throws` onward, are left as written. A JSDoc block keeps its frame when reflowed.
-- **Directives**: a directive such as `// eslint-disable-next-line` or `# type: ignore` carries no prose, so nothing reads it.
-- **Plain Blocks**: a plain `/* */` block is read by Vale only, with no layout applied.
-- **String Literals**: AutoCorrect edits are kept only inside comment prose, so a string in code is never changed.
+- **Directives**: a directive such as `// eslint-disable-next-line`, `# type: ignore`, or `# yaml-language-server:` carries no prose, so nothing reads it.
+- **Plain Blocks**: a plain `/* */` block is usually a license header or code switched off, so nothing reads it.
+- **Code and Values**: Vale and AutoCorrect findings are kept only inside comment prose, so a string in code or a value in YAML is never changed.
 - **Group Headings**: a plain comment opening a paragraph over several declarations heads them as a group, so it documents none of them.
 
 </details>

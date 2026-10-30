@@ -15,6 +15,8 @@ class ProseMap:
 
     editable: tuple[SourceRange, ...] = ()
     code: tuple[SourceRange, ...] = ()
+    # Every unit whole, since a checker that reads a file type as plain text also reads its keys and values.
+    prose: tuple[SourceRange, ...] = ()
 
     @classmethod
     def of_units(cls, units: tuple[ProseUnit, ...], skipped: tuple[SourceRange, ...] = ()) -> 'ProseMap':
@@ -29,11 +31,15 @@ class ProseMap:
                 *(unit.range for unit in units if unit.is_quoted),
                 *skipped,
             ),
+            prose=tuple(unit.range for unit in units),
         )
 
     def admits(self, diagnostic: Diagnostic) -> bool:
         """Whether a finding reads prose rather than code, and any edit it offers stays on lines of prose."""
-        if any(region.start <= diagnostic.range.start < region.end for region in self.code):
+        start = diagnostic.range.start
+        if not any(region.start <= start < region.end for region in self.prose):
+            return False
+        if any(region.start <= start < region.end for region in self.code):
             return False
         if diagnostic.fix is None:
             return True
