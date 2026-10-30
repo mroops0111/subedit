@@ -122,11 +122,11 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
         prefix_ends: dict[int, int] = {}
         for child in inline.children:
             if child.type == 'block_continuation':
-                row = child.start_point.row
+                row = _row(source_bytes, child.start_byte)
                 prefix_ends[row] = max(prefix_ends.get(row, 0), child.end_byte)
         lines: list[MarkdownLine] = []
         line_start = inline.start_byte
-        row = inline.start_point.row
+        row = _row(source_bytes, inline.start_byte)
         while line_start <= inline.end_byte:
             newline = source_bytes.find(b'\n', line_start, inline.end_byte)
             line_end = inline.end_byte if newline == -1 else newline
@@ -161,3 +161,9 @@ class _Context:
 class _Found:
     blocks: list[MarkdownBlock] = dataclasses.field(default_factory=list)
     literals: list[SourceRange] = dataclasses.field(default_factory=list)
+
+
+# Rows are counted from the bytes,
+# since reading a node's start point from the Markdown grammar corrupts memory in the tree-sitter binding.
+def _row(source_bytes: bytes, offset: int) -> int:
+    return source_bytes.count(b'\n', 0, offset)
