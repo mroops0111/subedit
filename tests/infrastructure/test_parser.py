@@ -1,4 +1,5 @@
 import pytest
+from factories import document
 from tree_sitter import Language
 
 from subedit.domain import (
@@ -16,7 +17,7 @@ from subedit.infrastructure.parsers.languages import NodeRole
 
 
 def parse(source: str) -> tuple[CommentGroup, ...]:
-    return COMMENT_PARSER.parse(Document(uri='file:///a.py', text=source, language_id='python'))
+    return COMMENT_PARSER.parse(document(source))
 
 
 def prose_of(source: str) -> list[str]:
@@ -274,12 +275,12 @@ def test_a_profile_naming_its_captures_otherwise_yields_nothing() -> None:
         def split_delimiter(self, line: str, form: CommentForm) -> DelimiterSplit:
             return PYTHON.split_delimiter(line, form)
 
-    document = Document(uri='file:///a.py', text='# a note\n', language_id='python')
+    subject = document('# a note\n')
 
-    assert TreeSitterParser((MisnamedProfile(),)).parse(document) == (), (
+    assert TreeSitterParser((MisnamedProfile(),)).parse(subject) == (), (
         'a capture named anything but comment or doc is dropped, which is why the names are constants'
     )
-    assert TreeSitterParser((PYTHON,)).parse(document) != ()
+    assert TreeSitterParser((PYTHON,)).parse(subject) != ()
 
 
 def test_a_comment_set_apart_by_a_blank_line_documents_nothing() -> None:

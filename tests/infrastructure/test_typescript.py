@@ -1,23 +1,24 @@
 import pathlib
+import typing
 
 import pytest
+from factories import Project, document, first_fix_applied, found, rule_ids, rule_set
+from factories import lint as lint_document
 
-from subedit.application import Linter, RuleEngine
 from subedit.domain import (
     CommentForm,
+    CommentGroup,
     CommentPlacement,
-    Document,
-    RuleSet,
+    Report,
+    Rule,
     RuleSettings,
     Severity,
     Visibility,
-    apply_edits,
 )
 from subedit.infrastructure import (
     ALL_RULES,
     COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
-    DEFAULT_PARSER,
     LAYOUT_RULES,
     SUFFIX_ALIASES,
     TYPESCRIPT,
@@ -27,24 +28,20 @@ from subedit.presentation import hook
 from subedit.presentation.cli import app
 
 
-def parse(source: str, language_id: str = 'typescript'):
-    return COMMENT_PARSER.parse(Document(uri='file:///a.ts', text=source, language_id=language_id))
+def parse(source: str, language_id: str = 'typescript') -> tuple[CommentGroup, ...]:
+    return COMMENT_PARSER.parse(document(source, language_id))
 
 
-def lint(source: str, width: int = 80, rules=ALL_RULES):
-    document = Document(uri='file:///a.ts', text=source, language_id='typescript')
-    enabled = frozenset(rule.metadata.rule_id for rule in rules)
-    return Linter(DEFAULT_PARSER, RuleEngine(rules)).run(document, RuleSet(enabled_rule_ids=enabled, line_width=width))
+def lint(source: str, width: int = 80, rules: tuple[Rule[typing.Any], ...] = ALL_RULES) -> Report:
+    return lint_document(document(source, 'typescript'), rule_set(rule_ids(rules), width), rules)
 
 
 def ids(source: str, width: int = 80) -> list[str]:
-    return [item.rule_id for item in lint(source, width).diagnostics]
+    return found(lint(source, width))
 
 
 def fixed(source: str, width: int = 80) -> str:
-    report = lint(source, width, LAYOUT_RULES)
-    edits = tuple(edit for item in report.mechanical if item.fix for edit in item.fix.edits)
-    return apply_edits(source, edits[:1]) if edits else source
+    return first_fix_applied(source, lint(source, width, LAYOUT_RULES))
 
 
 @pytest.mark.parametrize(
@@ -187,36 +184,34 @@ def test_typescript_and_python_share_a_default_width(tmp_path: pathlib.Path) -> 
     assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.py')).line_width == 120
 
 
-def test_a_configured_width_applies_to_typescript_too(tmp_path: pathlib.Path) -> None:
-    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 100\n', encoding='utf-8')
-    assert DEFAULT_CONFIG_SOURCE.resolve(str(tmp_path / 'a.ts')).line_width == 100
+def test_a_configured_width_applies_to_typescript_too(project: Project) -> None:
+    project.write('subedit.toml', '[subedit]\nline-width = 100\n')
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(project.root / 'a.ts')).line_width == 100
 
 
 @pytest.mark.parametrize('vendored', ['node_modules/pkg', 'venv/lib', '.venv/lib'])
 def test_check_walks_typescript_but_skips_installed_packages(
-    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str], vendored: str
+    project: Project, capsys: pytest.CaptureFixture[str], vendored: str
 ) -> None:
     for folder in ('src', vendored):
-        (tmp_path / folder).mkdir(parents=True)
-        (tmp_path / folder / 'a.ts').write_text('// Builds it.\nexport function build() {}\n', encoding='utf-8')
+        project.write(f'{folder}/a.ts', '// Builds it.\nexport function build() {}\n')
 
     with pytest.raises(SystemExit):
-        app(['check', '--no-delegate', str(tmp_path)])
+        app(['check', '--no-delegate', str(project.root)])
     output = capsys.readouterr().out
     assert 'src/a.ts' in output
     assert vendored.split('/')[0] not in output, 'installed packages hold code nobody here wrote'
 
 
-def test_the_hook_repairs_a_typescript_edit(tmp_path: pathlib.Path) -> None:
-    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 74\n', encoding='utf-8')
-    target = tmp_path / 'probe.ts'
-    target.write_text(
+def test_the_hook_repairs_a_typescript_edit(project: Project) -> None:
+    project.write('subedit.toml', '[subedit]\nline-width = 74\n')
+    target = project.write(
+        'probe.ts',
         'function f() {\n'
         '  // cap the size to the shared limit so the mmap does not\n'
         '  // blow past it, an unbounded value faults the runner.\n'
         '  return 1;\n'
         '}\n',
-        encoding='utf-8',
     )
     result = hook.run({'tool_name': 'Edit', 'tool_input': {'file_path': str(target)}})
     assert result.repaired_paths == (str(target),)
@@ -375,10 +370,6 @@ def test_a_comment_over_one_field_right_under_another_still_blocks() -> None:
 
 
 def test_a_configured_severity_holds_for_a_tentative_finding_too() -> None:
-    enabled = frozenset(rule.metadata.rule_id for rule in ALL_RULES)
-    rule_set = RuleSet(
-        enabled_rule_ids=enabled, settings={'plain-comment-on-public': RuleSettings(severity=Severity.ERROR)}
-    )
-    document = Document(uri='file:///a.ts', text=MID_PARAGRAPH_HEADING, language_id='typescript')
-    [finding] = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).run(document, rule_set).diagnostics
+    rules = rule_set(settings={'plain-comment-on-public': RuleSettings(severity=Severity.ERROR)})
+    [finding] = lint_document(document(MID_PARAGRAPH_HEADING, 'typescript'), rules).diagnostics
     assert finding.severity is Severity.ERROR

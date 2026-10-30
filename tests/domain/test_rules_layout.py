@@ -1,24 +1,20 @@
 import pytest
+from factories import document, first_fix_applied, rule_set
+from factories import lint as lint_document
 
-from subedit.application import Linter, RuleEngine
-from subedit.domain import Document, FixKind, RuleSet, apply_edits
-from subedit.infrastructure import DEFAULT_PARSER, LAYOUT_RULES
+from subedit.domain import FixKind, Report
+from subedit.infrastructure import LAYOUT_RULES
 
 
 ALL_LAYOUT = frozenset({'mid-clause-break', 'line-too-long'})
 
 
-def lint(source: str, width: int = 60, enabled_rule_ids: frozenset[str] = ALL_LAYOUT):
-    document = Document(uri='file:///a.py', text=source, language_id='python')
-    return Linter(DEFAULT_PARSER, RuleEngine(LAYOUT_RULES)).run(
-        document, RuleSet(enabled_rule_ids=enabled_rule_ids, line_width=width)
-    )
+def lint(source: str, width: int = 60, enabled_rule_ids: frozenset[str] = ALL_LAYOUT) -> Report:
+    return lint_document(document(source), rule_set(enabled_rule_ids, width), LAYOUT_RULES)
 
 
 def fixed(source: str, width: int = 60) -> str:
-    report = lint(source, width)
-    edits = tuple(edit for item in report.mechanical if item.fix for edit in item.fix.edits)
-    return apply_edits(source, edits[:1]) if edits else source
+    return first_fix_applied(source, lint(source, width))
 
 
 def test_already_correct_layout_is_clean() -> None:

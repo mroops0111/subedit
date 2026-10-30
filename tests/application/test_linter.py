@@ -1,4 +1,5 @@
 import pytest
+from factories import document, rule_set
 
 from subedit.application import Linter, RuleEngine
 from subedit.domain import (
@@ -46,14 +47,6 @@ class SilentRule(Rule[CommentGroup]):
         return ()
 
 
-def document(source: str) -> Document:
-    return Document(uri='file:///a.py', text=source, language_id='python')
-
-
-def rule_set(*ids: str, **kwargs: object) -> RuleSet:
-    return RuleSet(enabled_rule_ids=frozenset(ids), **kwargs)  # pyright: ignore[reportArgumentType]
-
-
 def test_duplicate_rule_ids_are_rejected() -> None:
     with pytest.raises(ValueError, match='Duplicate rule ids'):
         RuleEngine((RecordingRule('same'), RecordingRule('same')))
@@ -63,58 +56,58 @@ def test_a_new_rule_needs_no_engine_change() -> None:
     rule = RecordingRule('brand-new')
     engine = RuleEngine((rule,))
 
-    report = Linter(DEFAULT_PARSER, engine).run(document('# a note\n'), rule_set('brand-new'))
+    report = Linter(DEFAULT_PARSER, engine).run(document('# a note\n'), rule_set({'brand-new'}))
     assert [item.rule_id for item in report.diagnostics] == ['brand-new']
     assert rule.seen == ['a note']
 
 
 def test_a_disabled_rule_does_not_run() -> None:
     rule = RecordingRule('off')
-    Linter(DEFAULT_PARSER, RuleEngine((rule,))).run(document('# a note\n'), rule_set())
+    Linter(DEFAULT_PARSER, RuleEngine((rule,))).run(document('# a note\n'), rule_set(()))
     assert rule.seen == []
 
 
 def test_every_block_reaches_every_enabled_rule() -> None:
     first, second = RecordingRule('first'), RecordingRule('second')
     engine = RuleEngine((first, second))
-    Linter(DEFAULT_PARSER, engine).run(document('# one\nx = 1\n# two\n'), rule_set('first', 'second'))
+    Linter(DEFAULT_PARSER, engine).run(document('# one\nx = 1\n# two\n'), rule_set({'first', 'second'}))
     assert first.seen == ['one', 'two']
     assert second.seen == ['one', 'two']
 
 
 def test_severity_comes_from_configuration_when_set() -> None:
     engine = RuleEngine((RecordingRule('tunable'),))
-    rules = rule_set('tunable', settings={'tunable': RuleSettings(severity=Severity.WARNING)})
+    rules = rule_set({'tunable'}, settings={'tunable': RuleSettings(severity=Severity.WARNING)})
     report = Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rules)
     assert report.diagnostics[0].severity is Severity.WARNING
 
 
 def test_severity_falls_back_to_the_rule_default() -> None:
     engine = RuleEngine((RecordingRule('plain'),))
-    report = Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rule_set('plain'))
+    report = Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rule_set({'plain'}))
     assert report.diagnostics[0].severity is Severity.ERROR
 
 
 def test_line_width_reaches_the_rule_through_the_context() -> None:
     engine = RuleEngine((RecordingRule('widthy'),))
-    report = Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rule_set('widthy', line_width=88))
+    report = Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rule_set({'widthy'}, width=88))
     assert 'width 88' in report.diagnostics[0].message
 
 
 def test_an_unsupported_language_produces_an_empty_report() -> None:
     engine = RuleEngine((RecordingRule('any'),))
     unsupported = Document(uri='a.rb', text='# note', language_id='ruby')
-    assert Linter(DEFAULT_PARSER, engine).run(unsupported, rule_set('any')).is_clean
+    assert Linter(DEFAULT_PARSER, engine).run(unsupported, rule_set({'any'})).is_clean
 
 
 def test_a_rule_that_never_fires_produces_a_clean_report() -> None:
     engine = RuleEngine((SilentRule(),))
-    assert Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rule_set('silent')).is_clean
+    assert Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rule_set({'silent'})).is_clean
 
 
 def test_diagnostics_come_back_in_source_order() -> None:
     engine = RuleEngine((RecordingRule('a'), RecordingRule('b')))
-    report = Linter(DEFAULT_PARSER, engine).run(document('# one\nx = 1\n# two\n'), rule_set('a', 'b'))
+    report = Linter(DEFAULT_PARSER, engine).run(document('# one\nx = 1\n# two\n'), rule_set({'a', 'b'}))
     starts = [item.range.start for item in report.diagnostics]
     assert starts == sorted(starts)
 
@@ -142,7 +135,7 @@ def test_a_fix_kind_survives_the_engine() -> None:
             )
 
     engine = RuleEngine((FixingRule(),))
-    report = Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rule_set('fixer'))
+    report = Linter(DEFAULT_PARSER, engine).run(document('# note\n'), rule_set({'fixer'}))
     assert report.mechanical and report.mechanical[0].fix is not None
     assert report.mechanical[0].fix.kind is FixKind.TARGETED
 
@@ -161,7 +154,7 @@ def test_one_inspection_parses_the_document_once() -> None:
             return COMMENT_PARSER.read(document)
 
     parser = CountingParser()
-    document = Document(uri='file:///a.py', text='x = 1  # a note\n# a line\ny = 2\n', language_id='python')
-    inspection = Linter(parser, RuleEngine(())).inspect(document, RuleSet(enabled_rule_ids=frozenset()))
+    subject = document('x = 1  # a note\n# a line\ny = 2\n')
+    inspection = Linter(parser, RuleEngine(())).inspect(subject, RuleSet(enabled_rule_ids=frozenset()))
     assert parser.parse_count == 1
     assert len(inspection.prose_map.editable) == 1, 'the trailing note shares its line with code'

@@ -1,13 +1,13 @@
 import pathlib
 
 import pytest
+from factories import REPOSITORY_ROOT
 
 from subedit.application import Linter, RuleEngine
 from subedit.domain import Document, RuleSet
 from subedit.infrastructure import ALL_RULES, DEFAULT_CONFIG_SOURCE, DEFAULT_PARSER, PYTHON
 
 
-REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCE_ROOT = REPOSITORY_ROOT / 'src'
 
 

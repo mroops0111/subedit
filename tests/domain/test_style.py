@@ -1,33 +1,26 @@
 import pytest
+from factories import document, found, lint, markdown, rule_ids
+from factories import fixed as fix_document
+from factories import rule_set as enabling
 
-from subedit.application import Fixer, Linter, RuleEngine
 from subedit.domain import Document, RuleSet, RuleSettings
 from subedit.domain.models.title_case import title_case
-from subedit.infrastructure import DEFAULT_PARSER, MARKDOWN_RULES, WORDING_RULES
+from subedit.infrastructure import MARKDOWN_RULES, WORDING_RULES
 
 
 RULES = WORDING_RULES + MARKDOWN_RULES
 
 
 def rule_set(**settings: RuleSettings) -> RuleSet:
-    return RuleSet(enabled_rule_ids=frozenset(rule.metadata.rule_id for rule in RULES), settings=settings)
+    return enabling(rule_ids(RULES), settings=settings)
 
 
-def markdown(source: str) -> Document:
-    return Document(uri='file:///notes.md', text=source, language_id='markdown')
+def ids(subject: Document, rules: RuleSet | None = None) -> list[str]:
+    return found(lint(subject, rules or rule_set(), RULES))
 
 
-def python(source: str) -> Document:
-    return Document(uri='file:///a.py', text=source, language_id='python')
-
-
-def ids(document: Document, rules: RuleSet | None = None) -> list[str]:
-    report = Linter(DEFAULT_PARSER, RuleEngine(RULES)).run(document, rules or rule_set())
-    return [diagnostic.rule_id for diagnostic in report.diagnostics]
-
-
-def fixed(document: Document, rules: RuleSet | None = None) -> str:
-    return Fixer(Linter(DEFAULT_PARSER, RuleEngine(RULES))).run(document, rules or rule_set()).document.text
+def fixed(subject: Document, rules: RuleSet | None = None) -> str:
+    return fix_document(subject, rules or rule_set(), RULES)
 
 
 @pytest.mark.parametrize(
@@ -66,7 +59,7 @@ def test_a_colon_in_an_allowed_place_in_markdown_is_silent(source: str) -> None:
     ],
 )
 def test_a_colon_joining_clauses_in_a_comment_is_flagged(comment: str) -> None:
-    assert 'mid-sentence-colon' in ids(python(f'def f():\n{comment}    pass\n'))
+    assert 'mid-sentence-colon' in ids(document(f'def f():\n{comment}    pass\n'))
 
 
 @pytest.mark.parametrize(
@@ -80,7 +73,7 @@ def test_a_colon_joining_clauses_in_a_comment_is_flagged(comment: str) -> None:
     ],
 )
 def test_a_colon_in_an_allowed_place_in_a_comment_is_silent(comment: str) -> None:
-    assert 'mid-sentence-colon' not in ids(python(f'def f():\n{comment}    pass\n'))
+    assert 'mid-sentence-colon' not in ids(document(f'def f():\n{comment}    pass\n'))
 
 
 @pytest.mark.parametrize(
@@ -105,16 +98,16 @@ def test_code_and_links_keep_their_parentheses(source: str) -> None:
 
 
 def test_a_comment_follows_the_parenthesis_style_too() -> None:
-    assert fixed(python('# 使用（全形括號）說明。\nx = 1\n')) == '# 使用 (全形括號) 說明。\nx = 1\n'
+    assert fixed(document('# 使用（全形括號）說明。\nx = 1\n')) == '# 使用 (全形括號) 說明。\nx = 1\n'
 
 
 def test_the_inclusion_verb_is_rewritten() -> None:
     assert fixed(markdown('三種方式包括這些。\n')) == '三種方式包含這些。\n'
-    assert fixed(python('# 三種方式包括這些。\nx = 1\n')) == '# 三種方式包含這些。\nx = 1\n'
+    assert fixed(document('# 三種方式包括這些。\nx = 1\n')) == '# 三種方式包含這些。\nx = 1\n'
 
 
 def test_contrast_framing_is_advice_for_a_rewrite() -> None:
-    report = Linter(DEFAULT_PARSER, RuleEngine(RULES)).run(markdown('這不是問題，是設計。\n'), rule_set())
+    report = lint(markdown('這不是問題，是設計。\n'), rule_set(), RULES)
     [finding] = report.diagnostics
     assert finding.rule_id == 'contrast-framing'
     assert not finding.is_mechanical
@@ -136,12 +129,14 @@ def test_a_markdown_label_is_bold_and_in_title_case(source: str, expected: str) 
 
 
 def test_a_line_comment_label_takes_title_case_but_no_bold() -> None:
-    assert fixed(python('# Lead:\n# - cache size: the limit\nx = 1\n')) == '# Lead:\n# - Cache Size: the limit\nx = 1\n'
+    assert (
+        fixed(document('# Lead:\n# - cache size: the limit\nx = 1\n')) == '# Lead:\n# - Cache Size: the limit\nx = 1\n'
+    )
 
 
 def test_a_docstring_label_is_bold_since_a_docstring_renders() -> None:
     source = 'def f():\n    """Resolve it.\n\n    - cache size: the limit\n    """\n'
-    assert '- **Cache Size**: the limit' in fixed(python(source))
+    assert '- **Cache Size**: the limit' in fixed(document(source))
 
 
 def test_a_heading_is_put_in_title_case() -> None:

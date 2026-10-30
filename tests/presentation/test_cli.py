@@ -1,6 +1,7 @@
 import pathlib
 
 import pytest
+from factories import Project
 
 from subedit.domain import Diagnostic, Document, ExternalLinter
 from subedit.presentation import cli
@@ -16,9 +17,8 @@ def test_version_prints_the_package_version(capsys: pytest.CaptureFixture[str]) 
     assert __version__ in capsys.readouterr().out
 
 
-def test_stats_reports_a_measured_corpus(tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]) -> None:
-    source = tmp_path / 'sample.py'
-    source.write_text('def build():\n    """Public doc."""\n    # inline note\n', encoding='utf-8')
+def test_stats_reports_a_measured_corpus(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    source = project.write('sample.py', 'def build():\n    """Public doc."""\n    # inline note\n')
 
     with pytest.raises(SystemExit) as exit_info:
         app(['stats', str(source)])
@@ -36,13 +36,12 @@ def test_stats_exits_non_zero_when_nothing_is_readable(tmp_path: pathlib.Path) -
     assert exit_info.value.code == 1
 
 
-def test_check_reports_findings_and_exits_non_zero(tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]) -> None:
-    target = tmp_path / 'bad.py'
-    target.write_text(
+def test_check_reports_findings_and_exits_non_zero(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    target = project.write(
+        'bad.py',
         'def f():\n    # cap the size so the mmap does not\n    # blow past it, an unbounded value faults.\n    pass\n',
-        encoding='utf-8',
     )
-    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 60\n', encoding='utf-8')
+    project.write('subedit.toml', '[subedit]\nline-width = 60\n')
 
     with pytest.raises(SystemExit) as exit_info:
         app(['check', str(target)])
@@ -50,29 +49,26 @@ def test_check_reports_findings_and_exits_non_zero(tmp_path: pathlib.Path, capsy
     assert 'mid-clause-break' in capsys.readouterr().out
 
 
-def test_check_on_clean_input_exits_zero(tmp_path: pathlib.Path) -> None:
-    target = tmp_path / 'good.py'
-    target.write_text('def f():\n    # short and fine.\n    pass\n', encoding='utf-8')
+def test_check_on_clean_input_exits_zero(project: Project) -> None:
+    target = project.write('good.py', 'def f():\n    # short and fine.\n    pass\n')
     with pytest.raises(SystemExit) as exit_info:
         app(['check', str(target)])
     assert exit_info.value.code == 0
 
 
-def test_check_rejects_an_unknown_output_format(tmp_path: pathlib.Path) -> None:
-    target = tmp_path / 'a.py'
-    target.write_text('# note\n', encoding='utf-8')
+def test_check_rejects_an_unknown_output_format(project: Project) -> None:
+    target = project.write('a.py', '# note\n')
     with pytest.raises(SystemExit) as exit_info:
         app(['check', str(target), '--output', 'nonsense'])
     assert exit_info.value.code == 2
 
 
-def test_fix_prints_a_diff_without_write(tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]) -> None:
-    target = tmp_path / 'bad.py'
+def test_fix_prints_a_diff_without_write(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
     original = (
         'def f():\n    # cap the size so the mmap does not\n    # blow past it, an unbounded value faults.\n    pass\n'
     )
-    target.write_text(original, encoding='utf-8')
-    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 60\n', encoding='utf-8')
+    target = project.write('bad.py', original)
+    project.write('subedit.toml', '[subedit]\nline-width = 60\n')
 
     with pytest.raises(SystemExit):
         app(['fix', str(target)])
@@ -80,13 +76,12 @@ def test_fix_prints_a_diff_without_write(tmp_path: pathlib.Path, capsys: pytest.
     assert target.read_text(encoding='utf-8') == original
 
 
-def test_fix_write_applies_the_change(tmp_path: pathlib.Path) -> None:
-    target = tmp_path / 'bad.py'
+def test_fix_write_applies_the_change(project: Project) -> None:
     original = (
         'def f():\n    # cap the size so the mmap does not\n    # blow past it, an unbounded value faults.\n    pass\n'
     )
-    target.write_text(original, encoding='utf-8')
-    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 60\n', encoding='utf-8')
+    target = project.write('bad.py', original)
+    project.write('subedit.toml', '[subedit]\nline-width = 60\n')
 
     with pytest.raises(SystemExit):
         app(['fix', str(target), '--write'])
@@ -95,14 +90,13 @@ def test_fix_write_applies_the_change(tmp_path: pathlib.Path) -> None:
 
 
 def test_the_actionable_format_shows_only_findings_needing_an_author(
-    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+    project: Project, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    target = tmp_path / 'a.py'
-    target.write_text(
+    target = project.write(
+        'a.py',
         'def f():\n    # this single sentence has no comma anywhere and runs well past the budget here.\n    pass\n',
-        encoding='utf-8',
     )
-    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 50\n', encoding='utf-8')
+    project.write('subedit.toml', '[subedit]\nline-width = 50\n')
 
     with pytest.raises(SystemExit):
         app(['check', str(target), '--output', 'actionable'])
@@ -111,17 +105,14 @@ def test_the_actionable_format_shows_only_findings_needing_an_author(
     assert 'do not add a suppression comment' in output
 
 
-def test_the_json_format_encodes_ranges_and_fix_kind(
-    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_the_json_format_encodes_ranges_and_fix_kind(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
     import json
 
-    target = tmp_path / 'a.py'
-    target.write_text(
+    target = project.write(
+        'a.py',
         'def f():\n    # cap the size so the mmap does not\n    # blow past it, an unbounded value faults.\n    pass\n',
-        encoding='utf-8',
     )
-    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 60\n', encoding='utf-8')
+    project.write('subedit.toml', '[subedit]\nline-width = 60\n')
 
     with pytest.raises(SystemExit):
         app(['check', str(target), '--output', 'json'])
@@ -131,14 +122,13 @@ def test_the_json_format_encodes_ranges_and_fix_kind(
 
 
 def test_the_actionable_format_says_so_when_only_mechanical_findings_exist(
-    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+    project: Project, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    target = tmp_path / 'a.py'
-    target.write_text(
+    target = project.write(
+        'a.py',
         'def f():\n    # cap the size so the mmap does not\n    # blow past it, an unbounded value faults.\n    pass\n',
-        encoding='utf-8',
     )
-    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 60\n', encoding='utf-8')
+    project.write('subedit.toml', '[subedit]\nline-width = 60\n')
 
     with pytest.raises(SystemExit):
         app(['check', str(target), '--output', 'actionable'])
@@ -148,10 +138,9 @@ def test_the_actionable_format_says_so_when_only_mechanical_findings_exist(
 
 
 def test_the_actionable_format_says_so_when_nothing_is_wrong(
-    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+    project: Project, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    target = tmp_path / 'a.py'
-    target.write_text('def f():\n    # short and fine.\n    pass\n', encoding='utf-8')
+    target = project.write('a.py', 'def f():\n    # short and fine.\n    pass\n')
 
     with pytest.raises(SystemExit):
         app(['check', str(target), '--output', 'actionable'])
@@ -177,15 +166,14 @@ class _PreparedLinter(ExternalLinter):
 
 @pytest.mark.parametrize('ready_after_prepare', [True, False])
 def test_check_prepares_delegated_tools_and_says_when_one_is_missing(
-    tmp_path: pathlib.Path,
+    project: Project,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
     ready_after_prepare: bool,
 ) -> None:
     probe = _PreparedLinter(ready_after_prepare)
     monkeypatch.setattr(cli, 'EXTERNAL_LINTERS', (probe,))
-    source = tmp_path / 'sample.py'
-    source.write_text('def build():\n    pass\n', encoding='utf-8')
+    source = project.write('sample.py', 'def build():\n    pass\n')
 
     with pytest.raises(SystemExit):
         app(['check', str(source)])
@@ -195,9 +183,8 @@ def test_check_prepares_delegated_tools_and_says_when_one_is_missing(
     assert warned is not ready_after_prepare, 'a skipped tool must not read as a clean run'
 
 
-def test_check_passes_when_only_warnings_remain(tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]) -> None:
-    source = tmp_path / 'sample.py'
-    source.write_text('# A banner about the module.\n\nVALUE = 1\n', encoding='utf-8')
+def test_check_passes_when_only_warnings_remain(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    source = project.write('sample.py', '# A banner about the module.\n\nVALUE = 1\n')
 
     with pytest.raises(SystemExit) as exit_info:
         app(['check', str(source), '--no-delegate'])
@@ -206,13 +193,12 @@ def test_check_passes_when_only_warnings_remain(tmp_path: pathlib.Path, capsys: 
     assert exit_info.value.code == 0, 'a warning shows in the output but does not fail the run'
 
 
-def test_a_diff_keeps_a_blank_last_context_line(tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]) -> None:
-    target = tmp_path / 'bad.py'
-    target.write_text(
+def test_a_diff_keeps_a_blank_last_context_line(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    target = project.write(
+        'bad.py',
         'def f():\n    # cap the size so the mmap does not\n    # blow past it, an unbounded value faults.\n    pass\n\n\nx = 1\n',
-        encoding='utf-8',
     )
-    (tmp_path / 'subedit.toml').write_text('[subedit]\nline-width = 60\n', encoding='utf-8')
+    project.write('subedit.toml', '[subedit]\nline-width = 60\n')
 
     with pytest.raises(SystemExit):
         app(['fix', '--no-delegate', str(target)])

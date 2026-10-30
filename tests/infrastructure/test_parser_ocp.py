@@ -1,9 +1,10 @@
 import re
 
 import tree_sitter_typescript
+from factories import document
 from tree_sitter import Language
 
-from subedit.domain import LINE_LAYOUT, CommentForm, CommentPlacement, Document, SymbolKind, Visibility
+from subedit.domain import LINE_LAYOUT, CommentForm, CommentPlacement, SymbolKind, Visibility
 from subedit.domain.ports import DelimiterSplit
 from subedit.infrastructure import TreeSitterParser
 from subedit.infrastructure.parsers.languages import LanguageProfile, NodeRole
@@ -63,7 +64,7 @@ def test_a_second_grammar_needs_no_parser_change() -> None:
     profile: LanguageProfile = TypeScriptProfile()
     parser = TreeSitterParser((profile,))
     source = '// a leading note\nexport function build(x: string) {\n  // an inner note\n  return x\n}\n'
-    blocks = parser.parse(Document(uri='file:///a.ts', text=source, language_id='typescript'))
+    blocks = parser.parse(document(source, 'typescript'))
 
     assert [block.prose().flattened for block in blocks] == ['a leading note', 'an inner note']
     assert blocks[0].placement is CommentPlacement.LEADING_DECLARATION
@@ -73,14 +74,14 @@ def test_a_second_grammar_needs_no_parser_change() -> None:
 def test_a_typescript_file_header_is_recognised_through_the_profile_root_node() -> None:
     parser = TreeSitterParser((TypeScriptProfile(),))
     source = '// a header note\n\nconst x = 1\n'
-    blocks = parser.parse(Document(uri='file:///a.ts', text=source, language_id='typescript'))
+    blocks = parser.parse(document(source, 'typescript'))
     assert blocks[0].placement is CommentPlacement.FILE_HEADER
 
 
 def test_a_typescript_doc_comment_attaches_to_its_class() -> None:
     parser = TreeSitterParser((TypeScriptProfile(),))
     source = '// documents the widget\nclass Widget {}\n'
-    blocks = parser.parse(Document(uri='file:///a.ts', text=source, language_id='typescript'))
+    blocks = parser.parse(document(source, 'typescript'))
 
     assert blocks[0].attachment is not None
     assert blocks[0].attachment.name == 'Widget'
@@ -89,16 +90,16 @@ def test_a_typescript_doc_comment_attaches_to_its_class() -> None:
 
 def test_grammar_node_names_come_from_the_profile_not_the_parser() -> None:
     source = 'class Widget {\n  // note\n}\n'
-    document = Document(uri='file:///a.ts', text=source, language_id='typescript')
+    subject = document(source, 'typescript')
 
-    aware = TreeSitterParser((TypeScriptProfile(),)).parse(document)
+    aware = TreeSitterParser((TypeScriptProfile(),)).parse(subject)
     assert aware[0].placement is CommentPlacement.INLINE_BODY
 
     class BlindProfile(TypeScriptProfile):
         def role_of(self, node_type: str) -> NodeRole:
             return NodeRole.COMMENT if node_type == 'comment' else NodeRole.OTHER
 
-    blind = TreeSitterParser((BlindProfile(),)).parse(document)
+    blind = TreeSitterParser((BlindProfile(),)).parse(subject)
     assert blind[0].placement is CommentPlacement.INLINE_BODY
     assert blind[0].attachment is None
 
@@ -106,7 +107,7 @@ def test_grammar_node_names_come_from_the_profile_not_the_parser() -> None:
 def test_consecutive_lines_group_under_a_different_grammar() -> None:
     parser = TreeSitterParser((TypeScriptProfile(),))
     source = '// first line,\n// second line.\nconst x = 1\n'
-    blocks = parser.parse(Document(uri='file:///a.ts', text=source, language_id='typescript'))
+    blocks = parser.parse(document(source, 'typescript'))
 
     assert len(blocks) == 1
     assert blocks[0].line_count == 2

@@ -4,14 +4,14 @@ import subprocess
 import typing
 
 import pytest
+from factories import REPOSITORY_ROOT, Project
 
 from subedit.presentation.harnesses.claude_code_harness import EDIT_TOOLS
 
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / 'plugins' / 'subedit'
+PLUGIN = REPOSITORY_ROOT / 'plugins' / 'subedit'
 MANIFEST = PLUGIN / '.claude-plugin' / 'plugin.json'
-MARKETPLACE = ROOT / '.claude-plugin' / 'marketplace.json'
+MARKETPLACE = REPOSITORY_ROOT / '.claude-plugin' / 'marketplace.json'
 HOOKS = PLUGIN / 'hooks' / 'hooks.json'
 WRAPPER = PLUGIN / 'scripts' / 'run-subedit-hook.sh'
 WRAPPER_COMMAND = f'"${{CLAUDE_PLUGIN_ROOT}}"/scripts/{WRAPPER.name}'
@@ -31,7 +31,7 @@ def test_the_manifest_names_the_plugin() -> None:
 
 
 def test_the_manifest_version_matches_the_package() -> None:
-    pyproject = (ROOT / 'pyproject.toml').read_text(encoding='utf-8')
+    pyproject = (REPOSITORY_ROOT / 'pyproject.toml').read_text(encoding='utf-8')
     declared = next(line for line in pyproject.splitlines() if line.startswith('version'))
 
     assert load(MANIFEST)['version'] in declared, 'a plugin claiming a different version misleads whoever installs it'
@@ -69,10 +69,10 @@ def run_wrapper(project: pathlib.Path, *arguments: str) -> subprocess.CompletedP
     )
 
 
-def test_the_wrapper_says_what_to_install_when_nothing_is_found(tmp_path: pathlib.Path) -> None:
-    (tmp_path / 'subedit.toml').write_text('[subedit]\n', encoding='utf-8')
+def test_the_wrapper_says_what_to_install_when_nothing_is_found(project: Project) -> None:
+    project.write('subedit.toml', '[subedit]\n')
 
-    completed = run_wrapper(tmp_path)
+    completed = run_wrapper(project.root)
 
     assert completed.returncode == 1
     assert 'astral.sh/uv' in completed.stderr, 'a missing command must say how to get it'
@@ -80,28 +80,26 @@ def test_the_wrapper_says_what_to_install_when_nothing_is_found(tmp_path: pathli
 
 @pytest.mark.parametrize('arguments', [(), ('prepare',)])
 def test_the_wrapper_stays_out_of_a_project_without_subedit_config(
-    tmp_path: pathlib.Path, arguments: tuple[str, ...]
+    project: Project, arguments: tuple[str, ...]
 ) -> None:
-    (tmp_path / 'pyproject.toml').write_text('[tool.ruff]\nline-length = 100\n', encoding='utf-8')
+    project.write('pyproject.toml', '[tool.ruff]\nline-length = 100\n')
 
-    completed = run_wrapper(tmp_path, *arguments)
+    completed = run_wrapper(project.root, *arguments)
 
     assert (completed.returncode, completed.stderr) == (0, '')
 
 
 @pytest.mark.parametrize('config', [('subedit.toml', '[subedit]\n'), ('pyproject.toml', '[tool.subedit.rules]\n')])
-def test_the_wrapper_acts_in_a_subdirectory_of_a_configured_project(
-    tmp_path: pathlib.Path, config: tuple[str, str]
-) -> None:
+def test_the_wrapper_acts_in_a_subdirectory_of_a_configured_project(project: Project, config: tuple[str, str]) -> None:
     name, text = config
-    (tmp_path / name).write_text(text, encoding='utf-8')
-    (tmp_path / 'packages').mkdir()
+    project.write(name, text)
+    (project.root / 'packages').mkdir()
 
-    assert 'astral.sh/uv' in run_wrapper(tmp_path / 'packages').stderr
+    assert 'astral.sh/uv' in run_wrapper(project.root / 'packages').stderr
 
 
 def test_the_wrapper_runs_the_released_version() -> None:
-    pyproject = (ROOT / 'pyproject.toml').read_text(encoding='utf-8')
+    pyproject = (REPOSITORY_ROOT / 'pyproject.toml').read_text(encoding='utf-8')
     version = next(line for line in pyproject.splitlines() if line.startswith('version')).split('"')[1]
 
     assert f"SPEC='subedit[vale]>={version}'" in WRAPPER.read_text(encoding='utf-8'), (
@@ -119,7 +117,9 @@ def test_the_marketplace_points_at_the_plugin_directory() -> None:
     listed = load(MARKETPLACE)['plugins']
 
     assert [plugin['name'] for plugin in listed] == ['subedit']
-    assert (ROOT / listed[0]['source']).resolve() == PLUGIN, 'a relative source resolves from the marketplace root'
+    assert (REPOSITORY_ROOT / listed[0]['source']).resolve() == PLUGIN, (
+        'a relative source resolves from the marketplace root'
+    )
 
 
 def test_the_plugin_carries_everything_it_runs() -> None:

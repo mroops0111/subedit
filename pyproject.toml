@@ -110,7 +110,7 @@ line-ending = "auto"
 "src/subedit/domain/rules/style.py" = ["RUF001"]
 "src/subedit/domain/models/prose.py" = ["RUF001"]
 "src/subedit/domain/models/title_case.py" = ["RUF001"]
-"tests/test_style.py" = ["RUF001"]
+"tests/domain/test_style.py" = ["RUF001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["subedit"]
@@ -120,6 +120,8 @@ split-on-trailing-comma = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The tests share factories.py, which sits beside them rather than in a package.
+pythonpath = ["tests"]
 
 [tool.basedpyright]
 venvPath = "."

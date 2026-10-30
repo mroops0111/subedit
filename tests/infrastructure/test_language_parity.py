@@ -1,18 +1,12 @@
 import pytest
+from factories import document, found, lint, rule_set
+from factories import fixed as fix_document
 
-from subedit.application import Fixer, Linter, RuleEngine
-from subedit.domain import Document, RuleSet
-from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, PYTHON, TYPESCRIPT
-
-
-ENABLED = frozenset(rule.metadata.rule_id for rule in ALL_RULES)
+from subedit.infrastructure import DEFAULT_PARSER, PYTHON, TYPESCRIPT
 
 
 def fixed(source: str, language_id: str, width: int = 120) -> str:
-    suffix = '.py' if language_id == 'python' else '.ts'
-    document = Document(uri=f'file:///a{suffix}', text=source, language_id=language_id)
-    fixer = Fixer(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)))
-    return fixer.run(document, RuleSet(enabled_rule_ids=ENABLED, line_width=width)).document.text
+    return fix_document(document(source, language_id), rule_set(width=width))
 
 
 @pytest.mark.parametrize(
@@ -74,7 +68,7 @@ def test_a_docstring_section_is_left_as_written_as_a_jsdoc_tag_section_is(sectio
 
 def test_a_doctest_is_code_rather_than_prose() -> None:
     source = 'def f():\n    """Parse it.\n\n    >>> parse("a; b")\n    [\'a\', \'b\']\n    """\n'
-    group = DEFAULT_PARSER.parse(Document(uri='file:///a.py', text=source, language_id='python'))[0]
+    group = DEFAULT_PARSER.parse(document(source))[0]
     assert len(group.code_ranges()) == 1, 'the prompt line is code, and its output is left to the author'
 
 
@@ -142,10 +136,7 @@ def test_a_block_set_two_spaces_in_is_left_as_laid_out(source: str, language_id:
     ],
 )
 def test_a_comment_explaining_a_file_wide_directive_is_no_file_header(source: str, language_id: str) -> None:
-    suffix = '.py' if language_id == 'python' else '.ts'
-    document = Document(uri=f'file:///a{suffix}', text=source, language_id=language_id)
-    report = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).run(document, RuleSet(enabled_rule_ids=ENABLED))
-    assert 'file-header-comment' not in [item.rule_id for item in report.diagnostics]
+    assert 'file-header-comment' not in found(lint(document(source, language_id)))
 
 
 @pytest.mark.parametrize(

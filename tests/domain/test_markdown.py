@@ -1,31 +1,24 @@
 import pathlib
 
 import pytest
+from factories import document, found, lint, markdown, rule_ids, rule_set
+from factories import fixed as fix_document
 
-from subedit.application import Fixer, Linter, RuleEngine
-from subedit.domain import CommentGroup, Document, MarkdownBlock, MarkdownBlockKind, RuleSet
+from subedit.application import Linter, RuleEngine
+from subedit.domain import CommentGroup, MarkdownBlock, MarkdownBlockKind
 from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, MARKDOWN_RULES, MarkdownParser, language_id_for
 
 
-def document(source: str) -> Document:
-    return Document(uri='file:///notes.md', text=source, language_id='markdown')
-
-
 def blocks(source: str) -> tuple[MarkdownBlock, ...]:
-    return MarkdownParser().parse(document(source))
-
-
-def rule_set() -> RuleSet:
-    return RuleSet(enabled_rule_ids=frozenset(rule.metadata.rule_id for rule in ALL_RULES))
+    return MarkdownParser().parse(markdown(source))
 
 
 def ids(source: str) -> list[str]:
-    report = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).run(document(source), rule_set())
-    return [diagnostic.rule_id for diagnostic in report.diagnostics]
+    return found(lint(markdown(source)))
 
 
 def fixed(source: str) -> str:
-    return Fixer(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES))).run(document(source), rule_set()).document.text
+    return fix_document(markdown(source))
 
 
 def test_markdown_files_are_read_as_markdown() -> None:
@@ -71,7 +64,7 @@ def test_a_quoted_line_keeps_its_marker_apart_from_its_text() -> None:
 
 
 def test_every_block_comes_from_the_markdown_parser_and_no_comment_group_does() -> None:
-    parsed = DEFAULT_PARSER.parse(document('# Title\n\nText.\n'))
+    parsed = DEFAULT_PARSER.parse(markdown('# Title\n\nText.\n'))
     assert parsed
     assert not any(isinstance(unit, CommentGroup) for unit in parsed)
 
@@ -132,22 +125,19 @@ def test_comment_rules_never_read_markdown() -> None:
 
 def test_markdown_rules_never_read_comments() -> None:
     source = '# A comment\n# broken in two.\nx = 1\n'
-    report = Linter(DEFAULT_PARSER, RuleEngine(MARKDOWN_RULES)).run(
-        Document(uri='file:///a.py', text=source, language_id='python'),
-        RuleSet(enabled_rule_ids=frozenset(rule.metadata.rule_id for rule in MARKDOWN_RULES)),
-    )
+    report = lint(document(source), rule_set(rule_ids(MARKDOWN_RULES)), MARKDOWN_RULES)
     assert report.is_clean
 
 
 def test_an_outside_checker_may_edit_prose_but_not_code() -> None:
     inspection = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).inspect(
-        document('Prose here.\n\n```\ncode\n```\n'), rule_set()
+        markdown('Prose here.\n\n```\ncode\n```\n'), rule_set()
     )
     assert len(inspection.prose_map.editable) == 1
 
 
 def test_front_matter_code_and_tables_count_as_code_to_an_outside_checker() -> None:
     source = '---\ntitle: a\n---\n\nProse.\n\n```\ncode\n```\n\n| a |\n| --- |\n| 1 |\n'
-    inspection = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).inspect(document(source), rule_set())
+    inspection = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).inspect(markdown(source), rule_set())
     covered = [source.encode()[region.start : region.end].decode() for region in inspection.prose_map.code]
     assert covered == ['---\ntitle: a\n---\n', '```\ncode\n```\n', '| a |\n| --- |\n| 1 |\n']

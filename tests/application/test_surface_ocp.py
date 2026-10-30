@@ -3,6 +3,7 @@ import pathlib
 import typing
 
 import pytest
+from factories import document, rule_ids, rule_set
 
 from subedit.application import Fixer, Linter, RuleEngine
 from subedit.domain import (
@@ -96,8 +97,8 @@ class SeenUnitsRule(Rule[CommentGroup]):
 PARSER = CompositeParser((COMMENT_PARSER, MarkdownParser(), SubtitleParser()))
 
 
-def rule_set(*rules: Rule[typing.Any]) -> RuleSet:
-    return RuleSet(enabled_rule_ids=frozenset(rule.metadata.rule_id for rule in rules))
+def enabling(*rules: Rule[typing.Any]) -> RuleSet:
+    return rule_set(rule_ids(rules))
 
 
 def subtitles(text: str) -> Document:
@@ -112,21 +113,21 @@ def test_the_new_surface_is_found_by_its_extension() -> None:
 
 def test_the_new_surface_is_fixed_by_the_unchanged_fixer() -> None:
     rules = (*ALL_RULES, ShoutingCueRule())
-    result = Fixer(Linter(PARSER, RuleEngine(rules))).run(subtitles('1\nGET DOWN\n2\nquiet now\n'), rule_set(*rules))
+    result = Fixer(Linter(PARSER, RuleEngine(rules))).run(subtitles('1\nGET DOWN\n2\nquiet now\n'), enabling(*rules))
     assert result.document.text == '1\nGet down\n2\nquiet now\n'
 
 
 def test_a_rule_of_another_surface_never_reads_the_new_one() -> None:
     comment_rule = SeenUnitsRule()
     Linter(PARSER, RuleEngine((comment_rule, ShoutingCueRule()))).run(
-        subtitles('1\nGET DOWN\n'), rule_set(comment_rule, ShoutingCueRule())
+        subtitles('1\nGET DOWN\n'), enabling(comment_rule, ShoutingCueRule())
     )
     assert comment_rule.seen == []
 
 
 def test_the_new_rule_never_reads_comments() -> None:
-    document = Document(uri='file:///a.py', text='# LOUD COMMENT\nx = 1\n', language_id='python')
-    report = Linter(PARSER, RuleEngine((ShoutingCueRule(),))).run(document, rule_set(ShoutingCueRule()))
+    subject = document('# LOUD COMMENT\nx = 1\n')
+    report = Linter(PARSER, RuleEngine((ShoutingCueRule(),))).run(subject, enabling(ShoutingCueRule()))
     assert report.is_clean
 
 

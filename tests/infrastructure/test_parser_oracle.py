@@ -4,6 +4,7 @@ import pathlib
 import tokenize
 
 import pytest
+from factories import REPOSITORY_ROOT
 
 from subedit.domain import CommentForm, Document
 from subedit.infrastructure import COMMENT_PARSER, DEFAULT_PARSER
@@ -12,7 +13,7 @@ from subedit.infrastructure import COMMENT_PARSER, DEFAULT_PARSER
 DEFINITIONS = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
 CORPORA = [
-    pathlib.Path(__file__).resolve().parent.parent / 'src',
+    REPOSITORY_ROOT / 'src',
     pathlib.Path.home() / 'mroops' / 'side-projects' / 'openapi-mcp-gateway' / 'src',
 ]
 

@@ -1,4 +1,5 @@
 import pytest
+from factories import document, rule_set
 
 from subedit.application import Fixer, Linter, RuleEngine
 from subedit.domain import (
@@ -13,7 +14,6 @@ from subedit.domain import (
     Rule,
     RuleContext,
     RuleMetadata,
-    RuleSet,
     SourceParser,
     SourceRange,
     TextEdit,
@@ -29,8 +29,7 @@ def fixer(rules=ALL_RULES, max_rounds: int = 10) -> Fixer:
 
 
 def run(source: str, width: int = 60, enabled_rule_ids: frozenset[str] = LAYOUT, **kwargs):
-    document = Document(uri='file:///a.py', text=source, language_id='python')
-    return fixer(**kwargs).run(document, RuleSet(enabled_rule_ids=enabled_rule_ids, line_width=width))
+    return fixer(**kwargs).run(document(source), rule_set(enabled_rule_ids, width))
 
 
 def test_clean_input_is_left_alone() -> None:
@@ -121,9 +120,8 @@ def test_targeted_edits_run_before_reflow() -> None:
                 )
 
     source = 'def f():\n    # one\n    # two.\n    pass\n'
-    document = Document(uri='file:///a.py', text=source, language_id='python')
     outcome = Fixer(Linter(DEFAULT_PARSER, RuleEngine((ReflowRule(), TargetedRule())))).run(
-        document, RuleSet(enabled_rule_ids=frozenset({'targeted', 'reflowing'}), line_width=60)
+        document(source), rule_set({'targeted', 'reflowing'}, 60)
     )
     assert '!' in outcome.document.text
     assert outcome.document.text.count('    # ') == 1
@@ -151,9 +149,8 @@ def test_overlapping_edits_are_deferred_rather_than_dropped() -> None:
                 fix=Fix.targeted(TextEdit(SourceRange(start, start + 1), '!x')),
             )
 
-    document = Document(uri='file:///a.py', text='# note\n', language_id='python')
     outcome = Fixer(Linter(DEFAULT_PARSER, RuleEngine((DoubleRule(),))), max_rounds=3).run(
-        document, RuleSet(enabled_rule_ids=frozenset({'double'}), line_width=60)
+        document('# note\n'), rule_set({'double'}, 60)
     )
     assert outcome.round_count >= 1
     assert outcome.applied_edit_count >= 1
@@ -197,9 +194,9 @@ class ShoutingLinter(ExternalLinter):
 
 def test_external_linter_edits_are_applied_until_none_remain() -> None:
     linter = ShoutingLinter()
-    document = Document(uri='file:///a.py', text='# SHOUT once\n# SHOUT twice\n', language_id='python')
+    shouting = document('# SHOUT once\n# SHOUT twice\n')
     # The real parser finds the comment lines, which are the only place an external edit may land.
-    result = Fixer(Linter(DEFAULT_PARSER, RuleEngine(())), (linter,)).run(document, RuleSet(frozenset()))
+    result = Fixer(Linter(DEFAULT_PARSER, RuleEngine(())), (linter,)).run(shouting, rule_set(()))
 
     assert result.document.text == '# shout once\n# shout twice\n'
     assert result.report.is_clean
@@ -207,8 +204,7 @@ def test_external_linter_edits_are_applied_until_none_remain() -> None:
 
 
 def test_without_external_linters_their_findings_never_appear() -> None:
-    document = Document(uri='file:///a.py', text='# SHOUT\n', language_id='python')
-    result = Fixer(Linter(SilentParser(), RuleEngine(()))).run(document, RuleSet(frozenset()))
+    result = Fixer(Linter(SilentParser(), RuleEngine(()))).run(document('# SHOUT\n'), rule_set(()))
     assert result.document.text == '# SHOUT\n'
 
 

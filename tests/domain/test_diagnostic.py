@@ -1,10 +1,7 @@
 import pytest
+from factories import edit
 
-from subedit.domain import Diagnostic, Fix, FixKind, Report, RuleMetadata, Severity, SourceRange, TextEdit
-
-
-def edit(start: int = 0, end: int = 1, new_text: str = 'x') -> TextEdit:
-    return TextEdit(SourceRange(start, end), new_text)
+from subedit.domain import Diagnostic, Fix, FixKind, Report, RuleMetadata, Severity, SourceRange
 
 
 def diagnostic(rule_id: str = 'mid-clause-break', start: int = 0, fix: Fix | None = None) -> Diagnostic:

@@ -1,11 +1,8 @@
 import pytest
+from factories import document, edit
 
-from subedit.domain import Document, SourceRange, TextEdit, apply_edits
+from subedit.domain import apply_edits
 from subedit.domain.models.text import source_lines
-
-
-def edit(start: int, end: int, new_text: str) -> TextEdit:
-    return TextEdit(SourceRange(start, end), new_text)
 
 
 def test_no_edits_returns_the_original() -> None:
@@ -47,19 +44,19 @@ def test_adjacent_edits_are_allowed() -> None:
 
 
 def test_document_maps_positions_and_bumps_version_on_change() -> None:
-    document = Document(uri='file:///a.ts', text='const x = 1\n', language_id='typescript')
-    assert document.positions.line_count == 2
-    assert document.version == 0
+    subject = document('const x = 1\n', 'typescript')
+    assert subject.positions.line_count == 2
+    assert subject.version == 0
 
-    updated = document.with_text('const x = 2\n')
+    updated = subject.with_text('const x = 2\n')
     assert updated.version == 1
     assert updated.positions.line_text(0) == 'const x = 2'
-    assert document.text == 'const x = 1\n'
+    assert subject.text == 'const x = 1\n'
 
 
 def test_document_accepts_an_explicit_version() -> None:
-    document = Document(uri='file:///a.ts', text='a', language_id='typescript')
-    assert document.with_text('b', version=42).version == 42
+    subject = document('a', 'typescript')
+    assert subject.with_text('b', version=42).version == 42
 
 
 @pytest.mark.parametrize('text', ['', 'a', 'a\n', 'a\nb', 'a\n\nb\n', 'log\x1erecord\nnext\x0cpage\n'])

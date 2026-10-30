@@ -1,22 +1,21 @@
 import pytest
+from factories import document, found, rule_set
+from factories import lint as lint_document
 
-from subedit.application import Linter, RuleEngine
-from subedit.domain import Document, FixKind, RuleSet, RuleSettings
-from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER
+from subedit.domain import FixKind, Report, RuleSettings
 
 
 REWRITE_IDS = frozenset({'stub-fragment', 'unbreakable-sentence'})
 
 
-def lint(source: str, width: int = 50, enabled_rule_ids: frozenset[str] = REWRITE_IDS, **settings: RuleSettings):
-    document = Document(uri='file:///a.py', text=source, language_id='python')
-    return Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).run(
-        document, RuleSet(enabled_rule_ids=enabled_rule_ids, line_width=width, settings=settings)
-    )
+def lint(
+    source: str, width: int = 50, enabled_rule_ids: frozenset[str] = REWRITE_IDS, **settings: RuleSettings
+) -> Report:
+    return lint_document(document(source), rule_set(enabled_rule_ids, width, settings))
 
 
 def ids(source: str, **kwargs) -> list[str]:
-    return [item.rule_id for item in lint(source, **kwargs).diagnostics]
+    return found(lint(source, **kwargs))
 
 
 def comment(text: str) -> str:

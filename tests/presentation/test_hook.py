@@ -4,6 +4,7 @@ import subprocess
 import sys
 
 import pytest
+from factories import Project
 
 from subedit.presentation import hook
 
@@ -24,17 +25,14 @@ def payload(path: pathlib.Path, tool: str = 'Edit') -> dict[str, object]:
     return {'tool_name': tool, 'tool_input': {'file_path': str(path)}}
 
 
-def seed(tmp_path: pathlib.Path, body: str, name: str = 'probe.py') -> pathlib.Path:
-    (tmp_path / 'subedit.toml').write_text(CONFIG, encoding='utf-8')
-    target = tmp_path / name
-    target.write_text(body, encoding='utf-8')
-    return target
+def seed(project: Project, body: str, name: str = 'probe.py') -> pathlib.Path:
+    project.write('subedit.toml', CONFIG)
+    return project.write(name, body)
 
 
-def test_a_project_without_subedit_config_is_left_alone(tmp_path: pathlib.Path) -> None:
+def test_a_project_without_subedit_config_is_left_alone(project: Project) -> None:
     body = MIS_WRAPPED + 'def g():\n    # this one carries no comma and runs on' + ' and on' * 16 + '.\n    pass\n'
-    target = tmp_path / 'probe.py'
-    target.write_text(body, encoding='utf-8')
+    target = project.write('probe.py', body)
 
     hook_result = hook.run(payload(target))
 
@@ -42,22 +40,20 @@ def test_a_project_without_subedit_config_is_left_alone(tmp_path: pathlib.Path) 
     assert target.read_text(encoding='utf-8') == body
 
 
-def test_a_tool_subedit_table_in_pyproject_opts_in(tmp_path: pathlib.Path) -> None:
-    (tmp_path / 'pyproject.toml').write_text('[tool.subedit]\nline-width = 74\n', encoding='utf-8')
-    target = tmp_path / 'probe.py'
-    target.write_text(UNBREAKABLE, encoding='utf-8')
+def test_a_tool_subedit_table_in_pyproject_opts_in(project: Project) -> None:
+    project.write('pyproject.toml', '[tool.subedit]\nline-width = 74\n')
+    target = project.write('probe.py', UNBREAKABLE)
 
     assert hook.run(payload(target), write=False).is_blocking
 
 
-def test_a_non_edit_tool_is_ignored(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, MIS_WRAPPED)
+def test_a_non_edit_tool_is_ignored(project: Project) -> None:
+    target = seed(project, MIS_WRAPPED)
     assert hook.run(payload(target, tool='Read')).exit_code == 0
 
 
-def test_a_file_in_no_known_language_is_ignored(tmp_path: pathlib.Path) -> None:
-    target = tmp_path / 'notes.txt'
-    target.write_text('heading\n', encoding='utf-8')
+def test_a_file_in_no_known_language_is_ignored(project: Project) -> None:
+    target = project.write('notes.txt', 'heading\n')
     assert hook.edited_files(payload(target)) == ()
 
 
@@ -69,8 +65,8 @@ def test_a_payload_without_a_path_is_ignored() -> None:
     assert hook.run({'tool_name': 'Edit', 'tool_input': {}}).exit_code == 0
 
 
-def test_mechanical_findings_are_repaired_silently(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, MIS_WRAPPED)
+def test_mechanical_findings_are_repaired_silently(project: Project) -> None:
+    target = seed(project, MIS_WRAPPED)
     outcome = hook.run(payload(target))
 
     assert outcome.exit_code == 0
@@ -80,8 +76,8 @@ def test_mechanical_findings_are_repaired_silently(tmp_path: pathlib.Path) -> No
     assert 'does not blow past it,\n' in target.read_text(encoding='utf-8')
 
 
-def test_a_rewrite_finding_blocks_with_exit_two(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, UNBREAKABLE)
+def test_a_rewrite_finding_blocks_with_exit_two(project: Project) -> None:
+    target = seed(project, UNBREAKABLE)
     outcome = hook.run(payload(target))
 
     assert outcome.exit_code == 2
@@ -90,8 +86,8 @@ def test_a_rewrite_finding_blocks_with_exit_two(tmp_path: pathlib.Path) -> None:
     assert 'Add a comma' in outcome.stderr
 
 
-def test_a_clean_file_neither_writes_nor_blocks(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, 'def f():\n    # short and fine.\n    pass\n')
+def test_a_clean_file_neither_writes_nor_blocks(project: Project) -> None:
+    target = seed(project, 'def f():\n    # short and fine.\n    pass\n')
     original = target.read_text(encoding='utf-8')
     outcome = hook.run(payload(target))
 
@@ -100,18 +96,18 @@ def test_a_clean_file_neither_writes_nor_blocks(tmp_path: pathlib.Path) -> None:
     assert target.read_text(encoding='utf-8') == original
 
 
-def test_a_fixable_neighbour_is_repaired_even_when_the_run_blocks(tmp_path: pathlib.Path) -> None:
+def test_a_fixable_neighbour_is_repaired_even_when_the_run_blocks(project: Project) -> None:
     extra = '    # this trailing one carries no comma at all and runs a very long way past the budget here.\n'
     body = MIS_WRAPPED.replace('    pass\n', extra + '    pass\n')
-    target = seed(tmp_path, body)
+    target = seed(project, body)
     outcome = hook.run(payload(target))
 
     assert outcome.is_blocking
     assert 'does not blow past it,\n' in target.read_text(encoding='utf-8')
 
 
-def test_write_can_be_suppressed(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, MIS_WRAPPED)
+def test_write_can_be_suppressed(project: Project) -> None:
+    target = seed(project, MIS_WRAPPED)
     original = target.read_text(encoding='utf-8')
     hook.run(payload(target), write=False)
     assert target.read_text(encoding='utf-8') == original
@@ -129,8 +125,8 @@ def test_malformed_input_never_blocks(body: str) -> None:
     assert result.returncode == 0
 
 
-def test_the_entry_point_blocks_on_a_rewrite_finding(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, UNBREAKABLE)
+def test_the_entry_point_blocks_on_a_rewrite_finding(project: Project) -> None:
+    target = seed(project, UNBREAKABLE)
     result = subprocess.run(
         [sys.executable, '-m', 'subedit.presentation.hook'],
         input=json.dumps(payload(target)),
@@ -142,15 +138,15 @@ def test_the_entry_point_blocks_on_a_rewrite_finding(tmp_path: pathlib.Path) -> 
     assert 'unbreakable-sentence' in result.stderr
 
 
-def test_the_hook_stays_silent_on_mechanical_findings_even_now(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, MIS_WRAPPED)
+def test_the_hook_stays_silent_on_mechanical_findings_even_now(project: Project) -> None:
+    target = seed(project, MIS_WRAPPED)
     outcome = hook.run(payload(target))
     assert outcome.stderr == '', 'the hook must never narrate a repair it made silently'
     assert outcome.exit_code == 0
 
 
-def test_a_codex_patch_reaches_the_same_loop(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, UNBREAKABLE)
+def test_a_codex_patch_reaches_the_same_loop(project: Project) -> None:
+    target = seed(project, UNBREAKABLE)
     patch = f'*** Update File: {target}\n@@\n-old\n+new\n'
     outcome = hook.run({'tool_name': 'apply_patch', 'tool_input': {'command': patch}})
 
@@ -159,8 +155,8 @@ def test_a_codex_patch_reaches_the_same_loop(tmp_path: pathlib.Path) -> None:
     assert 'unbreakable-sentence' in outcome.stderr
 
 
-def test_an_unclaimed_payload_does_nothing(tmp_path: pathlib.Path) -> None:
-    seed(tmp_path, UNBREAKABLE)
+def test_an_unclaimed_payload_does_nothing(project: Project) -> None:
+    seed(project, UNBREAKABLE)
     outcome = hook.run({'tool_name': 'Bash', 'tool_input': {'command': 'ls'}})
 
     assert outcome.exit_code == 0
@@ -176,13 +172,13 @@ def test_the_hook_can_list_the_shapes_it_accepts() -> None:
     assert 'subedit fix' in described, 'a non agent caller needs pointing at the CLI'
 
 
-def test_a_warning_alone_never_blocks_the_agent(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, '# A banner about the module.\n\nVALUE = 1\n')
+def test_a_warning_alone_never_blocks_the_agent(project: Project) -> None:
+    target = seed(project, '# A banner about the module.\n\nVALUE = 1\n')
     assert not hook.run(payload(target)).is_blocking
 
 
-def test_a_warning_reaches_claude_code_without_blocking(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, '# A banner about the module.\n\nVALUE = 1\n')
+def test_a_warning_reaches_claude_code_without_blocking(project: Project) -> None:
+    target = seed(project, '# A banner about the module.\n\nVALUE = 1\n')
     outcome = hook.run(payload(target))
 
     assert outcome.exit_code == 0
@@ -191,8 +187,8 @@ def test_a_warning_reaches_claude_code_without_blocking(tmp_path: pathlib.Path) 
     assert 'file-header-comment' in context['additionalContext']
 
 
-def test_a_warning_rides_along_when_the_edit_blocks(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, '# A banner about the module.\n\n' + UNBREAKABLE)
+def test_a_warning_rides_along_when_the_edit_blocks(project: Project) -> None:
+    target = seed(project, '# A banner about the module.\n\n' + UNBREAKABLE)
     outcome = hook.run(payload(target))
 
     assert outcome.is_blocking
@@ -200,8 +196,8 @@ def test_a_warning_rides_along_when_the_edit_blocks(tmp_path: pathlib.Path) -> N
     assert 'file-header-comment' in outcome.stderr
 
 
-def test_codex_has_no_channel_for_a_warning(tmp_path: pathlib.Path) -> None:
-    target = seed(tmp_path, '# A banner about the module.\n\nVALUE = 1\n')
+def test_codex_has_no_channel_for_a_warning(project: Project) -> None:
+    target = seed(project, '# A banner about the module.\n\nVALUE = 1\n')
     patch = f'*** Update File: {target}\n@@\n-old\n+new\n'
     outcome = hook.run({'tool_name': 'apply_patch', 'tool_input': {'command': patch}})
 

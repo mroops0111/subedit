@@ -1,9 +1,11 @@
+import dataclasses
 import importlib.machinery
 import importlib.util
 import pathlib
 import shutil
 
 import pytest
+from factories import FIXTURES, Project, document, rule_set
 
 from subedit.application import Linter, ReportAggregator, RuleEngine
 from subedit.domain import (
@@ -21,7 +23,6 @@ from subedit.domain import (
 from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, SUFFIX_ALIASES, AutoCorrectLinter, ValeLinter
 
 
-ENABLED = frozenset(rule.metadata.rule_id for rule in ALL_RULES)
 MIS_WRAPPED = (
     'def f():\n    # cap the size so the mmap does not\n    # blow past it, an unbounded value faults.\n    pass\n'
 )
@@ -52,13 +53,9 @@ def finding(rule_id: str, start: int = 0, source: str = 'stub') -> Diagnostic:
     )
 
 
-def document(text: str = MIS_WRAPPED) -> Document:
-    return Document(uri='file:///a.py', text=text, language_id='python')
-
-
 def aggregate(linters, text: str = MIS_WRAPPED, width: int = 60):
     core = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES))
-    return ReportAggregator(core, linters).run(document(text), RuleSet(enabled_rule_ids=ENABLED, line_width=width))
+    return ReportAggregator(core, linters).run(document(text), rule_set(width=width))
 
 
 def test_native_findings_survive_with_no_linters() -> None:
@@ -111,21 +108,19 @@ def test_a_clean_document_with_a_silent_linter_is_clean() -> None:
 def test_the_project_config_tunes_a_delegated_rule() -> None:
     linter = StubLinter('stub', diagnostics=(finding('stub.Loud', 0), finding('stub.Quiet', 2)))
     core = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES))
-    rule_set = RuleSet(
-        enabled_rule_ids=ENABLED,
-        settings={'stub.Loud': RuleSettings(severity=Severity.WARNING)},
+    rules = dataclasses.replace(
+        rule_set(settings={'stub.Loud': RuleSettings(severity=Severity.WARNING)}),
         disabled_external_ids=frozenset({'stub.Quiet'}),
     )
-    report = ReportAggregator(core, (linter,)).run(document('x = 1\n'), rule_set)
+    report = ReportAggregator(core, (linter,)).run(document('x = 1\n'), rules)
 
     assert [(item.rule_id, item.severity) for item in report.diagnostics] == [('stub.Loud', Severity.WARNING)]
     assert not report.blocking, 'a warning reaches the author as advice, not as a block'
 
 
 @pytest.mark.skipif(shutil.which('vale') is None, reason='vale is not installed')
-def test_the_vale_adapter_normalises_real_output(tmp_path: pathlib.Path) -> None:
-    target = tmp_path / 'probe.py'
-    target.write_text('def f():\n    # a semicolon; which is forbidden here.\n    pass\n', encoding='utf-8')
+def test_the_vale_adapter_normalises_real_output(project: Project) -> None:
+    target = project.write('probe.py', 'def f():\n    # a semicolon; which is forbidden here.\n    pass\n')
 
     found = ValeLinter().run(
         Document(uri=target.resolve().as_uri(), text=target.read_text(encoding='utf-8'), language_id='python')
@@ -156,12 +151,11 @@ def test_a_repo_without_a_vale_config_gets_the_bundled_one(
 
 
 def test_vale_counts_as_missing_until_the_extra_has_downloaded_it(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    project: Project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (tmp_path / '__init__.py').write_text('', encoding='utf-8')
-    placeholder = tmp_path / 'vale_bin'
-    placeholder.write_text('#!/bin/sh\n', encoding='utf-8')
-    found_spec = importlib.machinery.ModuleSpec('vale', None, origin=str(tmp_path / '__init__.py'))
+    project.write('__init__.py', '')
+    placeholder = project.write('vale_bin', '#!/bin/sh\n')
+    found_spec = importlib.machinery.ModuleSpec('vale', None, origin=str(project.root / '__init__.py'))
     monkeypatch.setattr(importlib.util, 'find_spec', lambda name: found_spec if name == 'vale' else None)
     linter = ValeLinter(executable='sh')
 
@@ -223,9 +217,8 @@ def test_autocorrect_needs_no_install() -> None:
 
 
 @pytest.mark.skipif(shutil.which('vale') is None, reason='vale is not installed')
-def test_the_vale_adapter_lints_the_text_it_is_given_rather_than_the_disk(tmp_path: pathlib.Path) -> None:
-    target = tmp_path / 'probe.py'
-    target.write_text('def f():\n    pass\n', encoding='utf-8')
+def test_the_vale_adapter_lints_the_text_it_is_given_rather_than_the_disk(project: Project) -> None:
+    target = project.write('probe.py', 'def f():\n    pass\n')
     unsaved = 'def f():\n    # a semicolon; which is forbidden here.\n    pass\n'
 
     found = ValeLinter().run(Document(uri=target.resolve().as_uri(), text=unsaved, language_id='python'))
@@ -234,7 +227,7 @@ def test_the_vale_adapter_lints_the_text_it_is_given_rather_than_the_disk(tmp_pa
 
 def test_the_autocorrect_adapter_offers_an_edit_for_text_never_saved() -> None:
     # The unspaced sample lives in an excluded fixture, so checking this repository does not flag it.
-    text = (pathlib.Path(__file__).parent / 'fixtures' / 'autocorrect' / 'unspaced.py').read_text(encoding='utf-8')
+    text = (FIXTURES / 'autocorrect' / 'unspaced.py').read_text(encoding='utf-8')
     found = AutoCorrectLinter().run(Document(uri='file:///nowhere/probe.py', text=text, language_id='python'))
 
     assert len(found) == 1
@@ -270,6 +263,6 @@ def test_vale_leaves_a_directive_alone_as_the_native_rules_do(
     )
     report = linter.run(
         Document(uri=(tmp_path / f'a{suffix}').as_uri(), text=text, language_id=language_id),
-        RuleSet(enabled_rule_ids=ENABLED),
+        rule_set(),
     )
     assert report.diagnostics == (), 'a tool reads the directive, so no rule reads its reason as prose'

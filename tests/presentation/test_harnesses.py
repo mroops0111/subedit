@@ -2,14 +2,14 @@ import pathlib
 import typing
 
 import pytest
+from factories import Project
 
 from subedit.presentation.harnesses import ALL_HARNESSES, ClaudeCodeHarness, CodexHarness, HarnessMetadata, resolve
 
 
 @pytest.fixture
-def source(tmp_path: pathlib.Path) -> pathlib.Path:
-    target = tmp_path / 'module.py'
-    target.write_text('# a note\n', encoding='utf-8')
+def source(project: Project) -> pathlib.Path:
+    target = project.write('module.py', '# a note\n')
     return target
 
 
@@ -51,9 +51,8 @@ def test_codex_ignores_the_dev_null_side_of_an_addition(source: pathlib.Path) ->
     assert edited_files_of(payload) == (source,)
 
 
-def test_declining_differs_from_finding_nothing(tmp_path: pathlib.Path) -> None:
-    notebook = tmp_path / 'a.ipynb'
-    notebook.write_text('{}', encoding='utf-8')
+def test_declining_differs_from_finding_nothing(project: Project) -> None:
+    notebook = project.write('a.ipynb', '{}')
     ours = {'tool_name': 'NotebookEdit', 'tool_input': {'notebook_path': str(notebook)}}
     not_ours = {'tool_name': 'Bash', 'tool_input': {'command': 'ls'}}
 
@@ -73,9 +72,8 @@ def test_a_missing_file_is_dropped(tmp_path: pathlib.Path) -> None:
     assert edited_files_of(payload) == ()
 
 
-def test_a_file_of_another_language_is_dropped(tmp_path: pathlib.Path) -> None:
-    other = tmp_path / 'notes.txt'
-    other.write_text('heading\n', encoding='utf-8')
+def test_a_file_of_another_language_is_dropped(project: Project) -> None:
+    other = project.write('notes.txt', 'heading\n')
     payload = {'tool_name': 'Edit', 'tool_input': {'file_path': str(other)}}
     assert edited_files_of(payload) == ()
 
