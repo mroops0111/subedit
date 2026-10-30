@@ -7,28 +7,22 @@ from ..ports.language_conventions import LanguageConventions
 from ..ports.rule import Rule, RuleContext
 
 
-FILE_HEADER_COMMENT = RuleMetadata(
-    rule_id='file-header-comment',
-    summary='A file must not open with a banner comment before its first declaration.',
-    fix_kind=FixKind.REWRITE,
-    default_severity=Severity.WARNING,
-)
-
-PLAIN_COMMENT_ON_PUBLIC = RuleMetadata(
-    rule_id='plain-comment-on-public',
-    summary='A public symbol must be documented in the doc comment form its language renders.',
-    fix_kind=FixKind.REWRITE,
-)
-
-SIGNATURE_RESTATING_TAG = RuleMetadata(
-    rule_id='signature-restating-tag',
-    summary='A doc comment must not restate what the type signature already carries.',
-    fix_kind=FixKind.REWRITE,
-)
+# Set from the p95 of a measured corpus, which subedit stats reports.
+# A comment past this length has usually started restating the code below it.
+_DEFAULT_LIMITS = {
+    'line': 4,
+    'doc-internal': 13,
+    'doc-public': 20,
+}
 
 
 class FileHeaderCommentRule(Rule[CommentGroup]):
-    metadata = FILE_HEADER_COMMENT
+    metadata = RuleMetadata(
+        rule_id='file-header-comment',
+        summary='A file must not open with a banner comment before its first declaration.',
+        fix_kind=FixKind.REWRITE,
+        default_severity=Severity.WARNING,
+    )
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -46,22 +40,16 @@ class FileHeaderCommentRule(Rule[CommentGroup]):
         )
 
 
-class ConventionsByLanguage:
-    """Each language spells its doc comment and its tags its own way, so a rule asks per document."""
-
-    def __init__(self, conventions: tuple[LanguageConventions, ...]) -> None:
-        self._by_language = {language.language_id: language for language in conventions}
-
-    def lookup(self, context: RuleContext) -> LanguageConventions | None:
-        return self._by_language.get(context.document.language_id)
-
-
 class PlainCommentOnPublicRule(Rule[CommentGroup]):
-    metadata = PLAIN_COMMENT_ON_PUBLIC
+    metadata = RuleMetadata(
+        rule_id='plain-comment-on-public',
+        summary='A public symbol must be documented in the doc comment form its language renders.',
+        fix_kind=FixKind.REWRITE,
+    )
     surface = CommentGroup
 
     def __init__(self, conventions: tuple[LanguageConventions, ...]) -> None:
-        self._conventions = ConventionsByLanguage(conventions)
+        self._conventions = _ConventionsByLanguage(conventions)
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         if not group.attaches_to_public_symbol or group.form is CommentForm.DOC:
@@ -94,11 +82,15 @@ class PlainCommentOnPublicRule(Rule[CommentGroup]):
 
 
 class SignatureRestatingTagRule(Rule[CommentGroup]):
-    metadata = SIGNATURE_RESTATING_TAG
+    metadata = RuleMetadata(
+        rule_id='signature-restating-tag',
+        summary='A doc comment must not restate what the type signature already carries.',
+        fix_kind=FixKind.REWRITE,
+    )
     surface = CommentGroup
 
     def __init__(self, conventions: tuple[LanguageConventions, ...]) -> None:
-        self._conventions = ConventionsByLanguage(conventions)
+        self._conventions = _ConventionsByLanguage(conventions)
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         conventions = self._conventions.lookup(context)
@@ -129,30 +121,18 @@ class SignatureRestatingTagRule(Rule[CommentGroup]):
         return None
 
 
-BLOCK_TOO_LONG = RuleMetadata(
-    rule_id='block-too-long',
-    summary='A comment block long enough to restate the code has stopped earning its place.',
-    fix_kind=FixKind.REWRITE,
-    default_severity=Severity.WARNING,
-)
-
-
-# Set from the p95 of a measured corpus, which subedit stats reports.
-# A comment past this length has usually started restating the code below it.
-DEFAULT_LIMITS = {
-    'line': 4,
-    'doc-internal': 13,
-    'doc-public': 20,
-}
-
-
 class BlockTooLongRule(Rule[CommentGroup]):
-    metadata = BLOCK_TOO_LONG
+    metadata = RuleMetadata(
+        rule_id='block-too-long',
+        summary='A comment block long enough to restate the code has stopped earning its place.',
+        fix_kind=FixKind.REWRITE,
+        default_severity=Severity.WARNING,
+    )
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         category = self._category(group)
-        limit = context.settings(self.metadata.rule_id).integer(category, DEFAULT_LIMITS[category])
+        limit = context.settings(self.metadata.rule_id).integer(category, _DEFAULT_LIMITS[category])
         if group.line_count <= limit:
             return
         yield Diagnostic(
@@ -170,3 +150,13 @@ class BlockTooLongRule(Rule[CommentGroup]):
         if group.form is not CommentForm.DOC:
             return 'line'
         return 'doc-public' if group.attaches_to_public_symbol else 'doc-internal'
+
+
+class _ConventionsByLanguage:
+    """Each language spells its doc comment and its tags its own way, so a rule asks per document."""
+
+    def __init__(self, conventions: tuple[LanguageConventions, ...]) -> None:
+        self._by_language = {language.language_id: language for language in conventions}
+
+    def lookup(self, context: RuleContext) -> LanguageConventions | None:
+        return self._by_language.get(context.document.language_id)

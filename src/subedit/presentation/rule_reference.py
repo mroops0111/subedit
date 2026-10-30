@@ -5,8 +5,8 @@ from ..domain.models.diagnostic import RuleMetadata
 from ..domain.ports.rule import Rule
 
 
-HEADING = '# Rules'
-PREAMBLE = (
+_HEADING = '# Rules'
+_PREAMBLE = (
     'The fix kind states who resolves a finding. A mechanical kind is repaired without telling the author, '
     'so only a rewrite reaches an agent.\n\n'
     'The level says whether a rewrite blocks. An error fails check and stops an agent, '
@@ -18,7 +18,7 @@ PREAMBLE = (
 
 
 def render(rules: tuple[Rule[typing.Any], ...]) -> str:
-    lines = [HEADING, '', PREAMBLE]
+    lines = [_HEADING, '', _PREAMBLE]
     for surface in _surfaces(rules):
         section = sorted(
             (rule for rule in rules if rule.surface is surface),

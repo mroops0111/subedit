@@ -7,42 +7,6 @@ from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
 
 
-PARAGRAPH_LINE_BREAK = RuleMetadata(
-    rule_id='paragraph-line-break',
-    summary=(
-        'A Markdown paragraph stays on one source line, since a renderer or a synced copy '
-        'may show every newline as a break.'
-    ),
-    fix_kind=FixKind.REFLOW,
-)
-
-HEADING_WRAPPED_IN_BOLD = RuleMetadata(
-    rule_id='heading-wrapped-in-bold',
-    summary='A Markdown heading is not wrapped in bold, since a heading already renders bold.',
-    fix_kind=FixKind.TARGETED,
-)
-
-
-HEADING_TITLE_CASE = RuleMetadata(
-    rule_id='heading-title-case',
-    summary='The English words of a Markdown heading are in Title Case.',
-    fix_kind=FixKind.TARGETED,
-)
-
-MISSING_LEAD_SENTENCE = RuleMetadata(
-    rule_id='missing-lead-sentence',
-    summary='A heading opens with a sentence that frames its section, never straight into a list.',
-    fix_kind=FixKind.REWRITE,
-)
-
-HEADING_NOT_NOUN_PHRASE = RuleMetadata(
-    rule_id='heading-not-noun-phrase',
-    summary='A Markdown heading is a noun phrase, not a question or an instruction.',
-    fix_kind=FixKind.REWRITE,
-    default_severity=Severity.WARNING,
-)
-
-
 _QUESTION_WORDS = frozenset({'when', 'what', 'where', 'why', 'how', 'who', 'which'})
 # Verbs a heading most often opens with when it gives an instruction instead of naming its subject.
 _IMPERATIVE_VERBS = frozenset(
@@ -84,7 +48,14 @@ _WHOLLY_BOLD = re.compile(r'^(\*\*|__)(?P<inner>(?:(?!\1).)+)\1$')
 
 
 class ParagraphLineBreakRule(Rule[MarkdownBlock]):
-    metadata = PARAGRAPH_LINE_BREAK
+    metadata = RuleMetadata(
+        rule_id='paragraph-line-break',
+        summary=(
+            'A Markdown paragraph stays on one source line, since a renderer or a synced copy '
+            'may show every newline as a break.'
+        ),
+        fix_kind=FixKind.REFLOW,
+    )
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -103,7 +74,11 @@ class ParagraphLineBreakRule(Rule[MarkdownBlock]):
 
 
 class HeadingWrappedInBoldRule(Rule[MarkdownBlock]):
-    metadata = HEADING_WRAPPED_IN_BOLD
+    metadata = RuleMetadata(
+        rule_id='heading-wrapped-in-bold',
+        summary='A Markdown heading is not wrapped in bold, since a heading already renders bold.',
+        fix_kind=FixKind.TARGETED,
+    )
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -121,7 +96,11 @@ class HeadingWrappedInBoldRule(Rule[MarkdownBlock]):
 
 
 class HeadingTitleCaseRule(Rule[MarkdownBlock]):
-    metadata = HEADING_TITLE_CASE
+    metadata = RuleMetadata(
+        rule_id='heading-title-case',
+        summary='The English words of a Markdown heading are in Title Case.',
+        fix_kind=FixKind.TARGETED,
+    )
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -142,7 +121,11 @@ class HeadingTitleCaseRule(Rule[MarkdownBlock]):
 
 
 class MissingLeadSentenceRule(Rule[MarkdownBlock]):
-    metadata = MISSING_LEAD_SENTENCE
+    metadata = RuleMetadata(
+        rule_id='missing-lead-sentence',
+        summary='A heading opens with a sentence that frames its section, never straight into a list.',
+        fix_kind=FixKind.REWRITE,
+    )
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
@@ -160,7 +143,12 @@ class MissingLeadSentenceRule(Rule[MarkdownBlock]):
 
 
 class HeadingNotNounPhraseRule(Rule[MarkdownBlock]):
-    metadata = HEADING_NOT_NOUN_PHRASE
+    metadata = RuleMetadata(
+        rule_id='heading-not-noun-phrase',
+        summary='A Markdown heading is a noun phrase, not a question or an instruction.',
+        fix_kind=FixKind.REWRITE,
+        default_severity=Severity.WARNING,
+    )
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:

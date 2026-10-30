@@ -19,7 +19,7 @@ class RuleTable(pydantic.BaseModel):
         return dict(self.__pydantic_extra__ or {})
 
 
-RuleEntry = typing.Annotated[str | RuleTable, pydantic.Field(union_mode='left_to_right')]
+_RuleEntry = typing.Annotated[str | RuleTable, pydantic.Field(union_mode='left_to_right')]
 
 
 class SubeditSection(pydantic.BaseModel):
@@ -34,7 +34,7 @@ class ConfigFile(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=True)
 
     subedit: SubeditSection = pydantic.Field(default_factory=SubeditSection)
-    rules: dict[str, RuleEntry] = pydantic.Field(default_factory=dict)
+    rules: dict[str, _RuleEntry] = pydantic.Field(default_factory=dict)
 
     @classmethod
     def parse(cls, raw: typing.Mapping[str, object]) -> 'ConfigFile':

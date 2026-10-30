@@ -4,8 +4,11 @@ import typing
 import unicodedata
 
 
+# A numbered, bulleted, or lettered list item's marker, with the space after it.
+LIST_MARKER = re.compile(r'(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s+')
+
 # Abbreviations whose period does not end a sentence, written without that period.
-ABBREVIATIONS = frozenset(
+_ABBREVIATIONS = frozenset(
     {
         'e.g',
         'i.e',
@@ -27,6 +30,7 @@ _TRAILING_WORD = re.compile(r'([A-Za-z][A-Za-z.]*)$')
 _URL = re.compile(r'\b(?:https?://|www\.)\S+')
 # A span opened by two backticks, as reStructuredText writes code, closes on two.
 _CODE_RUN = re.compile(r'(`+).+?\1')
+
 # A rule reading prose steps over code, a URL, an image's alt text, a link target, an autolink, and quoted words.
 # The code run comes first, since its backreference counts on being the first group.
 _PROTECTED = re.compile(
@@ -43,17 +47,15 @@ _PROTECTED = re.compile(
         )
     )
 )
+
 _BRACKET_PAIRS = {'(': ')', '[': ']', '{': '}'}
 _FENCE = re.compile(r'^\s*(```|~~~)')
 _LITERAL_DELIMITER = '\\b'
 _CLOSING_MARKS = '"\')]}'
 _OPENING_MARKS = '"\'([{'
 _APOSTROPHES = ("'", '\u2019')
-
 # Only before a number, since "No. 5" abbreviates while a trailing no ends its sentence.
-NUMBER_ABBREVIATION = 'no'
-# A numbered, bulleted, or lettered list item's marker, with the space after it.
-LIST_MARKER = re.compile(r'(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s+')
+_NUMBER_ABBREVIATION = 'no'
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -251,9 +253,9 @@ class Prose:
         if trailing_word and text[: trailing_word.start()].endswith(_APOSTROPHES):
             return self._followed_by_break(text, offset)
         word = trailing_word.group(1).lower().rstrip('.') if trailing_word else ''
-        if word in ABBREVIATIONS:
+        if word in _ABBREVIATIONS:
             return False
-        if word == NUMBER_ABBREVIATION and text[offset + 1 :].lstrip()[:1].isdigit():
+        if word == _NUMBER_ABBREVIATION and text[offset + 1 :].lstrip()[:1].isdigit():
             return False
         if (
             trailing_word

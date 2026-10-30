@@ -11,15 +11,15 @@ from ...domain.ports.external_linter import ExternalLinter
 from .source_path import as_known_path
 
 
-RULE_ID = 'autocorrect.Spacing'
-CONFIG_PATH = pathlib.Path('.autocorrectrc')
+_RULE_ID = 'autocorrect.Spacing'
+_CONFIG_PATH = pathlib.Path('.autocorrectrc')
 
 
 class AutoCorrectLinter(ExternalLinter):
     name = 'autocorrect'
 
     def __init__(
-        self, config_path: pathlib.Path = CONFIG_PATH, suffix_aliases: typing.Mapping[str, str] | None = None
+        self, config_path: pathlib.Path = _CONFIG_PATH, suffix_aliases: typing.Mapping[str, str] | None = None
     ) -> None:
         self._config_path = config_path
         self._suffix_aliases = dict(suffix_aliases or {})
@@ -71,7 +71,7 @@ class AutoCorrectLinter(ExternalLinter):
             end_offset = start_offset + len(original.rstrip('\n').encode('utf-8'))
             diagnostics.append(
                 Diagnostic(
-                    rule_id=RULE_ID,
+                    rule_id=_RULE_ID,
                     range=SourceRange(start_offset, end_offset),
                     message='Spacing or punctuation between CJK and Latin text needs correcting.',
                     severity=Severity.ERROR,

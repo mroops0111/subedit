@@ -11,13 +11,13 @@ from .prose_unit import ProseLine, ProseUnit
 from .text import TextEdit
 
 
+# Two trailing spaces, a backslash, or a <br> tag ask for a line break, so the author meant it.
+_HARD_BREAK = re.compile(r'( {2,}|\\|<br\s*/?>)$', re.IGNORECASE)
+
+
 class MarkdownBlockKind(enum.Enum):
     HEADING = 'heading'
     PARAGRAPH = 'paragraph'
-
-
-# Two trailing spaces, a backslash, or a <br> tag ask for a line break, so the author meant it.
-_HARD_BREAK = re.compile(r'( {2,}|\\|<br\s*/?>)$', re.IGNORECASE)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

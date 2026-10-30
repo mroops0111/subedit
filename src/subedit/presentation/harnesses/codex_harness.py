@@ -7,7 +7,7 @@ from .agent_harness import AgentHarness, HarnessMetadata, Payload, existing_sour
 
 EDIT_TOOLS = frozenset({'apply_patch'})
 
-CODEX = HarnessMetadata(
+_CODEX = HarnessMetadata(
     name='codex',
     summary='Codex sends a patch, and the path is read from its header.',
     example={'tool_name': 'apply_patch', 'tool_input': {'command': '*** Update File: src/module.py'}},
@@ -21,7 +21,7 @@ _STRIP_PREFIX = re.compile(r'^[ab]/')
 
 
 class CodexHarness(AgentHarness):
-    metadata = CODEX
+    metadata = _CODEX
 
     def __init__(self, extensions: frozenset[str]) -> None:
         self._extensions = extensions

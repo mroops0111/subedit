@@ -10,7 +10,7 @@ from . import report as reporters
 from .harnesses import ALL_HARNESSES, BLOCK_EXIT, Payload, resolve
 
 
-HELP_FLAGS = frozenset({'--help', '-h', '--harnesses'})
+_HELP_FLAGS = frozenset({'--help', '-h', '--harnesses'})
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -104,7 +104,7 @@ def describe_harnesses() -> str:
 
 
 def main() -> int:
-    if HELP_FLAGS & set(sys.argv[1:]):
+    if _HELP_FLAGS & set(sys.argv[1:]):
         sys.stdout.write(describe_harnesses() + '\n')
         return 0
     try:

@@ -28,12 +28,12 @@ app = typer.Typer(
     add_completion=False, help='A subeditor for AI agents, keeping every sentence they write to your house style.'
 )
 
-FORMATTERS = {
+_FORMATTERS = {
     'full': reporters.full,
     'actionable': reporters.actionable,
     'json': reporters.as_json,
 }
-PERCENTILES = (0.5, 0.75, 0.9, 0.95, 0.99)
+_PERCENTILES = (0.5, 0.75, 0.9, 0.95, 0.99)
 
 
 @app.command()
@@ -44,7 +44,7 @@ def check(
 ) -> None:
     documents = _load(tuple(paths))
     _require(documents)
-    formatter = FORMATTERS.get(output)
+    formatter = _FORMATTERS.get(output)
     if formatter is None:
         typer.echo(f'Unknown output format {output!r}. Choose full, actionable, or json.', err=True)
         raise typer.Exit(2)
@@ -201,7 +201,7 @@ def _diff(before: Document, after: Document) -> str:
 def _render(statistics: CorpusStatistics) -> str:
     heading = (
         f'{"group":24s} {"n":>6s} {"med":>5s} '
-        + ' '.join(f'p{int(fraction * 100):<3d}' for fraction in PERCENTILES)
+        + ' '.join(f'p{int(fraction * 100):<3d}' for fraction in _PERCENTILES)
         + '  max'
     )
     lines = [
@@ -223,7 +223,7 @@ def _render(statistics: CorpusStatistics) -> str:
 
 
 def _row(label: str, distribution: typing.Any) -> str:
-    cells = ' '.join(f'{distribution.percentile(fraction):<4d}' for fraction in PERCENTILES)
+    cells = ' '.join(f'{distribution.percentile(fraction):<4d}' for fraction in _PERCENTILES)
     return f'{label:24s} {distribution.count:6d} {distribution.median:5d} {cells} {distribution.maximum:4d}'
 
 
