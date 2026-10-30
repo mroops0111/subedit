@@ -5,6 +5,7 @@ from ..domain.models.document import Document
 
 
 def full(document: Document, report: Report) -> str:
+    """One line per finding, with its location, severity, rule, and message."""
     if report.is_clean:
         return ''
     lines: list[str] = []
@@ -16,12 +17,14 @@ def full(document: Document, report: Report) -> str:
 
 
 def brief(document: Document, report: Report) -> str:
+    """The blocking findings, as a message telling an agent what to rewrite, or nothing when none block."""
     if not report.blocking:
         return ''
     return _rewrite_brief(document, report)
 
 
 def advice(document: Document, report: Report) -> str:
+    """The warnings that need an author, as a message an agent may act on or leave."""
     if not report.advisory:
         return ''
     lines = [
@@ -33,6 +36,7 @@ def advice(document: Document, report: Report) -> str:
 
 
 def actionable(document: Document, report: Report) -> str:
+    """What the author should do next, which is to rewrite, weigh advice, or run fix."""
     if report.blocking:
         return _rewrite_brief(document, report)
     if report.advisory:
@@ -48,6 +52,7 @@ def actionable(document: Document, report: Report) -> str:
 
 
 def as_json(document: Document, report: Report) -> str:
+    """The findings as JSON, with ranges and fix kinds, for a tool to read."""
     return json.dumps(
         {
             'uri': document.uri,

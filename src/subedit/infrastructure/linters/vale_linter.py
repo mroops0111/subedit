@@ -50,6 +50,8 @@ class ValeReport(pydantic.RootModel[dict[str, list[ValeAlert]]]):
 
 
 class ValeLinter(ExternalLinter):
+    """Runs Vale with the repository's own config, or with the bundled subedit style when it has none."""
+
     name = 'vale'
 
     def __init__(

@@ -18,6 +18,7 @@ _PREAMBLE = (
 
 
 def render(rules: tuple[Rule[typing.Any], ...]) -> str:
+    """The native rules as Markdown, one section per surface."""
     lines = [_HEADING, '', _PREAMBLE]
     for surface in _surfaces(rules):
         section = sorted(

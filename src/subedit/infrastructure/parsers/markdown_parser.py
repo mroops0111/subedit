@@ -30,6 +30,8 @@ _LITERAL_BLOCKS = frozenset(
 
 
 class MarkdownParser(SourceParser[MarkdownBlock]):
+    """Finds the headings and paragraphs of a Markdown document, and skips code, tables, HTML, and quotes."""
+
     @property
     def file_types(self) -> tuple[FileType, ...]:
         return (MARKDOWN,)

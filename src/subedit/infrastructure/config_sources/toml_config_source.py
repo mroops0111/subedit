@@ -12,6 +12,8 @@ _PYPROJECT_NAME = 'pyproject.toml'
 
 
 class TomlConfigSource:
+    """Reads subedit.toml or the tool table in pyproject.toml, found by walking up from the file checked."""
+
     def __init__(
         self,
         available_rule_ids: tuple[str, ...],

@@ -42,6 +42,7 @@ def check(
     output: str = typer.Option('full', '--output', help='full, actionable, or json.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
 ) -> None:
+    """Report findings, and exit non-zero when any is an error."""
     documents = _load(tuple(paths))
     _require(documents)
     formatter = _FORMATTERS.get(output)
@@ -66,6 +67,7 @@ def fix(
     write: bool = typer.Option(False, '--write', help='Write changes instead of printing a diff.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
 ) -> None:
+    """Apply mechanical fixes, printing a diff unless told to write, and report what needs an author."""
     documents = _load(tuple(paths))
     _require(documents)
 
@@ -97,6 +99,7 @@ def fix(
 
 @app.command()
 def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to measure.')) -> None:
+    """Measure a codebase's comments, to set limits from what it already holds."""
     documents = _load(tuple(paths))
     _require(documents)
     typer.echo(_render(CorpusMeter(COMMENT_PARSER).run(documents)))
@@ -104,11 +107,13 @@ def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directo
 
 @app.command()
 def rules() -> None:
+    """Print the native rules, grouped by the surface they read."""
     typer.echo(rule_reference.render(ALL_RULES), nl=False)
 
 
 @app.command()
 def version() -> None:
+    """Print the version."""
     typer.echo(f'subedit {__version__}')
 
 

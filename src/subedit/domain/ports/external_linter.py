@@ -5,6 +5,8 @@ from ..models.document import Document
 
 
 class ExternalLinter(abc.ABC):
+    """An outside checker, such as Vale or AutoCorrect, whose findings join the native report."""
+
     name: str
 
     @abc.abstractmethod

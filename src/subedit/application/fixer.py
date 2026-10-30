@@ -14,6 +14,8 @@ _MAX_ROUNDS = 10
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class FixResult:
+    """The fixed document, the findings left in it, and how much the fixer changed."""
+
     document: Document
     report: Report
     round_count: int
@@ -29,6 +31,8 @@ class FixResult:
 
 
 class Fixer:
+    """Applies mechanical fixes in rounds, targeted edits before reflow, until none remain."""
+
     def __init__(
         self,
         linter: Linter,

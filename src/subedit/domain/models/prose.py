@@ -60,6 +60,8 @@ _NUMBER_ABBREVIATION = 'no'
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Sentence:
+    """A sentence and where it starts in the flattened text of its prose."""
+
     text: str
     offset: int
 
@@ -70,6 +72,8 @@ class Sentence:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Segment:
+    """A run of lines that are either all prose or all literal, such as a code block, a list, or a tag section."""
+
     lines: tuple[str, ...]
     is_literal: bool
 
@@ -105,6 +109,8 @@ PLAIN_MARKUP = ProseMarkup()
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Prose:
+    """A unit's text, split into segments and sentences, with what its language writes besides prose set apart."""
+
     text: str
     markup: ProseMarkup = PLAIN_MARKUP
 

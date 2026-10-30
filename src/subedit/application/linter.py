@@ -11,6 +11,8 @@ from ..domain.ports.rule import Rule, RuleContext
 
 
 class RuleEngine:
+    """Runs each enabled rule over the units of the surface it reads, at the severity the project sets for it."""
+
     def __init__(self, rules: tuple[Rule[typing.Any], ...]) -> None:
         duplicate_ids = self._find_duplicate_ids(rules)
         if duplicate_ids:
@@ -60,6 +62,8 @@ class Inspection:
 
 
 class Linter:
+    """Parses a document once and runs the rule engine over what the parse found."""
+
     def __init__(self, parser: SourceParser[ProseUnit], engine: RuleEngine) -> None:
         self._parser = parser
         self._engine = engine

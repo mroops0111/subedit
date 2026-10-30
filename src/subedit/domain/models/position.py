@@ -21,6 +21,8 @@ class Position:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class SourceRange:
+    """A stretch of a document, from a start byte up to an end byte, in UTF-8."""
+
     start: int
     end: int
 
@@ -46,6 +48,8 @@ class SourceRange:
 
 
 class PositionMap:
+    """Converts byte offsets to the line and character positions an editor counts, in any encoding."""
+
     def __init__(self, text: str) -> None:
         self._text = text
         self._encoded_text = text.encode('utf-8')

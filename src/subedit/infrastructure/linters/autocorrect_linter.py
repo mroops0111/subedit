@@ -16,6 +16,8 @@ _CONFIG_PATH = pathlib.Path('.autocorrectrc')
 
 
 class AutoCorrectLinter(ExternalLinter):
+    """Runs AutoCorrect on the text in memory and offers its spacing fixes as targeted edits."""
+
     name = 'autocorrect'
 
     def __init__(

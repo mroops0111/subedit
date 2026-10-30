@@ -16,6 +16,8 @@ _DIRECTIVE_CAPTURE = 'directive'
 
 
 class TreeSitterParser(SourceParser[CommentGroup]):
+    """Finds comments and docstrings with each language profile's tree-sitter query."""
+
     def __init__(self, profiles: tuple[LanguageProfile, ...]) -> None:
         self._profiles = {profile.language_id: profile for profile in profiles}
 

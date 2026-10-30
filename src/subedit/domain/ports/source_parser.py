@@ -21,6 +21,8 @@ class ParsedDocument(typing.Generic[UnitT]):
 
 
 class SourceParser(abc.ABC, typing.Generic[UnitT]):
+    """Finds the prose units in the documents of the file types it declares."""
+
     @property
     @abc.abstractmethod
     def file_types(self) -> tuple[FileType, ...]: ...

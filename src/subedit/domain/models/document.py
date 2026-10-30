@@ -6,6 +6,8 @@ from .position import PositionMap
 
 @dataclasses.dataclass(frozen=True)
 class Document:
+    """A file in memory, whose version counts the edits applied to it."""
+
     uri: str
     text: str
     language_id: str

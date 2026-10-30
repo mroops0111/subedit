@@ -97,6 +97,7 @@ def occupied_lines(lines: tuple[str, ...], sentence: Sentence) -> tuple[str, ...
 def keeps_given(
     given_lines: tuple[str, ...], best_lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int
 ) -> bool:
+    """Whether the author's layout of a sentence stays, since it breaks no worse than the best one."""
     # A colon ending a line in mid sentence is a rewrite finding, so its layout waits for that rewrite.
     if _breaks_at_a_colon(given_lines):
         return _fits(given_lines, budgets)
@@ -108,6 +109,7 @@ def keeps_given(
 
 
 def is_legal(lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int) -> bool:
+    """Whether a layout fits its budgets, strands no stub, and breaks only at clause commas."""
     if not _fits(lines, budgets):
         return False
     if len(lines) == 1:
@@ -120,6 +122,7 @@ def is_legal(lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int) 
 
 
 def strands_stub(lines: tuple[str, ...], stub_floor: int) -> bool:
+    """Whether a layout of several lines leaves one shorter than the stub floor."""
     return len(lines) > 1 and min(map(len, lines)) < stub_floor
 
 

@@ -36,6 +36,8 @@ class SymbolKind(enum.Enum):
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class SymbolRef:
+    """The declaration a comment documents, and whether other code can see it."""
+
     name: str
     kind: SymbolKind
     visibility: Visibility
@@ -45,6 +47,8 @@ class SymbolRef:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class CommentGroup(ProseUnit):
+    """Consecutive comment lines that read as one block, with what they document and how they are laid out."""
+
     surface_name: typing.ClassVar[str] = 'Comments'
 
     range: SourceRange

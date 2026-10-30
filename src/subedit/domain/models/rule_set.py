@@ -10,6 +10,8 @@ DEFAULT_LINE_WIDTH = 120
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RuleSettings:
+    """One rule's severity, when the project overrides it, and its options."""
+
     severity: Severity | None = None
     options: typing.Mapping[str, object] = dataclasses.field(default_factory=dict)
 
@@ -26,6 +28,8 @@ class RuleSettings:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class RuleSet:
+    """Which rules a project runs, at what width, and with what settings."""
+
     enabled_rule_ids: frozenset[str]
     settings: typing.Mapping[str, RuleSettings] = dataclasses.field(default_factory=dict)
     line_width: int = DEFAULT_LINE_WIDTH
