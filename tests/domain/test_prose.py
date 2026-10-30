@@ -253,3 +253,28 @@ def test_a_letter_closing_a_longer_token_is_no_initial(text: str) -> None:
 
 def test_an_initial_in_brackets_still_holds_its_sentence() -> None:
     assert len(Prose('named after (J. Smith) originally').sentences()) == 1
+
+
+@pytest.mark.parametrize(
+    'opener',
+    ['such as', 'including', 'e.g.', 'e.g.,', 'i.e.,', 'for example,', 'for instance', 'especially', 'in particular'],
+)
+def test_a_break_before_a_list_opener_falls_ahead_of_the_list_it_opens(opener: str) -> None:
+    lines = (
+        'Holds everything that carries user content and ages out on its own,',
+        f'{opener} history, parked approvals, dedupe keys and the in-chat OAuth handoff.',
+    )
+    assert break_cost(lines) == 0
+
+
+def test_a_break_after_a_list_opener_parts_it_from_the_first_item() -> None:
+    lines = (
+        'Holds everything that carries user content and ages out on its own, e.g.,',
+        'history, parked approvals, dedupe keys and the in-chat OAuth handoff.',
+    )
+    assert break_cost(lines) == 1
+
+
+def test_a_word_that_only_starts_like_an_opener_opens_no_list() -> None:
+    lines = ('Holds the cache, the index,', 'likewise the queue, and the log.')
+    assert break_cost(lines) == 1

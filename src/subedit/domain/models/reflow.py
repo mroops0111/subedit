@@ -34,6 +34,22 @@ _LIST_CLOSERS = frozenset({'and', 'or'})
 _ARTICLES = frozenset({'a', 'an', 'the'})
 # Prepositions that open a sentence's framing phrase, such as "By default,", rather than its first item.
 _LEAD_IN_WORDS = frozenset({'after', 'at', 'before', 'by', 'during', 'for', 'from', 'in', 'on', 'once', 'when', 'with'})
+# Words that open a list, so a break before them falls ahead of its first item rather than inside it.
+# An abbreviation or for example may take its own comma, as in "e.g., Python, Go,".
+_LIST_OPENERS = (
+    'e.g.',
+    'especially',
+    'for example',
+    'for instance',
+    'i.e.',
+    'in particular',
+    'including',
+    'like',
+    'namely',
+    'notably',
+    'particularly',
+    'such as',
+)
 
 
 def reflow_sentence(sentence: str, width: int, stub_floor: int = 0, first_width: int | None = None) -> tuple[str, ...]:
@@ -197,6 +213,8 @@ def _best_layout(pieces: tuple[str, ...], width: int, opening_width: int, stub_f
 
 def _splits_a_list(pieces: tuple[str, ...], index: int) -> bool:
     """Whether a break before ``pieces[index]`` falls beside an item of a list rather than between clauses."""
+    if _opens_a_list(pieces[index]):
+        return False
     return _is_list_item(pieces, index - 1) or _is_list_item(pieces, index) or _splits_a_serial_run(pieces, index)
 
 
@@ -259,6 +277,14 @@ def _is_short(piece: str) -> bool:
 def _opens_a_clause(piece: str) -> bool:
     words = piece.split()
     return bool(words) and words[0].lower() in _CLAUSE_OPENERS
+
+
+# An opener ends at a space or a comma, so likewise opens no list.
+def _opens_a_list(piece: str) -> bool:
+    lowered = piece.lower()
+    return any(
+        lowered.startswith(opener) and lowered[len(opener) : len(opener) + 1] in (' ', ',') for opener in _LIST_OPENERS
+    )
 
 
 def _breaks_at_a_colon(lines: tuple[str, ...]) -> bool:
