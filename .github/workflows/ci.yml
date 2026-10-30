@@ -51,7 +51,7 @@ jobs:
           enable-cache: true
       - run: uv sync --extra dev
 
-      # Without Vale, every test against it skips and the self-hosting check never runs it.
+      # Without Vale, every test against it skips.
       # AutoCorrect needs no step, since it arrives as a Python dependency.
       - name: Install Vale
         env:
@@ -66,20 +66,30 @@ jobs:
 
       - run: uv run pytest tests/ -v --tb=short
 
-      - name: Self-hosting
-        run: uv run subedit check src/ tests/
-
+  # subedit checks its own comments and Markdown with every rule it ships, failing only on an error.
   prose:
     name: Prose
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: errata-ai/vale-action@reviewdog
+      - uses: astral-sh/setup-uv@v6
         with:
-          version: 3.18.0
-          files: src tests README.md
-          fail_on_error: true
-          reporter: github-check
+          enable-cache: true
+      - run: uv sync --extra dev
+
+      # Without Vale, the check skips the rules the bundled style holds.
+      - name: Install Vale
+        env:
+          VALE_VERSION: 3.18.0
+        run: |
+          curl -sSfL "https://github.com/errata-ai/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" vale
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Confirm Vale
+        run: vale --version
+
+      - run: uv run subedit check src/ tests/ README.md docs/ examples/README.md
 
   build:
     name: Build
