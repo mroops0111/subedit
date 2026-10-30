@@ -70,10 +70,17 @@ def reflow_sentence(sentence: str, width: int, stub_floor: int = 0, first_width:
 
 
 def break_cost(lines: tuple[str, ...]) -> int:
-    """Count the breaks in a laid out sentence that split a list."""
-    pieces = _comma_pieces(' '.join(lines))
-    piece_ends = itertools.accumulate(len(_comma_pieces(line)) for line in lines[:-1])
-    return sum(_splits_a_list(pieces, piece_end) for piece_end in piece_ends)
+    """Count the breaks in a laid out sentence that split a list.
+
+    A break away from any comma splits a clause rather than a list, which other rules report.
+    """
+    sentence = ' '.join(lines)
+    pieces = _comma_pieces(sentence)
+    piece_at = {offset: index + 1 for index, offset in enumerate(_comma_breaks(sentence))}
+    line_ends = (end - 1 for end in itertools.accumulate(len(line) + 1 for line in lines[:-1]))
+    return sum(
+        _splits_a_list(pieces, piece_at[end]) for end in line_ends if piece_at.get(end, len(pieces)) < len(pieces)
+    )
 
 
 def line_shared_by(lines: tuple[str, ...], sentences: tuple[Sentence, ...]) -> str | None:
