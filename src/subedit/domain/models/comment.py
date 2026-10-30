@@ -164,7 +164,10 @@ class CommentGroup(ProseUnit):
         return rebuilt
 
     def sentences_held_by_a_list(self, width: int, stub_floor: int = 0) -> tuple[str, ...]:
-        """The sentences reflow leaves as the author broke them, since every legal break would split a list."""
+        """The sentences that split a list wherever they break, which only a rewrite resolves.
+
+        Reflow leaves each as the author broke it, since no layout it could choose splits fewer lists.
+        """
         held: list[str] = []
         self._reflow_into_texts(width, stub_floor, held=held)
         return tuple(held)
@@ -209,6 +212,10 @@ class CommentGroup(ProseUnit):
                     best_lines = reflow_sentence(sentence.text, body_budget, stub_floor, first_width=first_budget)
                 given_lines = occupied_lines(lines, sentence)
                 if given_lines and keeps_given(given_lines, best_lines, (first_budget, body_budget), stub_floor):
+                    # The author's lines stay when no layout splits fewer lists,
+                    # but one that splits any still needs a rewrite.
+                    if held is not None and break_cost(given_lines):
+                        held.append(sentence.text)
                     out.extend(given_lines)
                 elif is_legal(best_lines, (first_budget, body_budget), stub_floor) and not (
                     given_lines and break_cost(best_lines)

@@ -34,6 +34,8 @@ _LIST_CLOSERS = frozenset({'and', 'or'})
 _ARTICLES = frozenset({'a', 'an', 'the'})
 # Prepositions that open a sentence's framing phrase, such as "By default,", rather than its first item.
 _LEAD_IN_WORDS = frozenset({'after', 'at', 'before', 'by', 'during', 'for', 'from', 'in', 'on', 'once', 'when', 'with'})
+# Words that open a list, so a break before them falls ahead of its first item rather than inside it.
+_LIST_OPENERS = ('such as ', 'including ', 'like ', 'namely ')
 
 
 def reflow_sentence(sentence: str, width: int, stub_floor: int = 0, first_width: int | None = None) -> tuple[str, ...]:
@@ -197,6 +199,8 @@ def _best_layout(pieces: tuple[str, ...], width: int, opening_width: int, stub_f
 
 def _splits_a_list(pieces: tuple[str, ...], index: int) -> bool:
     """Whether a break before ``pieces[index]`` falls beside an item of a list rather than between clauses."""
+    if pieces[index].lower().startswith(_LIST_OPENERS):
+        return False
     return _is_list_item(pieces, index - 1) or _is_list_item(pieces, index) or _splits_a_serial_run(pieces, index)
 
 

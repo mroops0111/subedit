@@ -1,5 +1,6 @@
 import pytest
 from factories import document, found, rule_set
+from factories import fixed as fix_document
 from factories import lint as lint_document
 
 from subedit.domain import FixKind, Report, RuleSettings
@@ -124,3 +125,36 @@ def test_a_summary_that_fits_beside_its_quotes_is_fine() -> None:
 def test_a_summary_the_author_wrapped_still_needs_shortening() -> None:
     source = 'def f():\n    """Return the code, state, and iss of the redirect\n    once the user completes the flow.\n    """\n'
     assert ids(source, width=80) == ['unbreakable-sentence'], 'a wrapped summary is as far from one line as a long one'
+
+
+LIST_SENTENCE = (
+    'Write only what to draw, which is inline `data.values` rows taken from tool results, `mark`, '
+    '`encoding`, and optionally `transform` or `layer`.'
+)
+
+
+def docstring(*lines: str) -> str:
+    body = ''.join(f'        {line}\n' for line in lines)
+    return f'class Chart:\n    def draw(self) -> None:\n        """Draw a chart.\n\n{body}        """\n'
+
+
+@pytest.mark.parametrize(
+    'lines',
+    [
+        (LIST_SENTENCE,),
+        (LIST_SENTENCE[: LIST_SENTENCE.index('`encoding`') - 1], LIST_SENTENCE[LIST_SENTENCE.index('`encoding`') :]),
+    ],
+    ids=['on one line', 'broken inside the list'],
+)
+def test_a_sentence_that_splits_a_list_wherever_it_breaks_needs_a_rewrite(lines: tuple[str, ...]) -> None:
+    source = docstring(*lines)
+    assert ids(source, width=120, enabled_rule_ids=frozenset({'unbreakable-sentence', 'mid-clause-break'})) == [
+        'unbreakable-sentence'
+    ]
+
+
+def test_a_sentence_broken_inside_a_list_keeps_the_layout_its_author_gave_it() -> None:
+    source = docstring(
+        LIST_SENTENCE[: LIST_SENTENCE.index('`encoding`') - 1], LIST_SENTENCE[LIST_SENTENCE.index('`encoding`') :]
+    )
+    assert fix_document(document(source)) == source

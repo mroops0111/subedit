@@ -253,3 +253,11 @@ def test_a_letter_closing_a_longer_token_is_no_initial(text: str) -> None:
 
 def test_an_initial_in_brackets_still_holds_its_sentence() -> None:
     assert len(Prose('named after (J. Smith) originally').sentences()) == 1
+
+
+def test_a_break_before_such_as_falls_ahead_of_the_list_it_opens() -> None:
+    lines = (
+        'Holds everything that carries user content and ages out on its own,',
+        'such as history, parked approvals, dedupe keys and the in-chat OAuth handoff.',
+    )
+    assert break_cost(lines) == 0
