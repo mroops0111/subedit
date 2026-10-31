@@ -1,6 +1,6 @@
 [project]
 name = "subedit"
-version = "0.3.2"
+version = "0.4.0"
 description = "A subeditor for AI agents, keeping every sentence they write to your house style."
 authors = [
     {name = "Yun-Tai Yang"},
