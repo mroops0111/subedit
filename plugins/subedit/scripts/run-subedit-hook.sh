@@ -4,7 +4,7 @@
 # because the first run installs subedit and downloads Vale, which no edit should wait on.
 set -uo pipefail
 
-SPEC='subedit[vale]>=0.3.2'
+SPEC='subedit[vale]>=0.4.0'
 # A bare uvx takes the first Python it finds, which on a stock Mac is too old for subedit.
 PYTHON='>=3.11'
 
