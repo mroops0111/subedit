@@ -1,12 +1,20 @@
+import dataclasses
 import pathlib
 
 import pytest
-from factories import document, found, lint, markdown, rule_ids, rule_set
+from factories import REPOSITORY_ROOT, document, found, lint, markdown, rule_ids, rule_set
 from factories import fixed as fix_document
 
 from subedit.application import Linter, RuleEngine
-from subedit.domain import CommentGroup, MarkdownBlock, MarkdownBlockKind
-from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, MARKDOWN_RULES, MarkdownParser, language_id_for
+from subedit.domain import CommentGroup, MarkdownBlock, MarkdownBlockKind, RuleSet
+from subedit.infrastructure import (
+    ALL_RULES,
+    DEFAULT_PARSER,
+    MARKDOWN_RULES,
+    AutoCorrectLinter,
+    MarkdownParser,
+    language_id_for,
+)
 
 
 def blocks(source: str) -> tuple[MarkdownBlock, ...]:
@@ -141,3 +149,85 @@ def test_front_matter_code_and_tables_count_as_code_to_an_outside_checker() -> N
     inspection = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).inspect(markdown(source), rule_set())
     covered = [source.encode()[region.start : region.end].decode() for region in inspection.prose_map.code]
     assert covered == ['---\ntitle: a\n---\n', '```\ncode\n```\n', '| a |\n| --- |\n| 1 |\n']
+
+
+MIS_WRAPPED = '# cap the size so the mmap does not\n# blow past it, an unbounded value faults.\n'
+REFLOWED = '# cap the size so the mmap does not blow past it,\n# an unbounded value faults.\n'
+
+
+def code_blocks(width: int = 60) -> RuleSet:
+    return dataclasses.replace(rule_set(width=width), reads_embedded=True)
+
+
+def test_a_code_block_is_left_alone_unless_the_project_opts_in() -> None:
+    source = f'Notes.\n\n```python\n{MIS_WRAPPED}```\n'
+    assert 'mid-clause-break' not in found(lint(markdown(source), rule_set(width=60)))
+    assert 'mid-clause-break' in found(lint(markdown(source), code_blocks()))
+
+
+@pytest.mark.parametrize(
+    ('block', 'expected'),
+    [
+        (f'```python\n{MIS_WRAPPED}```\n', f'```python\n{REFLOWED}```\n'),
+        (
+            '- Item.\n\n  ```py\n' + ''.join(f'  {line}\n' for line in MIS_WRAPPED.splitlines()) + '  ```\n',
+            '- Item.\n\n  ```py\n' + ''.join(f'  {line}\n' for line in REFLOWED.splitlines()) + '  ```\n',
+        ),
+        (
+            '> ```python\n' + ''.join(f'> {line}\n' for line in MIS_WRAPPED.splitlines()) + '> ```\n',
+            '> ```python\n' + ''.join(f'> {line}\n' for line in REFLOWED.splitlines()) + '> ```\n',
+        ),
+        (f'```yaml\n{MIS_WRAPPED}key: 1\n```\n', f'```yaml\n{REFLOWED}key: 1\n```\n'),
+    ],
+    ids=['at the top level', 'in a list item', 'in a block quote', 'in YAML'],
+)
+def test_a_fix_in_a_code_block_keeps_what_sets_its_lines_apart(block: str, expected: str) -> None:
+    source = f'Notes.\n\n{block}'
+    assert fix_document(markdown(source), code_blocks()) == f'Notes.\n\n{expected}'
+
+
+def test_a_code_block_is_a_fragment_so_no_comment_in_it_heads_a_file() -> None:
+    source = 'Notes.\n\n```python\n# Install, then import the client.\nimport subedit\n```\n'
+    assert found(lint(markdown(source), code_blocks())) == []
+
+
+def test_a_checker_reads_a_code_block_as_its_own_language() -> None:
+    source = 'Notes.\n\n- Item.\n\n  ```python\n  # 中文English\n  ```\n'
+    checkers = (AutoCorrectLinter(),)
+    assert 'autocorrect.Spacing' in found(lint(markdown(source), code_blocks(), checkers=checkers))
+    assert fix_document(markdown(source), code_blocks(), checkers=checkers) == source.replace(
+        '中文English', '中文 English'
+    )
+
+
+def test_a_block_in_a_language_subedit_does_not_read_is_left_alone() -> None:
+    source = f'Notes.\n\n```ruby\n{MIS_WRAPPED}```\n'
+    assert found(lint(markdown(source), code_blocks())) == []
+
+
+@pytest.mark.parametrize(
+    ('name', 'language_id'),
+    [
+        ('python', 'python'),
+        ('py', 'python'),
+        ('TS', 'typescript'),
+        ('js', 'javascript'),
+        ('yml', 'yaml'),
+        ('jsonc', 'json'),
+        ('text', None),
+    ],
+)
+def test_an_info_string_names_a_language_by_its_id_or_its_extension(name: str, language_id: str | None) -> None:
+    file_type = DEFAULT_PARSER.file_type_named(name)
+    assert (file_type.language_id if file_type else None) == language_id
+
+
+def test_reading_every_code_block_of_a_long_document_holds_up() -> None:
+    # Walking the tokens inside a TOML block's content once crashed the tree-sitter binding partway through this file.
+    readme = (REPOSITORY_ROOT / 'README.md').read_text(encoding='utf-8')
+    assert lint(markdown(readme), code_blocks(width=120)).diagnostics is not None
+
+
+def test_a_markdown_block_inside_markdown_is_an_example_left_alone() -> None:
+    source = 'Notes.\n\n```markdown\n## lowercase heading\n\nA paragraph\nbroken by hand.\n```\n'
+    assert found(lint(markdown(source), code_blocks())) == []

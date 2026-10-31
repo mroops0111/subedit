@@ -65,11 +65,13 @@ _BLOCK_TAG = re.compile(r'^\s*@[A-Za-z]')
 
 
 class TypeScriptProfile(LanguageProfile):
-    """TypeScript, whose doc comment is a JSDoc block standing above the declaration it documents."""
+    """TypeScript or JavaScript, whose doc comment is a JSDoc block standing above the declaration it documents."""
 
     doc_delimiter = '/**'
     doc_layout = FramedDocLayout(opening='/**', prefix=' * ', closing_line=' */')
+    line_delimiter = _LINE_DELIMITER
     doc_leads_declaration = True
+    declares_symbols = True
     directive = re.compile(_DIRECTIVE)
     width_settings = (
         *(
@@ -83,9 +85,8 @@ class TypeScriptProfile(LanguageProfile):
             for key_path in (('javascript', 'formatter', 'lineWidth'), ('formatter', 'lineWidth'))
         ),
     )
-    signature_tags = ('@param', '@returns', '@return', '@type')
     vendor_directories = frozenset({'node_modules', 'bower_components', 'jspm_packages'})
-    _ROLES = {
+    node_roles = {
         'program': NodeRole.ROOT,
         'comment': NodeRole.COMMENT,
         'export_statement': NodeRole.DEFINITION,
@@ -111,9 +112,15 @@ class TypeScriptProfile(LanguageProfile):
     }
 
     def __init__(
-        self, language_id: str, extensions: frozenset[str], canonical_extension: str, language: Language
+        self,
+        language_id: str,
+        extensions: frozenset[str],
+        canonical_extension: str,
+        language: Language,
+        signature_tags: tuple[str, ...] = ('@param', '@returns', '@return', '@type'),
     ) -> None:
         self.language_id = language_id
+        self.signature_tags = signature_tags
         self.extensions = extensions
         self.canonical_extension = canonical_extension
         self._language = language
@@ -126,9 +133,6 @@ class TypeScriptProfile(LanguageProfile):
 
     def query(self) -> str:
         return QUERY
-
-    def role_of(self, node_type: str) -> NodeRole:
-        return self._ROLES.get(node_type, NodeRole.OTHER)
 
     def symbol_kind(self, node_type: str) -> SymbolKind:
         if node_type in _CLASS_LIKE:
@@ -183,18 +187,17 @@ class TypeScriptProfile(LanguageProfile):
         return Visibility.INTERNAL
 
     def split_delimiter(self, line: str, form: CommentForm) -> DelimiterSplit:
+        if form is not CommentForm.DOC:
+            return super().split_delimiter(line, form)
         indent = line[: len(line) - len(line.lstrip())]
         rest = line[len(indent) :].rstrip()
-        pattern = _LINE_DELIMITER
-        if form is CommentForm.DOC:
-            pattern = _DOC_OPENING if rest.startswith('/**') else _DOC_PREFIX
-            if rest == _DOC_CLOSING:
-                return DelimiterSplit(indent=indent, delimiter=rest, text='')
-        opening = pattern.match(rest)
+        if rest == _DOC_CLOSING:
+            return DelimiterSplit(indent=indent, delimiter=rest, text='')
+        opening = (_DOC_OPENING if rest.startswith('/**') else _DOC_PREFIX).match(rest)
         delimiter = opening.group(1) if opening else ''
         text = rest[len(delimiter) :]
         suffix = ''
-        if form is CommentForm.DOC and text.endswith(_DOC_CLOSING):
+        if text.endswith(_DOC_CLOSING):
             text = text[: -len(_DOC_CLOSING)]
             suffix = text[len(text.rstrip()) :] + _DOC_CLOSING
             text = text.rstrip()
@@ -206,6 +209,16 @@ TYPESCRIPT = TypeScriptProfile(
 )
 
 TSX = TypeScriptProfile('tsx', frozenset({'.tsx'}), '.tsx', Language(tree_sitter_typescript.language_tsx()))
+
+# JavaScript is TypeScript without the types, and the TSX grammar reads JSX as well.
+# Its JSDoc tags carry the only types it has, so no tag restates a signature.
+JAVASCRIPT = TypeScriptProfile(
+    'javascript',
+    frozenset({'.js', '.mjs', '.cjs', '.jsx'}),
+    '.js',
+    Language(tree_sitter_typescript.language_tsx()),
+    signature_tags=(),
+)
 
 
 def _text(node: Node) -> str:

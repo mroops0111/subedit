@@ -172,7 +172,13 @@ class TreeSitterParser(SourceParser[CommentGroup]):
             return CommentPlacement.LEADING_DECLARATION
         parent = node.parent
         is_root = parent is not None and profile.role_of(parent.type) is NodeRole.ROOT
-        if is_root and not self._has_code_before(profile, node) and not self._touches_next_code(profile, node):
+        # A banner stands before the first declaration, which a format that declares nothing never reaches.
+        if (
+            profile.declares_symbols
+            and is_root
+            and not self._has_code_before(profile, node)
+            and not self._touches_next_code(profile, node)
+        ):
             return CommentPlacement.FILE_HEADER
         return CommentPlacement.INLINE_BODY
 

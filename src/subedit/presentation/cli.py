@@ -17,6 +17,7 @@ from ..infrastructure import (
     DEFAULT_PARSER,
     EXTENSIONS,
     EXTERNAL_LINTERS,
+    GENERATED_NAMES,
     VENDOR_DIRECTORIES,
     language_id_for,
 )
@@ -130,7 +131,7 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
                 sorted(
                     candidate
                     for candidate in path.rglob('*')
-                    if candidate.suffix in EXTENSIONS and not _is_vendored(candidate.relative_to(path))
+                    if candidate.suffix in EXTENSIONS and not _is_written_elsewhere(candidate.relative_to(path))
                 )
             )
         elif path.suffix in EXTENSIONS:
@@ -153,8 +154,11 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
     return tuple(documents)
 
 
-# Installed packages and tool caches hold code nobody here wrote, such as node_modules or a .venv.
-def _is_vendored(relative: pathlib.Path) -> bool:
+# Installed packages and tool caches hold code nobody here wrote, such as node_modules or a .venv,
+# and a tool writes a lock file whole.
+def _is_written_elsewhere(relative: pathlib.Path) -> bool:
+    if relative.name in GENERATED_NAMES:
+        return True
     return any(part in VENDOR_DIRECTORIES or part.startswith('.') for part in relative.parts[:-1])
 
 

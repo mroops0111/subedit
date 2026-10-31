@@ -3,6 +3,7 @@ import dataclasses
 import typing
 
 from ..models.document import Document
+from ..models.embedded import EmbeddedDocument
 from ..models.file_type import FileType
 from ..models.position import SourceRange
 from ..models.prose_unit import ProseUnit
@@ -18,6 +19,8 @@ class ParsedDocument(typing.Generic[UnitT]):
     units: tuple[UnitT, ...] = ()
     # Text such as a lint directive or a Markdown code block, which a prose checker has no business reading.
     skipped: tuple[SourceRange, ...] = ()
+    # Documents in another language embedded in this one, such as the code blocks of a Markdown file.
+    embedded: tuple[EmbeddedDocument, ...] = ()
 
 
 class SourceParser(abc.ABC, typing.Generic[UnitT]):
@@ -35,6 +38,18 @@ class SourceParser(abc.ABC, typing.Generic[UnitT]):
 
     def supports(self, language_id: str) -> bool:
         return any(file_type.language_id == language_id for file_type in self.file_types)
+
+    def file_type_named(self, name: str) -> FileType | None:
+        """The file type a name such as a code block's info string calls for, by its language ID or an extension."""
+        lowered = name.strip().lower()
+        return next(
+            (
+                file_type
+                for file_type in self.file_types
+                if lowered == file_type.language_id or f'.{lowered}' in file_type.extensions
+            ),
+            None,
+        )
 
     def language_id_for(self, extension: str) -> str | None:
         """The language a file is read as, from its extension."""

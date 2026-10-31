@@ -28,6 +28,7 @@ class SubeditSection(pydantic.BaseModel):
     # Left unset, the width falls back to the language's own default.
     line_width: int | None = pydantic.Field(default=None, alias='line-width', gt=0)
     exclude: tuple[str, ...] = ()
+    code_blocks: bool = pydantic.Field(default=False, alias='code-blocks')
 
 
 class ConfigFile(pydantic.BaseModel):

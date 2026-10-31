@@ -5,7 +5,7 @@ import pathlib
 import shutil
 
 import pytest
-from factories import FIXTURES, Project, document, rule_set
+from factories import FIXTURES, Project, document, found, lint, rule_set
 
 from subedit.application import Linter, ReportAggregator, RuleEngine
 from subedit.domain import (
@@ -43,7 +43,8 @@ class StubLinter(ExternalLinter):
         return self._diagnostics
 
 
-def finding(rule_id: str, start: int = 0, source: str = 'stub') -> Diagnostic:
+def finding(rule_id: str, start: int = MIS_WRAPPED.index('#'), source: str = 'stub') -> Diagnostic:
+    """A checker's finding, which counts only inside prose, so by default it sits on the comment."""
     return Diagnostic(
         rule_id=rule_id,
         range=SourceRange(start, start + 1),
@@ -78,13 +79,13 @@ def test_an_unavailable_linter_is_recorded_rather_than_fatal() -> None:
 
 
 def test_identical_findings_from_two_sources_are_deduplicated() -> None:
-    shared = finding('same.Rule', start=0)
+    shared = finding('same.Rule')
     report = aggregate((StubLinter('a', diagnostics=(shared,)), StubLinter('b', diagnostics=(shared,))))
     assert [item.rule_id for item in report.diagnostics].count('same.Rule') == 1
 
 
 def test_findings_differing_by_position_are_both_kept() -> None:
-    linter = StubLinter('a', diagnostics=(finding('same.Rule', 0), finding('same.Rule', 40)))
+    linter = StubLinter('a', diagnostics=(finding('same.Rule'), finding('same.Rule', 40)))
     report = aggregate((linter,))
     assert [item.rule_id for item in report.diagnostics].count('same.Rule') == 2
 
@@ -100,6 +101,19 @@ def test_mechanical_and_authored_findings_stay_separated() -> None:
     assert all(item.needs_author for item in report.needing_author)
 
 
+def test_a_finding_outside_every_comment_is_dropped() -> None:
+    """A checker that reads YAML as plain text reaches its keys and values, which hold no prose."""
+    text = 'name: a; b\n# Keep it short.\nrun: make\n'
+    linter = StubLinter('stub', diagnostics=(finding('stub.Value', text.index(';')), finding('stub.Note', 13)))
+    assert found(lint(document(text, 'yaml'), checkers=(linter,))) == ['stub.Note']
+
+
+def test_a_file_with_no_prose_runs_no_checker() -> None:
+    linter = StubLinter('stub')
+    lint(document('{\n  "a": 1\n}\n', 'json'), checkers=(linter,))
+    assert linter.calls == 0
+
+
 def test_a_clean_document_with_a_silent_linter_is_clean() -> None:
     report = aggregate((StubLinter('a'),), text='def f():\n    # short and fine.\n    pass\n')
     assert report.is_clean
@@ -112,7 +126,7 @@ def test_the_project_config_tunes_a_delegated_rule() -> None:
         rule_set(settings={'stub.Loud': RuleSettings(severity=Severity.WARNING)}),
         disabled_external_ids=frozenset({'stub.Quiet'}),
     )
-    report = ReportAggregator(core, (linter,)).run(document('x = 1\n'), rules)
+    report = ReportAggregator(core, (linter,)).run(document('# Loud and quiet.\nx = 1\n'), rules)
 
     assert [(item.rule_id, item.severity) for item in report.diagnostics] == [('stub.Loud', Severity.WARNING)]
     assert not report.blocking, 'a warning reaches the author as advice, not as a block'
@@ -266,3 +280,16 @@ def test_vale_leaves_a_directive_alone_as_the_native_rules_do(
         rule_set(),
     )
     assert report.diagnostics == (), 'a tool reads the directive, so no rule reads its reason as prose'
+
+
+@pytest.mark.skipif(shutil.which('vale') is None, reason='vale is not installed')
+def test_vale_reads_a_code_block_as_its_own_language(tmp_path: pathlib.Path) -> None:
+    text = 'Notes.\n\n```python\n# Keep it short; it runs often.\nx = "a; b"\n```\n'
+    report = lint(
+        Document(uri=(tmp_path / 'notes.md').as_uri(), text=text, language_id='markdown'),
+        dataclasses.replace(rule_set(), reads_embedded=True),
+        checkers=(ValeLinter(suffix_aliases=SUFFIX_ALIASES),),
+    )
+    assert [(item.rule_id, item.range.start) for item in report.diagnostics] == [
+        ('subedit.Semicolon', text.index(';'))
+    ], 'only the comment is prose, so the string in the code is left alone'

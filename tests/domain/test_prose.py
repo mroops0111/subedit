@@ -267,6 +267,15 @@ def test_a_break_before_a_list_opener_falls_ahead_of_the_list_it_opens(opener: s
     assert break_cost(lines) == 0
 
 
+def test_a_break_away_from_any_comma_splits_no_list() -> None:
+    lines = (
+        'Demonstrates the override in the server config:',
+        'each entry mirrors the extension and fully replaces',
+        'the one in the spec for that operation, with no need to fork it.',
+    )
+    assert break_cost(lines) == 0
+
+
 def test_a_break_after_a_list_opener_parts_it_from_the_first_item() -> None:
     lines = (
         'Holds everything that carries user content and ages out on its own, e.g.,',

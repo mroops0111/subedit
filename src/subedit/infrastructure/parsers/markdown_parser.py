@@ -4,6 +4,7 @@ import tree_sitter_markdown
 from tree_sitter import Language, Node, Parser
 
 from ...domain.models.document import Document
+from ...domain.models.embedded import EmbeddedDocument
 from ...domain.models.file_type import FileType
 from ...domain.models.markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
 from ...domain.models.position import SourceRange
@@ -50,11 +51,15 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
         tree = Parser(_MARKDOWN_LANGUAGE).parse(source_bytes)
         found = _Found()
         self._collect(tree.root_node, source_bytes, _Context(), found)
-        return ParsedDocument(tuple(found.blocks), tuple(found.literals))
+        return ParsedDocument(tuple(found.blocks), tuple(found.literals), tuple(found.embedded))
 
     def _collect(self, node: Node, source_bytes: bytes, context: '_Context', found: '_Found') -> None:
         if node.type in _LITERAL_BLOCKS:
             found.literals.append(SourceRange(node.start_byte, node.end_byte))
+            if node.type == 'fenced_code_block':
+                embedded = self._embedded_code(node, source_bytes)
+                if embedded is not None:
+                    found.embedded.append(embedded)
             return
         if node.type in _HEADINGS or node.type == 'paragraph':
             block = self._build_block(node, source_bytes, context)
@@ -67,6 +72,42 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
             context = dataclasses.replace(context, quoted=True)
         for child in node.children:
             self._collect(child, source_bytes, context, found)
+
+    def _embedded_code(self, node: Node, source_bytes: bytes) -> EmbeddedDocument | None:
+        """The code of a fenced block whose info string names a language, with what sets each line apart in the host.
+
+        Inside a list item or a block quote, each line opens with an indent or a quote marker.
+        That prefix is as wide as the column the fence opens at, so the code keeps none of it.
+        Only the block's own children are read, since walking the tokens inside its content crashes the binding.
+        """
+        info = next((child for child in node.children if child.type == 'info_string'), None)
+        content = next((child for child in node.children if child.type == 'code_fence_content'), None)
+        if info is None or content is None:
+            return None
+        words = source_bytes[info.start_byte : info.end_byte].decode('utf-8').split()
+        if not words:
+            return None
+        column = _column(source_bytes, node.start_byte)
+        lines: list[str] = []
+        host_starts: list[int] = []
+        prefixes: list[str] = []
+        line_start = content.start_byte - _column(source_bytes, content.start_byte)
+        while line_start < content.end_byte:
+            line_end = source_bytes.find(b'\n', line_start)
+            line_end = len(source_bytes) if line_end == -1 else line_end + 1
+            text_start = line_start
+            while text_start - line_start < column and source_bytes[text_start : text_start + 1] in (b' ', b'\t', b'>'):
+                text_start += 1
+            # The content ends just past the closing fence's prefix, which opens no line of code.
+            if text_start >= content.end_byte:
+                break
+            lines.append(source_bytes[text_start:line_end].decode('utf-8'))
+            host_starts.append(text_start)
+            prefixes.append(source_bytes[line_start:text_start].decode('utf-8'))
+            line_start = line_end
+        return EmbeddedDocument(
+            language_name=words[0], text=''.join(lines), host_starts=tuple(host_starts), prefixes=tuple(prefixes)
+        )
 
     def _build_block(self, node: Node, source_bytes: bytes, context: '_Context') -> MarkdownBlock | None:
         inline = self._inline_of(node)
@@ -122,11 +163,11 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
         prefix_ends: dict[int, int] = {}
         for child in inline.children:
             if child.type == 'block_continuation':
-                row = child.start_point.row
+                row = _row(source_bytes, child.start_byte)
                 prefix_ends[row] = max(prefix_ends.get(row, 0), child.end_byte)
         lines: list[MarkdownLine] = []
         line_start = inline.start_byte
-        row = inline.start_point.row
+        row = _row(source_bytes, inline.start_byte)
         while line_start <= inline.end_byte:
             newline = source_bytes.find(b'\n', line_start, inline.end_byte)
             line_end = inline.end_byte if newline == -1 else newline
@@ -161,3 +202,14 @@ class _Context:
 class _Found:
     blocks: list[MarkdownBlock] = dataclasses.field(default_factory=list)
     literals: list[SourceRange] = dataclasses.field(default_factory=list)
+    embedded: list[EmbeddedDocument] = dataclasses.field(default_factory=list)
+
+
+# Rows and columns are counted from the bytes,
+# since reading a node's start point from the Markdown grammar corrupts memory in the tree-sitter binding.
+def _row(source_bytes: bytes, offset: int) -> int:
+    return source_bytes.count(b'\n', 0, offset)
+
+
+def _column(source_bytes: bytes, offset: int) -> int:
+    return offset - (source_bytes.rfind(b'\n', 0, offset) + 1)

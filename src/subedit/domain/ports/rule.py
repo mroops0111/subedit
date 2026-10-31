@@ -29,6 +29,8 @@ class Rule(abc.ABC, typing.Generic[UnitT]):
     # The kind of unit the rule reads,
     # so a comment rule never meets a heading and a Markdown rule never meets a docstring.
     surface: type[UnitT]
+    # A rule on where a unit sits in its file, which a fragment such as a Markdown code block has no part in.
+    reads_whole_file: bool = False
 
     def reads(self, unit: ProseUnit) -> typing.TypeGuard[UnitT]:
         return isinstance(unit, self.surface)

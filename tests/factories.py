@@ -1,9 +1,11 @@
 import pathlib
 import typing
 
-from subedit.application import Fixer, Linter, RuleEngine
+from subedit.application import Fixer, Linter, ReportAggregator, RuleEngine
 from subedit.domain import (
+    CommentGroup,
     Document,
+    ExternalLinter,
     Report,
     Rule,
     RuleSet,
@@ -13,17 +15,30 @@ from subedit.domain import (
     apply_edits,
 )
 from subedit.domain.models.rule_set import DEFAULT_LINE_WIDTH
-from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER
+from subedit.infrastructure import ALL_RULES, COMMENT_PARSER, DEFAULT_PARSER
 
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 FIXTURES = REPOSITORY_ROOT / 'tests' / 'fixtures'
-SUFFIXES = {'python': '.py', 'typescript': '.ts', 'tsx': '.tsx', 'javascript': '.js', 'markdown': '.md'}
+SUFFIXES = {
+    'python': '.py',
+    'typescript': '.ts',
+    'tsx': '.tsx',
+    'javascript': '.js',
+    'yaml': '.yml',
+    'json': '.json',
+    'markdown': '.md',
+}
 
 
 def document(text: str, language_id: str = 'python') -> Document:
     """A document in memory, named for its language so the parser reads it as one."""
     return Document(uri=f'file:///a{SUFFIXES[language_id]}', text=text, language_id=language_id)
+
+
+def comments(text: str, language_id: str = 'python') -> tuple[CommentGroup, ...]:
+    """The comment groups the parser finds in source text of a language."""
+    return COMMENT_PARSER.parse(document(text, language_id))
 
 
 def markdown(text: str) -> Document:
@@ -45,9 +60,14 @@ def rule_set(
     return RuleSet(enabled_rule_ids=frozenset(enabled), line_width=width, settings=settings or {})
 
 
-def lint(subject: Document, rules: RuleSet | None = None, engine: tuple[Rule[typing.Any], ...] = ALL_RULES) -> Report:
-    """What the linter reports on a document, under every native rule unless told otherwise."""
-    return Linter(DEFAULT_PARSER, RuleEngine(engine)).run(subject, rules or rule_set())
+def lint(
+    subject: Document,
+    rules: RuleSet | None = None,
+    engine: tuple[Rule[typing.Any], ...] = ALL_RULES,
+    checkers: tuple[ExternalLinter, ...] = (),
+) -> Report:
+    """What subedit reports on a document and those embedded in it, under every native rule unless told otherwise."""
+    return ReportAggregator(Linter(DEFAULT_PARSER, RuleEngine(engine)), checkers).run(subject, rules or rule_set())
 
 
 def found(report: Report) -> list[str]:
@@ -55,9 +75,15 @@ def found(report: Report) -> list[str]:
     return [diagnostic.rule_id for diagnostic in report.diagnostics]
 
 
-def fixed(subject: Document, rules: RuleSet | None = None, engine: tuple[Rule[typing.Any], ...] = ALL_RULES) -> str:
+def fixed(
+    subject: Document,
+    rules: RuleSet | None = None,
+    engine: tuple[Rule[typing.Any], ...] = ALL_RULES,
+    checkers: tuple[ExternalLinter, ...] = (),
+) -> str:
     """The document's text once the fixer has applied every mechanical fix."""
-    return Fixer(Linter(DEFAULT_PARSER, RuleEngine(engine))).run(subject, rules or rule_set()).document.text
+    fixer = Fixer(Linter(DEFAULT_PARSER, RuleEngine(engine)), checkers)
+    return fixer.run(subject, rules or rule_set()).document.text
 
 
 def first_fix_applied(text: str, report: Report) -> str:

@@ -2,7 +2,7 @@ import pathlib
 import typing
 
 import pytest
-from factories import Project, document, first_fix_applied, found, rule_ids, rule_set
+from factories import Project, comments, document, first_fix_applied, found, rule_ids, rule_set
 from factories import lint as lint_document
 
 from subedit.domain import (
@@ -17,7 +17,6 @@ from subedit.domain import (
 )
 from subedit.infrastructure import (
     ALL_RULES,
-    COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
     LAYOUT_RULES,
     SUFFIX_ALIASES,
@@ -29,7 +28,7 @@ from subedit.presentation.cli import app
 
 
 def parse(source: str, language_id: str = 'typescript') -> tuple[CommentGroup, ...]:
-    return COMMENT_PARSER.parse(document(source, language_id))
+    return comments(source, language_id)
 
 
 def lint(source: str, width: int = 80, rules: tuple[Rule[typing.Any], ...] = ALL_RULES) -> Report:
@@ -46,7 +45,17 @@ def fixed(source: str, width: int = 80) -> str:
 
 @pytest.mark.parametrize(
     ('name', 'language_id'),
-    [('a.ts', 'typescript'), ('a.mts', 'typescript'), ('a.cts', 'typescript'), ('a.tsx', 'tsx'), ('a.js', None)],
+    [
+        ('a.ts', 'typescript'),
+        ('a.mts', 'typescript'),
+        ('a.cts', 'typescript'),
+        ('a.tsx', 'tsx'),
+        ('a.js', 'javascript'),
+        ('a.mjs', 'javascript'),
+        ('a.cjs', 'javascript'),
+        ('a.jsx', 'javascript'),
+        ('a.rb', None),
+    ],
 )
 def test_the_language_follows_the_extension(name: str, language_id: str | None) -> None:
     assert language_id_for(pathlib.Path(name)) == language_id
@@ -282,8 +291,30 @@ def test_an_inline_link_closing_a_jsdoc_line_is_prose() -> None:
     assert group.code_ranges() == (), 'only a line that opens or closes a block of code is code'
 
 
-def test_the_typescript_extensions_alias_to_the_one_prose_tools_know() -> None:
-    assert SUFFIX_ALIASES == {'.mts': '.ts', '.cts': '.ts', '.pyi': '.py', '.markdown': '.md'}
+def test_every_extension_aliases_to_the_one_prose_tools_know() -> None:
+    assert SUFFIX_ALIASES == {
+        '.mts': '.ts',
+        '.cts': '.ts',
+        '.mjs': '.js',
+        '.cjs': '.js',
+        '.jsx': '.js',
+        '.pyi': '.py',
+        '.yaml': '.yml',
+        '.jsonc': '.json',
+        '.markdown': '.md',
+    }
+
+
+def test_a_jsdoc_tag_in_javascript_carries_the_only_type_so_restates_nothing() -> None:
+    source = '/**\n * Builds it.\n * @param {string} name the name\n */\nexport function build(name) {}\n'
+    assert 'signature-restating-tag' not in found(lint_document(document(source, 'javascript'), rule_set()))
+
+
+def test_javascript_reads_jsdoc_and_jsx_as_typescript_does() -> None:
+    source = '/** Renders it. */\nexport function Card() {\n  // Wraps the title.\n  return <div>hi</div>;\n}\n'
+    groups = parse(source, 'javascript')
+    assert [group.form for group in groups] == [CommentForm.DOC, CommentForm.LINE]
+    assert groups[0].attaches_to_public_symbol
 
 
 def test_a_heading_over_several_fields_documents_none_of_them() -> None:

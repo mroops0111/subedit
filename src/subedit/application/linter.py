@@ -3,6 +3,7 @@ import typing
 
 from ..domain.models.diagnostic import Diagnostic, Report, Severity
 from ..domain.models.document import Document
+from ..domain.models.embedded import EmbeddedDocument
 from ..domain.models.prose_map import ProseMap
 from ..domain.models.prose_unit import ProseUnit
 from ..domain.models.rule_set import RuleSet
@@ -19,9 +20,16 @@ class RuleEngine:
             raise ValueError(f'Duplicate rule ids registered: {sorted(duplicate_ids)}')
         self._rules = rules
 
-    def run(self, document: Document, units: tuple[ProseUnit, ...], rule_set: RuleSet) -> tuple[Diagnostic, ...]:
+    def run(
+        self, document: Document, units: tuple[ProseUnit, ...], rule_set: RuleSet, *, fragment: bool = False
+    ) -> tuple[Diagnostic, ...]:
+        """Run the enabled rules, leaving out those on a whole file when the document is a fragment of another."""
         context = RuleContext(document=document, rule_set=rule_set)
-        enabled_rules = [rule for rule in self._rules if rule_set.is_enabled(rule.metadata.rule_id)]
+        enabled_rules = [
+            rule
+            for rule in self._rules
+            if rule_set.is_enabled(rule.metadata.rule_id) and not (fragment and rule.reads_whole_file)
+        ]
         diagnostics: list[Diagnostic] = []
         for unit in units:
             for rule in enabled_rules:
@@ -54,11 +62,20 @@ class RuleEngine:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class Embedding:
+    """An embedded document paired with the document its language reads it as, so it is checked as one of its own."""
+
+    embedded: EmbeddedDocument
+    document: Document
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class Inspection:
-    """What one parse of a document yields, the findings and the map of where its prose lies."""
+    """What one parse of a document yields, the findings, the map of where its prose lies, and what it embeds."""
 
     report: Report = dataclasses.field(default_factory=Report)
     prose_map: ProseMap = dataclasses.field(default_factory=ProseMap)
+    embeddings: tuple[Embedding, ...] = ()
 
 
 class Linter:
@@ -71,11 +88,30 @@ class Linter:
     def run(self, document: Document, rule_set: RuleSet) -> Report:
         return self.inspect(document, rule_set).report
 
-    def inspect(self, document: Document, rule_set: RuleSet) -> Inspection:
+    def inspect(self, document: Document, rule_set: RuleSet, *, fragment: bool = False) -> Inspection:
+        """Check one document, and hand back the documents embedded in it when the project reads them.
+
+        A fragment is a document embedded in another, which the rules on a whole file leave alone.
+        """
         if not self._parser.supports(document.language_id):
             return Inspection()
         parsed = self._parser.read(document)
-        diagnostics = self._engine.run(document, parsed.units, rule_set)
+        diagnostics = self._engine.run(document, parsed.units, rule_set, fragment=fragment)
         sorted_diagnostics = sorted(diagnostics, key=lambda item: (item.range.start, item.rule_id))
+        embeddings = tuple(
+            embedding
+            for embedded in (parsed.embedded if rule_set.reads_embedded else ())
+            if (embedding := self._embedding(document, embedded)) is not None
+        )
         prose_map = ProseMap.of_units(parsed.units, parsed.skipped)
-        return Inspection(Report(tuple(sorted_diagnostics)), prose_map)
+        return Inspection(Report(tuple(sorted_diagnostics)), prose_map, embeddings)
+
+    # The embedded document is named with its language's extension beside the host,
+    # so an outside checker parses it as that language and finds the host's config.
+    def _embedding(self, host: Document, embedded: EmbeddedDocument) -> Embedding | None:
+        file_type = self._parser.file_type_named(embedded.language_name)
+        # A block in the host's own language is an example of the host, often a deliberately wrong one.
+        if file_type is None or file_type.language_id == host.language_id:
+            return None
+        uri = f'{host.uri}{file_type.canonical_extension}'
+        return Embedding(embedded, Document(uri=uri, text=embedded.text, language_id=file_type.language_id))

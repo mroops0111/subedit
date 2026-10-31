@@ -64,7 +64,7 @@ jobs:
       - name: Confirm Vale
         run: vale --version
 
-      - run: uv run pytest tests/ -v --tb=short
+      - run: uv run pytest tests/ -v --tb=short --cov
 
   # subedit checks its own comments and Markdown with every rule it ships, failing only on an error.
   prose:

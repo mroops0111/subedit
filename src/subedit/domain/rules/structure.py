@@ -24,6 +24,7 @@ class FileHeaderCommentRule(Rule[CommentGroup]):
         default_severity=Severity.WARNING,
     )
     surface = CommentGroup
+    reads_whole_file = True
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         if group.placement is not CommentPlacement.FILE_HEADER:
@@ -57,7 +58,7 @@ class PlainCommentOnPublicRule(Rule[CommentGroup]):
         if group.placement is not CommentPlacement.LEADING_DECLARATION:
             return
         conventions = self._conventions.lookup(context)
-        if conventions is None:
+        if conventions is None or conventions.doc_delimiter is None:
             return
         delimiter = conventions.doc_delimiter
         attachment = group.attachment
