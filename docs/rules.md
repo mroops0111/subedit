@@ -10,13 +10,13 @@ These rules read comments and Markdown alike, and hold the punctuation, labels, 
 
 | Rule | Catches | Fix Kind | Default | Options |
 | --- | --- | --- | --- | --- |
-| `mid-sentence-colon` | A colon, half-width or full-width, joining clauses or leading into an inline list | Rewrite | `error` | None |
+| `mid-sentence-colon` | A colon, half-width or full-width, joining clauses or leading into an inline list | Rewrite | `error` | `max-label-words` (5), `max-bold-label-words` (10), `max-wide-label-characters` (12), `max-tag-words` (3) |
 | `parenthesis-style` | Full-width parentheses, or half-width ones without a space outside or with one inside | Targeted | `error` | None |
 | `bullet-label-style` | A `label: description` item whose label is not in Title Case, or not bold where the text renders | Targeted | `error` | None |
 | `inclusion-verb` | A verb for *include* that the house style does not use, replaced with the one it does | Targeted | `error` | None |
 | `contrast-framing` | A sentence framed as *not A, but B*, which states B against what it is not | Rewrite | `warning` | None |
 
-A colon may stand in a heading, after a short label, or at the end of a line that a list or block follows. Parentheses around code, such as `foo(bar)`, are left alone. Bold goes only where a reader sees it rendered, in Markdown, docstrings, and JSDoc, not in a line comment. Quoted text, in a block quote or quotation marks, is left as written.
+A colon may stand in a heading, after a short label, or at the end of a line that a list or block follows. A label opens a list item, or a paragraph as a capitalized tag such as `Note`, and carries no verb such as *is* or *can*. A label the author set in bold may run longer. Words opening a list item, or set in bold, that run past these limits may still be a label, so their colon is a warning unless the project sets the rule's severity. A colon anywhere else stays an error. `bullet-label-style` reads the same limits, so the two rules agree on what a label is. Parentheses around code, such as `foo(bar)`, are left alone. Bold goes only where a reader sees it rendered, in Markdown, docstrings, and JSDoc, not in a line comment. Quoted text, in a block quote or quotation marks, is left as written.
 
 ## Wording
 

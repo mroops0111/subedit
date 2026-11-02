@@ -1,7 +1,8 @@
+import dataclasses
 import re
 import typing
 
-from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, RuleOption, Severity
 from ..models.prose import is_protected, is_wide, protected_spans
 from ..models.prose_unit import ProseLine, ProseUnit
 from ..models.title_case import title_case
@@ -17,18 +18,53 @@ _LABEL = re.compile(
     r'(?P<label>(?:`[^`]*`|[^\s*_:：.,;!?。，；！？`])(?:`[^`]*`|\.(?=\S)|[^*_:：.;!?。；！？`]){0,79}?)'
     r'(?P<close>\*\*|__)?(?P<note>\s*\([^()]*\))?(?P<colon>[:：])'
 )
-_MAX_LABEL_WORDS = 5
-# A finite verb makes the words before a colon a clause, as in "The write is idempotent:", not a label.
-_FINITE_VERBS = frozenset(
-    {'is', 'are', 'was', 'were', 'be', 'has', 'have', 'had', 'does', 'do', 'did', 'can', 'will', 'must', 'should'}
+_MAX_LABEL_WORDS = RuleOption('max-label-words', 5)
+_MAX_BOLD_LABEL_WORDS = RuleOption('max-bold-label-words', 10)
+_MAX_WIDE_LABEL_CHARACTERS = RuleOption('max-wide-label-characters', 12)
+# A paragraph, unlike a list item, opens with a label only as a capitalized tag such as Note.
+_MAX_TAG_WORDS = RuleOption('max-tag-words', 3)
+# The auxiliary and modal verbs, each finite in every form listed,
+# which make the words before a colon a clause, as in "The write is idempotent:", rather than a label.
+_AUXILIARIES = frozenset(
+    {
+        'am',
+        'are',
+        'can',
+        'could',
+        'did',
+        'do',
+        'does',
+        'had',
+        'has',
+        'have',
+        'is',
+        'may',
+        'might',
+        'must',
+        'shall',
+        'should',
+        'was',
+        'were',
+        'will',
+        'would',
+    }
 )
-_MAX_TAG_WORDS = 3
-_MAX_BOLD_LABEL_WORDS = 10
-_MAX_WIDE_LABEL = 12
 _PARENTHESES = re.compile(r'[(（](?P<inside>[^()（）]*)[)）]')
 # No space goes between a parenthesis and the punctuation or bracket beside it.
 _HUGS_A_PARENTHESIS = frozenset('.,;:!?，。、；：！？「」『』"\'[]{}<>/')
 _CONTRAST = re.compile(r'不是[^，,。；;！!？?]{1,40}[，,]\s*(?:而)?是')
+
+
+_CLAUSE_MESSAGE = (
+    'A colon joins clauses or leads into an inline list here. '
+    'A colon belongs in a heading, after a label, or at the end of a line that a list or block follows. '
+    'Split the sentence in two, or turn the inline list into a list.'
+)
+_LABEL_MESSAGE = (
+    'The words before this colon may open a sentence rather than name the item, '
+    'since they run long or carry a verb such as is or can. '
+    'If they name the item, shorten them to a label. If they open a sentence, split it in two.'
+)
 
 
 class MidSentenceColonRule(Rule[ProseUnit]):
@@ -36,31 +72,33 @@ class MidSentenceColonRule(Rule[ProseUnit]):
         rule_id='mid-sentence-colon',
         summary='A colon stands only in a heading, after a label, or at the end of a line leading into a list or block.',
         fix_kind=FixKind.REWRITE,
+        options=(_MAX_LABEL_WORDS, _MAX_BOLD_LABEL_WORDS, _MAX_WIDE_LABEL_CHARACTERS, _MAX_TAG_WORDS),
     )
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
         if unit.is_heading or unit.is_quoted:
             return
+        limits = _LabelLimits.of(context)
         for line in unit.prose_lines():
             spans = protected_spans(line.text)
-            label_end = _label_colon(line)
+            label = _label_colon(line, limits)
+            sure_label = label.colon if label is not None and label.is_sure else None
+            unsure_label = label.colon if label is not None and not label.is_sure else None
             trailing = line.text.rstrip().rstrip('*_')
             for colon in _COLON.finditer(line.text):
                 offset = colon.start()
-                if offset == label_end or is_protected(offset, spans) or not _closes_a_clause(line.text, offset):
+                if offset == sure_label or is_protected(offset, spans) or not _closes_a_clause(line.text, offset):
                     continue
                 if offset >= len(trailing) - 1 and line.ends_paragraph:
                     continue
                 yield Diagnostic(
                     rule_id=self.metadata.rule_id,
                     range=line.span(offset, offset + 1),
-                    message=(
-                        'A colon joins clauses or leads into an inline list here. '
-                        'A colon belongs in a heading, after a label, or at the end of a line that a list or block follows. '
-                        'Split the sentence in two, or turn the inline list into a list.'
-                    ),
+                    message=_LABEL_MESSAGE if offset == unsure_label else _CLAUSE_MESSAGE,
                     fix=Fix.rewrite(),
+                    # Whether the words before a colon name the item or open a sentence is a guess.
+                    tentative=offset == unsure_label,
                 )
 
 
@@ -166,11 +204,12 @@ class BulletLabelStyleRule(Rule[ProseUnit]):
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # Title Case and the names it leaves lowercase are set once, on the heading rule, and labels follow them.
         keep = context.settings(HeadingTitleCaseRule.metadata.rule_id).value(KEEP)
+        limits = _LabelLimits.of(context)
         for line in unit.prose_lines():
             if not line.opens_item:
                 continue
             label = _LABEL.match(line.text)
-            if label is None or not _is_label(label.group('label')):
+            if label is None or not _is_label(label.group('label'), limits):
                 continue
             opener, end = label.group('open'), label.end()
             bold = bool(opener and label.group('close'))
@@ -190,33 +229,59 @@ class BulletLabelStyleRule(Rule[ProseUnit]):
             )
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class _LabelLimits:
+    words: int
+    bold_words: int
+    wide_characters: int
+    tag_words: int
+
+    @classmethod
+    def of(cls, context: RuleContext) -> '_LabelLimits':
+        """The colon rule owns what a label is, and the label style rule follows it, so the two never disagree."""
+        settings = context.settings(MidSentenceColonRule.metadata.rule_id)
+        return cls(
+            words=settings.value(_MAX_LABEL_WORDS),
+            bold_words=settings.value(_MAX_BOLD_LABEL_WORDS),
+            wide_characters=settings.value(_MAX_WIDE_LABEL_CHARACTERS),
+            tag_words=settings.value(_MAX_TAG_WORDS),
+        )
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class _LabelColon:
+    colon: int
+    # Whether the words before the colon surely form a label, rather than possibly a clause.
+    is_sure: bool
+
+
 # A list item may open with any short label, while a paragraph opens with one only as a capitalized tag such as Note.
 # A label the author set in bold is taken at their word, up to a longer limit.
-def _label_colon(line: ProseLine) -> int | None:
+# Past a limit, words in a label's place may still be one, while a paragraph that opens with no tag opens a sentence.
+def _label_colon(line: ProseLine, limits: _LabelLimits) -> _LabelColon | None:
     label = _LABEL.match(line.text) if line.opens_item or line.opens_paragraph else None
     if label is None:
         return None
+    text, colon = label.group('label'), label.start('colon')
     if label.group('open'):
-        return label.start('colon') if len(label.group('label').split()) <= _MAX_BOLD_LABEL_WORDS else None
-    if not _is_label(label.group('label')):
-        return None
-    if not line.opens_item and not _is_tag(label.group('label')):
-        return None
-    return label.start('colon')
+        return _LabelColon(colon, is_sure=len(text.split()) <= limits.bold_words)
+    if line.opens_item:
+        return _LabelColon(colon, is_sure=_is_label(text, limits))
+    return _LabelColon(colon, is_sure=True) if _is_label(text, limits) and _is_tag(text, limits) else None
 
 
-def _is_label(text: str) -> bool:
+def _is_label(text: str, limits: _LabelLimits) -> bool:
     if any(map(is_wide, text)):
-        return len(text.strip()) <= _MAX_WIDE_LABEL
+        return len(text.strip()) <= limits.wide_characters
     words = text.split()
-    if any(word.lower() in _FINITE_VERBS for word in words):
+    if any(word.lower() in _AUXILIARIES for word in words):
         return False
-    return 0 < len(words) <= _MAX_LABEL_WORDS and not text.rstrip().endswith(('http', 'https'))
+    return 0 < len(words) <= limits.words and not text.rstrip().endswith(('http', 'https'))
 
 
-def _is_tag(text: str) -> bool:
+def _is_tag(text: str, limits: _LabelLimits) -> bool:
     words = text.split()
-    return 0 < len(words) <= _MAX_TAG_WORDS and all(word[:1].isupper() for word in words)
+    return 0 < len(words) <= limits.tag_words and all(word[:1].isupper() for word in words)
 
 
 # A half-width colon closes a clause only before a space or the end of the line, which leaves out a time or a scheme.

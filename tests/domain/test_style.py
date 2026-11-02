@@ -3,7 +3,7 @@ from factories import document, found, lint, markdown, rule_ids
 from factories import fixed as fix_document
 from factories import rule_set as enabling
 
-from subedit.domain import Document, RuleSet, RuleSettings
+from subedit.domain import Document, RuleSet, RuleSettings, Severity
 from subedit.domain.models.title_case import title_case
 from subedit.infrastructure import MARKDOWN_RULES, WORDING_RULES
 
@@ -196,6 +196,49 @@ def test_a_clause_before_a_colon_is_no_label() -> None:
     found = ids(markdown('# Title\n\nLead.\n\n- The write is idempotent: dates with an entry are skipped.\n'))
     assert 'mid-sentence-colon' in found
     assert 'bullet-label-style' not in found
+
+
+def colon_severities(source: str, rules: RuleSet | None = None) -> list[Severity]:
+    report = lint(markdown(source), rules or rule_set(), RULES)
+    return [item.severity for item in report.diagnostics if item.rule_id == 'mid-sentence-colon']
+
+
+@pytest.mark.parametrize(
+    'item',
+    [
+        '- The write is idempotent: dates with an entry are skipped.',
+        '- Can be empty: the field is optional.',
+        '- Every test that runs before a deploy: the CI job.',
+        '- **A label the author set in bold but let run on far too long**: a description.',
+    ],
+    ids=['clause', 'auxiliary', 'long', 'long bold'],
+)
+def test_words_in_a_labels_place_that_may_not_be_one_are_a_warning(item: str) -> None:
+    assert colon_severities(f'# Title\n\nLead.\n\n{item}\n') == [Severity.WARNING]
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        'The contract is fixed: implementations return headers.\n',
+        '# Title\n\nLead.\n\n- **Label**: one clause ends here: and another starts.\n',
+    ],
+    ids=['paragraph', 'after a label'],
+)
+def test_a_colon_away_from_any_label_stays_an_error(source: str) -> None:
+    assert colon_severities(source) == [Severity.ERROR]
+
+
+def test_a_project_can_set_the_label_guess_back_to_an_error() -> None:
+    rules = rule_set(**{'mid-sentence-colon': RuleSettings(severity=Severity.ERROR)})
+    assert colon_severities('# Title\n\nLead.\n\n- Can be empty: the field is optional.\n', rules) == [Severity.ERROR]
+
+
+def test_a_longer_label_limit_reaches_the_label_style_too() -> None:
+    source = markdown('# Title\n\nLead.\n\n- every test before a deploy runs: the CI job.\n')
+    rules = rule_set(**{'mid-sentence-colon': RuleSettings(options={'max-label-words': 6})})
+    assert colon_severities('# Title\n\nLead.\n\n- every test before a deploy runs: the CI job.\n', rules) == []
+    assert '- **Every Test Before a Deploy Runs**: the CI job.' in fixed(source, rules)
 
 
 def test_a_label_keeps_its_parenthetical_when_styled() -> None:
