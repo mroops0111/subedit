@@ -3,10 +3,10 @@ from factories import document, found, rule_set
 from factories import fixed as fix_document
 from factories import lint as lint_document
 
-from subedit.domain import FixKind, Report, RuleSettings
+from subedit.domain import FixKind, Report, RuleSettings, Severity
 
 
-REWRITE_IDS = frozenset({'stub-fragment', 'unbreakable-sentence'})
+REWRITE_IDS = frozenset({'stub-fragment', 'unbreakable-sentence', 'split-list'})
 
 
 def lint(
@@ -104,11 +104,10 @@ def test_a_clause_too_long_to_fit_is_unbreakable_despite_other_commas() -> None:
     assert ids(comment(text), width=60) == ['unbreakable-sentence']
 
 
-def test_a_sentence_that_breaks_only_inside_a_list_needs_its_author() -> None:
+def test_a_sentence_that_breaks_only_inside_a_list_is_a_warning() -> None:
     text = 'No auth, a static bearer or api key, and an oauth2 service token all call the API as one identity.'
-    report = lint(comment(text), width=80)
-    assert [item.rule_id for item in report.diagnostics] == ['unbreakable-sentence']
-    assert 'splits a list' in report.diagnostics[0].message
+    [finding] = lint(comment(text), width=80).diagnostics
+    assert (finding.rule_id, finding.severity) == ('split-list', Severity.WARNING)
 
 
 def test_a_docstring_summary_too_long_for_one_line_needs_its_author() -> None:
@@ -146,11 +145,8 @@ def docstring(*lines: str) -> str:
     ],
     ids=['on one line', 'broken inside the list'],
 )
-def test_a_sentence_that_splits_a_list_wherever_it_breaks_needs_a_rewrite(lines: tuple[str, ...]) -> None:
-    source = docstring(*lines)
-    assert ids(source, width=120, enabled_rule_ids=frozenset({'unbreakable-sentence', 'mid-clause-break'})) == [
-        'unbreakable-sentence'
-    ]
+def test_a_sentence_that_splits_a_list_wherever_it_breaks_is_left_to_its_reader(lines: tuple[str, ...]) -> None:
+    assert ids(docstring(*lines), width=120, enabled_rule_ids=REWRITE_IDS) == ['split-list']
 
 
 def test_a_sentence_broken_inside_a_list_keeps_the_layout_its_author_gave_it() -> None:
@@ -158,3 +154,23 @@ def test_a_sentence_broken_inside_a_list_keeps_the_layout_its_author_gave_it() -
         LIST_SENTENCE[: LIST_SENTENCE.index('`encoding`') - 1], LIST_SENTENCE[LIST_SENTENCE.index('`encoding`') :]
     )
     assert fix_document(document(source)) == source
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        comment(
+            'A ``$ref`` to a component schema stays a reference, rewritten to ``#/$defs/<Name>``,\n'
+            '    # and the component itself is expanded once into ``defs`` under its name.'
+        ),
+        comment(
+            'A person for anything a route starts, batch included,\n'
+            "    # and the service account itself for an autonomous run such as the reactor's."
+        ),
+    ],
+    ids=['participle', 'absolute phrase'],
+)
+def test_a_break_after_an_aside_the_list_check_mistakes_for_an_item_keeps_its_layout(source: str) -> None:
+    every_rule = rule_set(width=100)
+    assert fix_document(document(source), every_rule) == source
+    assert all(item.severity is Severity.WARNING for item in lint_document(document(source), every_rule).diagnostics)

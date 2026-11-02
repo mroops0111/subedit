@@ -204,7 +204,7 @@ def test_a_docstring_summary_is_never_broken() -> None:
     assert fixed(source, width=80) == source, 'PEP 257 keeps the summary to one line, so a long one waits for a rewrite'
 
 
-def test_a_serial_list_with_one_long_item_is_not_split() -> None:
+def test_a_mid_clause_break_moves_to_a_clause_comma_even_one_inside_a_list() -> None:
     source = (
         'def f():\n'
         '    """Pick a kind.\n\n'
@@ -212,7 +212,8 @@ def test_a_serial_list_with_one_long_item_is_not_split() -> None:
         '    the API as one shared identity.\n'
         '    """\n'
     )
-    assert fixed(source, width=90) == source
+    # A break in mid clause is certain, while a break inside a list is a guess that split-list reports.
+    assert '    and an ``oauth2`` service token all call the API as one shared identity.\n' in fixed(source, width=90)
 
 
 def test_a_line_comment_list_stays_right_under_its_introduction() -> None:

@@ -163,25 +163,22 @@ class CommentGroup(ProseUnit):
             return self
         return rebuilt
 
-    def sentences_held_by_a_list(self, width: int, stub_floor: int = 0) -> tuple[str, ...]:
-        """The sentences that split a list wherever they break, which only a rewrite resolves.
-
-        Reflow leaves each as the author broke it, since no layout it could choose splits fewer lists.
-        """
-        held: list[str] = []
-        self._reflow_into_texts(width, stub_floor, held=held)
-        return tuple(held)
+    def sentences_splitting_a_list(self, width: int, stub_floor: int = 0) -> tuple[str, ...]:
+        """The sentences whose layout, once reflowed, breaks beside an item of a list."""
+        splitting: list[str] = []
+        self._reflow_into_texts(width, stub_floor, splitting=splitting)
+        return tuple(splitting)
 
     def text_budget(self, width: int, *, first_line: bool) -> int:
         """The characters of text a line holds, which on a docstring's opening line also cede the quotes."""
         return self.layout.text_budget(self.lines, width, first_line=first_line)
 
-    # A sentence takes as few lines as fit, and the author's layout stays when it breaks no worse than the best one.
-    # A sentence whose new layout would strand a stub, split a list, or still overflow needs its author,
+    # A sentence takes as few lines as fit, and the author's layout stays when it is legal.
+    # A sentence whose new layout would strand a stub or still overflow needs its author,
     # so it keeps the layout they gave it rather than one its own check rejects.
     # A summary never breaks where the comment's style guide keeps it to one line.
     def _reflow_into_texts(
-        self, width: int, stub_floor: int, reserve: int = 0, held: list[str] | None = None
+        self, width: int, stub_floor: int, reserve: int = 0, splitting: list[str] | None = None
     ) -> tuple[str, ...]:
         body_budget = self.text_budget(width, first_line=False)
         out: list[str] = []
@@ -212,23 +209,18 @@ class CommentGroup(ProseUnit):
                     best_lines = reflow_sentence(sentence.text, body_budget, stub_floor, first_width=first_budget)
                 given_lines = occupied_lines(lines, sentence)
                 if given_lines and keeps_given(given_lines, best_lines, (first_budget, body_budget), stub_floor):
-                    # The author's lines stay when no layout splits fewer lists,
-                    # but one that splits any still needs a rewrite.
-                    if held is not None and break_cost(given_lines):
-                        held.append(sentence.text)
-                    out.extend(given_lines)
-                elif is_legal(best_lines, (first_budget, body_budget), stub_floor) and not (
-                    given_lines and break_cost(best_lines)
-                ):
-                    out.extend(best_lines)
+                    laid_out = given_lines
+                elif is_legal(best_lines, (first_budget, body_budget), stub_floor):
+                    laid_out = best_lines
                 elif given_lines:
-                    if held is not None and is_legal(best_lines, (first_budget, body_budget), stub_floor):
-                        held.append(sentence.text)
-                    out.extend(given_lines)
+                    laid_out = given_lines
                 elif strands_stub(best_lines, stub_floor):
                     return ()
                 else:
-                    out.extend(best_lines)
+                    laid_out = best_lines
+                if splitting is not None and break_cost(laid_out):
+                    splitting.append(sentence.text)
+                out.extend(laid_out)
         return tuple(out)
 
     def _split_into_paragraphs(self) -> tuple[tuple[tuple[str, ...], bool, bool], ...]:

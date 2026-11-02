@@ -171,7 +171,7 @@ Judgment rules, such as a long block or a date in a comment, default to `warning
 Reflow works on sentences rather than lines, so the result reads the way the author would have broken it.
 
 - **One Line When It Fits**: a sentence that fits takes one line, and a wrapped one that would fit is joined.
-- **Clause Commas Only**: a longer sentence breaks only at a comma that ends a clause, never inside a list, brackets, or a code span.
+- **Clause Commas Only**: a longer sentence breaks only at a comma that ends a clause, never inside brackets or a code span, and preferably not inside a list.
 - **No Stubs**: no break leaves a line shorter than the `stub-fragment` floor, 24 characters by default.
 - **Verbatim Blocks**: code examples, docstring sections, and JSDoc tags are left as written.
 - **Markdown Paragraphs**: Markdown has no column limit, so a paragraph takes one source line, and a hand-wrapped one is joined.
@@ -295,7 +295,7 @@ Left unset, `line-width` follows the formatter that would format the file, read 
 
 ### Rules
 
-`subedit` ships 18 native rules, a bundled Vale style of 6 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
+`subedit` ships 19 native rules, a bundled Vale style of 6 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
 
 Comments and Markdown share one house style, and differ where their forms differ. A comment has a column limit and sits beside the code it explains, while Markdown has no limit and is built from paragraphs and headings.
 
