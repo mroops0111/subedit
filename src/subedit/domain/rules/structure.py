@@ -2,17 +2,17 @@ import re
 import typing
 
 from ..models.comment import CommentForm, CommentGroup, CommentPlacement
-from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, RuleOption, Severity
 from ..ports.language_conventions import LanguageConventions
 from ..ports.rule import Rule, RuleContext
 
 
 # Set from the p95 of a measured corpus, which subedit stats reports.
 # A comment past this length has usually started restating the code below it.
-_DEFAULT_LIMITS = {
-    'line': 4,
-    'doc-internal': 13,
-    'doc-public': 20,
+_LIMITS = {
+    'line': RuleOption('line', 4),
+    'doc-internal': RuleOption('doc-internal', 13),
+    'doc-public': RuleOption('doc-public', 20),
 }
 
 
@@ -128,12 +128,13 @@ class BlockTooLongRule(Rule[CommentGroup]):
         summary='A comment block long enough to restate the code has stopped earning its place.',
         fix_kind=FixKind.REWRITE,
         default_severity=Severity.WARNING,
+        options=tuple(_LIMITS.values()),
     )
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         category = self._category(group)
-        limit = context.settings(self.metadata.rule_id).integer(category, _DEFAULT_LIMITS[category])
+        limit = context.settings(self.metadata.rule_id).value(_LIMITS[category])
         if group.line_count <= limit:
             return
         yield Diagnostic(

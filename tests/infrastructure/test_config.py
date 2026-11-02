@@ -1,17 +1,18 @@
 import pathlib
+import re
 
 import pytest
 from factories import Project
 
 from subedit.domain import Severity
-from subedit.infrastructure import CONFIG_NAME, DEFAULT_CONFIG_SOURCE, TomlConfigSource
+from subedit.infrastructure import ALL_RULES, CONFIG_NAME, DEFAULT_CONFIG_SOURCE, ConfigError, TomlConfigSource
 
 
-AVAILABLE = ('mid-clause-break', 'line-too-long', 'stub-fragment')
+AVAILABLE = ('mid-clause-break', 'line-too-long', 'line-too-short', 'heading-title-case')
 
 
 def source() -> TomlConfigSource:
-    return TomlConfigSource(AVAILABLE)
+    return TomlConfigSource(tuple(rule.metadata for rule in ALL_RULES if rule.metadata.rule_id in AVAILABLE))
 
 
 def configured(project: Project, body: str, config: str = CONFIG_NAME) -> pathlib.Path:
@@ -47,10 +48,10 @@ def test_a_severity_string_is_honoured(project: Project) -> None:
 
 
 def test_a_table_carries_severity_and_options(project: Project) -> None:
-    target = configured(project, '[rules]\nstub-fragment = { severity = "warning", minimum_characters = 30 }\n')
-    settings = source().resolve(str(target)).settings_for('stub-fragment')
+    target = configured(project, '[rules]\nline-too-short = { severity = "warning", minimum-characters = 30 }\n')
+    settings = source().resolve(str(target)).settings_for('line-too-short')
     assert settings.severity is Severity.WARNING
-    assert settings.integer('minimum_characters', 24) == 30
+    assert settings.options == {'minimum-characters': 30}
 
 
 def test_an_unknown_rule_leaves_the_native_rules_alone(project: Project) -> None:
@@ -66,9 +67,51 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
     assert rules.allows_external('subedit.Semicolon')
 
 
-def test_a_nonsense_width_falls_back_to_the_default(project: Project) -> None:
-    target = configured(project, '[subedit]\nline-width = "wide"\n')
-    assert source().resolve(str(target)).line_width == 120
+@pytest.mark.parametrize(
+    ('body', 'complaint'),
+    [
+        ('[subedit]\nline-width = "wide"\n', 'subedit.line-width'),
+        ('[subedit]\nlinewidth = 88\n', 'subedit.linewidth: is not a setting subedit knows'),
+        ('[subedt]\n', 'subedt: is not a setting subedit knows'),
+        ('[rules]\nmid-clause-break = false\n', "rules.mid-clause-break: Input should be 'off'"),
+        ('[rules]\nmid-clause-break = { severity = "loud" }\n', 'rules.mid-clause-break.severity'),
+        (
+            '[rules]\nline-too-short = { minimum_characters = 30 }\n',
+            'minimum_characters: is not an option of line-too-short, it takes minimum-characters',
+        ),
+        ('[rules]\nmid-clause-break = { width = 3 }\n', 'is not an option of mid-clause-break, it takes none'),
+        ('[rules]\nline-too-short = { minimum-characters = "30" }\n', 'must be a whole number of zero or more'),
+        ('[rules]\nheading-title-case = { keep = "npm" }\n', 'must be a list of strings'),
+        ('[rules\n', 'Expected'),
+    ],
+    ids=[
+        'width',
+        'misspelled key',
+        'misspelled section',
+        'boolean',
+        'severity',
+        'snake case option',
+        'option of a rule with none',
+        'option type',
+        'list option type',
+        'broken toml',
+    ],
+)
+def test_a_config_written_wrong_names_its_file_and_mistake(project: Project, body: str, complaint: str) -> None:
+    target = configured(project, body)
+    with pytest.raises(ConfigError, match=re.escape(complaint)) as raised:
+        source().resolve(str(target))
+    assert CONFIG_NAME in str(raised.value)
+
+
+def test_a_list_option_reaches_its_rule_as_a_tuple(project: Project) -> None:
+    target = configured(project, '[rules]\nheading-title-case = { keep = ["npm"] }\n')
+    assert source().resolve(str(target)).settings_for('heading-title-case').options == {'keep': ('npm',)}
+
+
+def test_a_delegated_rule_table_keeps_options_subedit_cannot_check(project: Project) -> None:
+    target = configured(project, '[rules]\n"subedit.EmDash" = { severity = "warning", level = 2 }\n')
+    assert source().resolve(str(target)).settings_for('subedit.EmDash').severity is Severity.WARNING
 
 
 PYPROJECT = 'pyproject.toml'

@@ -1,7 +1,7 @@
 import re
 import typing
 
-from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, RuleOption, Severity
 from ..models.markdown import MarkdownBlock, MarkdownBlockKind
 from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
@@ -95,18 +95,23 @@ class HeadingWrappedInBoldRule(Rule[MarkdownBlock]):
         )
 
 
+# Names that stay lowercase in a title, such as npm, which list labels follow too.
+KEEP: RuleOption[tuple[str, ...]] = RuleOption('keep', ())
+
+
 class HeadingTitleCaseRule(Rule[MarkdownBlock]):
     metadata = RuleMetadata(
         rule_id='heading-title-case',
         summary='The English words of a Markdown heading are in Title Case.',
         fix_kind=FixKind.TARGETED,
+        options=(KEEP,),
     )
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
         if unit.kind is not MarkdownBlockKind.HEADING:
             return
-        cased = title_case(unit.text, context.settings(self.metadata.rule_id).strings('keep'))
+        cased = title_case(unit.text, context.settings(self.metadata.rule_id).value(KEEP))
         if cased == unit.text:
             return
         yield Diagnostic(

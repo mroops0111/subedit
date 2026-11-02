@@ -1,7 +1,10 @@
 import pytest
 
 from subedit.domain.models import Prose
-from subedit.domain.models.reflow import break_cost, reflow_sentence
+from subedit.domain.models.reflow import BreakPolicy, break_cost, reflow_sentence
+
+
+ITEM_WORDS = 3
 
 
 def texts(prose: Prose) -> list[str]:
@@ -209,7 +212,7 @@ def test_a_break_lands_between_clauses_rather_than_inside_a_list() -> None:
         'Goes through the full Gateway assembly, so the auth resolver, base URL, '
         'and URI-template-driven kwarg passing are all exercised together.'
     )
-    assert reflow_sentence(sentence, width=100) == (
+    assert reflow_sentence(sentence, width=100, policy=BreakPolicy(list_item_words=ITEM_WORDS)) == (
         'Goes through the full Gateway assembly,',
         'so the auth resolver, base URL, and URI-template-driven kwarg passing are all exercised together.',
     )
@@ -218,7 +221,7 @@ def test_a_break_lands_between_clauses_rather_than_inside_a_list() -> None:
 def test_a_brief_clause_standing_alone_is_no_list_item() -> None:
     pieces = ('A pointer into a component,', 'or a name outside the grammar,', 'returns ``None``,', 'so it is inlined.')
     lines = (' '.join(pieces[:3]), pieces[3])
-    assert break_cost(lines) == 0
+    assert break_cost(lines, ITEM_WORDS) == 0
 
 
 def test_fewer_lines_outrank_a_clause_boundary() -> None:
@@ -231,12 +234,12 @@ def test_an_appositive_is_no_list_item() -> None:
         'The extension adds a field and a required name to ``owner``, a ``Person``,',
         'and types ``approver``, a ``Reviewer`` in ``Base``, by a second component, ``Admin``.',
     )
-    assert break_cost(lines) == 0
+    assert break_cost(lines, ITEM_WORDS) == 0
 
 
 def test_parallel_items_led_by_articles_still_form_a_list() -> None:
     lines = ('It feeds a cat, a dog,', 'and a bird every morning before the long walk.')
-    assert break_cost(lines) == 1
+    assert break_cost(lines, ITEM_WORDS) == 1
 
 
 @pytest.mark.parametrize(
@@ -264,7 +267,7 @@ def test_a_break_before_a_list_opener_falls_ahead_of_the_list_it_opens(opener: s
         'Holds everything that carries user content and ages out on its own,',
         f'{opener} history, parked approvals, dedupe keys and the in-chat OAuth handoff.',
     )
-    assert break_cost(lines) == 0
+    assert break_cost(lines, ITEM_WORDS) == 0
 
 
 def test_a_break_away_from_any_comma_splits_no_list() -> None:
@@ -273,7 +276,7 @@ def test_a_break_away_from_any_comma_splits_no_list() -> None:
         'each entry mirrors the extension and fully replaces',
         'the one in the spec for that operation, with no need to fork it.',
     )
-    assert break_cost(lines) == 0
+    assert break_cost(lines, ITEM_WORDS) == 0
 
 
 def test_a_break_after_a_list_opener_parts_it_from_the_first_item() -> None:
@@ -281,9 +284,20 @@ def test_a_break_after_a_list_opener_parts_it_from_the_first_item() -> None:
         'Holds everything that carries user content and ages out on its own, e.g.,',
         'history, parked approvals, dedupe keys and the in-chat OAuth handoff.',
     )
-    assert break_cost(lines) == 1
+    assert break_cost(lines, ITEM_WORDS) == 1
 
 
 def test_a_word_that_only_starts_like_an_opener_opens_no_list() -> None:
     lines = ('Holds the cache, the index,', 'likewise the queue, and the log.')
-    assert break_cost(lines) == 1
+    assert break_cost(lines, ITEM_WORDS) == 1
+
+
+def test_a_layout_left_without_lists_takes_the_longest_opening_line() -> None:
+    sentence = (
+        'Goes through the full Gateway assembly, so the auth resolver, base URL, '
+        'and URI-template-driven kwarg passing are all exercised together.'
+    )
+    assert (
+        reflow_sentence(sentence, width=100)[0]
+        == 'Goes through the full Gateway assembly, so the auth resolver, base URL,'
+    )

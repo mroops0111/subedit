@@ -6,7 +6,16 @@ from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .position import SourceRange
 from .prose import LIST_MARKER, PLAIN_MARKUP, Prose, ProseMarkup
 from .prose_unit import ProseLine, ProseUnit
-from .reflow import break_cost, is_legal, keeps_given, line_shared_by, occupied_lines, reflow_sentence, strands_stub
+from .reflow import (
+    BreakPolicy,
+    break_cost,
+    is_legal,
+    keeps_given,
+    line_shared_by,
+    occupied_lines,
+    reflow_sentence,
+    strands_stub,
+)
 from .text import TextEdit
 
 
@@ -142,18 +151,18 @@ class CommentGroup(ProseUnit):
         """Where the lines holding code sit, which a prose checker has no business reading."""
         return tuple(self.lines[index].range for index in sorted(self.prose().code_line_indexes()))
 
-    def reflow(self, width: int, stub_floor: int = 0) -> 'CommentGroup':
+    def reflow(self, width: int, policy: BreakPolicy = BreakPolicy()) -> 'CommentGroup':
         # A trailing comment shares its line with code, so a second line would have no code to sit beside.
         if self.placement is CommentPlacement.TRAILING:
             return self
         # A one line docstring that fits is the summary convention, not a block to lay out.
         if self.form is CommentForm.DOC and self.line_count == 1 and self.longest_line <= width:
             return self
-        texts = self._reflow_into_texts(width, stub_floor)
+        texts = self._reflow_into_texts(width, policy)
         # Text that ends up on one line closes there too, so the closing quotes need room beside it.
         closing_width = len(self.closing())
         if len(texts) == 1 and len(texts[0]) > self.text_budget(width, first_line=True) - closing_width:
-            texts = self._reflow_into_texts(width, stub_floor, closing_width)
+            texts = self._reflow_into_texts(width, policy, closing_width)
         if not texts:
             return self
         rebuilt = dataclasses.replace(self, lines=self.layout.rebuild(self.lines, texts, width))
@@ -163,10 +172,10 @@ class CommentGroup(ProseUnit):
             return self
         return rebuilt
 
-    def sentences_splitting_a_list(self, width: int, stub_floor: int = 0) -> tuple[str, ...]:
+    def sentences_splitting_a_list(self, width: int, policy: BreakPolicy) -> tuple[str, ...]:
         """The sentences whose layout, once reflowed, breaks beside an item of a list."""
         splitting: list[str] = []
-        self._reflow_into_texts(width, stub_floor, splitting=splitting)
+        self._reflow_into_texts(width, policy, splitting=splitting)
         return tuple(splitting)
 
     def text_budget(self, width: int, *, first_line: bool) -> int:
@@ -178,7 +187,7 @@ class CommentGroup(ProseUnit):
     # so it keeps the layout they gave it rather than one its own check rejects.
     # A summary never breaks where the comment's style guide keeps it to one line.
     def _reflow_into_texts(
-        self, width: int, stub_floor: int, reserve: int = 0, splitting: list[str] | None = None
+        self, width: int, policy: BreakPolicy, reserve: int = 0, splitting: list[str] | None = None
     ) -> tuple[str, ...]:
         body_budget = self.text_budget(width, first_line=False)
         out: list[str] = []
@@ -206,19 +215,24 @@ class CommentGroup(ProseUnit):
                 if is_summary:
                     best_lines: tuple[str, ...] = (sentence.text,)
                 else:
-                    best_lines = reflow_sentence(sentence.text, body_budget, stub_floor, first_width=first_budget)
+                    best_lines = reflow_sentence(sentence.text, body_budget, policy, first_width=first_budget)
                 given_lines = occupied_lines(lines, sentence)
-                if given_lines and keeps_given(given_lines, best_lines, (first_budget, body_budget), stub_floor):
+                budgets = (first_budget, body_budget)
+                if given_lines and keeps_given(given_lines, best_lines, budgets, policy.stub_floor):
                     laid_out = given_lines
-                elif is_legal(best_lines, (first_budget, body_budget), stub_floor):
+                elif is_legal(best_lines, budgets, policy.stub_floor):
                     laid_out = best_lines
                 elif given_lines:
                     laid_out = given_lines
-                elif strands_stub(best_lines, stub_floor):
+                elif strands_stub(best_lines, policy.stub_floor):
                     return ()
                 else:
                     laid_out = best_lines
-                if splitting is not None and break_cost(laid_out):
+                if (
+                    splitting is not None
+                    and policy.list_item_words is not None
+                    and break_cost(laid_out, policy.list_item_words)
+                ):
                     splitting.append(sentence.text)
                 out.extend(laid_out)
         return tuple(out)

@@ -5,25 +5,35 @@ import pydantic
 from ...domain.models.diagnostic import SEVERITY_BY_NAME, Severity
 
 
+class ConfigError(ValueError):
+    """A config subedit cannot read as written, which it reports rather than run on defaults the project never chose."""
+
+
+_SeverityName = typing.Literal['error', 'warning', 'suggestion']
+
+
 class RuleTable(pydantic.BaseModel):
+    # A rule's options depend on the rule, so the config source checks them against what each rule declares.
     model_config = pydantic.ConfigDict(extra='allow', frozen=True)
 
-    severity: str | None = None
+    severity: _SeverityName | None = None
 
     @property
     def resolved_severity(self) -> Severity | None:
-        return SEVERITY_BY_NAME.get(self.severity) if self.severity else None
+        return SEVERITY_BY_NAME[self.severity] if self.severity else None
 
     @property
     def options(self) -> dict[str, object]:
         return dict(self.__pydantic_extra__ or {})
 
 
-_RuleEntry = typing.Annotated[str | RuleTable, pydantic.Field(union_mode='left_to_right')]
+_RuleEntry = typing.Annotated[
+    typing.Literal['off', 'error', 'warning', 'suggestion'] | RuleTable, pydantic.Field(union_mode='left_to_right')
+]
 
 
 class SubeditSection(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(frozen=True, populate_by_name=True)
+    model_config = pydantic.ConfigDict(frozen=True, populate_by_name=True, extra='forbid')
 
     # Left unset, the width falls back to the language's own default.
     line_width: int | None = pydantic.Field(default=None, alias='line-width', gt=0)
@@ -32,7 +42,7 @@ class SubeditSection(pydantic.BaseModel):
 
 
 class ConfigFile(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(frozen=True)
+    model_config = pydantic.ConfigDict(frozen=True, extra='forbid')
 
     subedit: SubeditSection = pydantic.Field(default_factory=SubeditSection)
     rules: dict[str, _RuleEntry] = pydantic.Field(default_factory=dict)
@@ -41,5 +51,24 @@ class ConfigFile(pydantic.BaseModel):
     def parse(cls, raw: typing.Mapping[str, object]) -> 'ConfigFile':
         try:
             return cls.model_validate(raw)
-        except pydantic.ValidationError:
-            return cls()
+        except pydantic.ValidationError as error:
+            details = [detail for detail in error.errors() if _matches_what_was_written(detail)]
+            raise ConfigError('; '.join(_describe(detail) for detail in details)) from None
+
+
+# A rule entry is a level or a table, and pydantic reports both branches, so only the one written stays.
+def _matches_what_was_written(detail: typing.Any) -> bool:
+    branches = [str(part) for part in detail['loc'] if str(part).startswith('literal[') or part == 'RuleTable']
+    if not branches:
+        return True
+    if branches[0] == 'RuleTable':
+        return detail['type'] != 'model_type'
+    return not isinstance(detail['input'], dict)
+
+
+def _describe(detail: typing.Any) -> str:
+    location = '.'.join(
+        str(part) for part in detail['loc'] if not str(part).startswith('literal[') and part != 'RuleTable'
+    )
+    message = 'is not a setting subedit knows' if detail['type'] == 'extra_forbidden' else detail['msg']
+    return f'{location}: {message}' if location else message

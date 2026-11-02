@@ -63,6 +63,18 @@ def test_check_rejects_an_unknown_output_format(project: Project) -> None:
     assert exit_info.value.code == 2
 
 
+@pytest.mark.parametrize('command', ['check', 'fix', 'stats'])
+def test_a_config_written_wrong_stops_every_command(
+    project: Project, capsys: pytest.CaptureFixture[str], command: str
+) -> None:
+    project.write('subedit.toml', '[rules]\nline-too-short = { minimum_characters = 30 }\n')
+    target = project.write('a.py', '# note\n')
+    with pytest.raises(SystemExit) as exit_info:
+        app([command, str(target)])
+    assert exit_info.value.code == 2
+    assert 'minimum_characters: is not an option of line-too-short' in capsys.readouterr().err
+
+
 def test_fix_prints_a_diff_without_write(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
     original = (
         'def f():\n    # cap the size so the mmap does not\n    # blow past it, an unbounded value faults.\n    pass\n'

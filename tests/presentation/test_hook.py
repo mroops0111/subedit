@@ -86,6 +86,15 @@ def test_a_rewrite_finding_blocks_with_exit_two(project: Project) -> None:
     assert 'Add a comma' in outcome.stderr
 
 
+def test_a_config_written_wrong_blocks_with_its_mistake(project: Project) -> None:
+    project.write('subedit.toml', '[subedit]\nlinewidth = 74\n')
+    target = project.write('probe.py', 'def f():\n    # short and fine.\n    pass\n')
+    outcome = hook.run(payload(target))
+
+    assert outcome.is_blocking
+    assert 'subedit.linewidth: is not a setting subedit knows' in outcome.stderr
+
+
 def test_a_clean_file_neither_writes_nor_blocks(project: Project) -> None:
     target = seed(project, 'def f():\n    # short and fine.\n    pass\n')
     original = target.read_text(encoding='utf-8')

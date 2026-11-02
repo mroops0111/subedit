@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import typing
 
 from .position import SourceRange
 from .text import TextEdit
@@ -54,6 +55,17 @@ class Fix:
         return cls(FixKind.REWRITE)
 
 
+OptionT = typing.TypeVar('OptionT', int, tuple[str, ...])
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RuleOption(typing.Generic[OptionT]):
+    """A setting a rule takes under its table in the config, with the value it has when the project sets none."""
+
+    name: str
+    default: OptionT
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class RuleMetadata:
     rule_id: str
@@ -61,6 +73,7 @@ class RuleMetadata:
     fix_kind: FixKind
     default_severity: Severity = Severity.ERROR
     source: str = 'subedit'
+    options: tuple[RuleOption[typing.Any], ...] = ()
 
     def __post_init__(self) -> None:
         if not self.rule_id:

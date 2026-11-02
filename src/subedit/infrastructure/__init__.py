@@ -10,6 +10,7 @@ from ..domain.rules import (
     HeadingWrappedInBoldRule,
     InclusionVerbRule,
     LineTooLongRule,
+    LineTooShortRule,
     MidClauseBreakRule,
     MidListBreakRule,
     MidSentenceColonRule,
@@ -18,10 +19,9 @@ from ..domain.rules import (
     ParenthesisStyleRule,
     PlainCommentOnPublicRule,
     SignatureRestatingTagRule,
-    StubFragmentRule,
     UnbreakableSentenceRule,
 )
-from .config_sources import CONFIG_NAME, FormatterWidths, TomlConfigSource
+from .config_sources import CONFIG_NAME, ConfigError, FormatterWidths, TomlConfigSource
 from .linters import AutoCorrectLinter, ValeLinter
 from .parsers import (
     JAVASCRIPT,
@@ -49,7 +49,7 @@ GENERATED_NAMES = frozenset(name for file_type in FILE_TYPES for name in file_ty
 SUFFIX_ALIASES = {alias: canonical for file_type in FILE_TYPES for alias, canonical in file_type.aliases.items()}
 
 LAYOUT_RULES = (MidClauseBreakRule(), LineTooLongRule())
-REWRITE_RULES = (StubFragmentRule(), UnbreakableSentenceRule(), MidListBreakRule())
+REWRITE_RULES = (LineTooShortRule(), UnbreakableSentenceRule(), MidListBreakRule())
 STRUCTURAL_RULES = (
     FileHeaderCommentRule(),
     PlainCommentOnPublicRule(LANGUAGES),
@@ -73,7 +73,7 @@ MARKDOWN_RULES = (
 ALL_RULES = LAYOUT_RULES + REWRITE_RULES + STRUCTURAL_RULES + WORDING_RULES + MARKDOWN_RULES
 
 DEFAULT_CONFIG_SOURCE = TomlConfigSource(
-    tuple(rule.metadata.rule_id for rule in ALL_RULES),
+    tuple(rule.metadata for rule in ALL_RULES),
     FormatterWidths(
         {extension: language.width_settings for language in LANGUAGES for extension in language.extensions}
     ),
@@ -113,6 +113,7 @@ __all__ = [
     'YAML',
     'AutoCorrectLinter',
     'CompositeParser',
+    'ConfigError',
     'LanguageProfile',
     'MarkdownParser',
     'NodeRole',

@@ -59,7 +59,7 @@ def test_rule_metadata_defaults_to_error() -> None:
 
 def test_report_partitions_by_who_can_fix() -> None:
     mechanical = diagnostic('line-too-long', 0, Fix.reflow(edit()))
-    authored = diagnostic('stub-fragment', 5, Fix.rewrite())
+    authored = diagnostic('line-too-short', 5, Fix.rewrite())
     report = Report((mechanical, authored))
 
     assert report.mechanical == (mechanical,)

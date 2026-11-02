@@ -6,7 +6,7 @@ from .markdown import (
     MissingLeadSentenceRule,
     ParagraphLineBreakRule,
 )
-from .sentence import MidListBreakRule, StubFragmentRule, UnbreakableSentenceRule
+from .sentence import LineTooShortRule, MidListBreakRule, UnbreakableSentenceRule
 from .structure import BlockTooLongRule, FileHeaderCommentRule, PlainCommentOnPublicRule, SignatureRestatingTagRule
 from .style import (
     BulletLabelStyleRule,
@@ -27,6 +27,7 @@ __all__ = [
     'HeadingWrappedInBoldRule',
     'InclusionVerbRule',
     'LineTooLongRule',
+    'LineTooShortRule',
     'MidClauseBreakRule',
     'MidListBreakRule',
     'MidSentenceColonRule',
@@ -35,6 +36,5 @@ __all__ = [
     'ParenthesisStyleRule',
     'PlainCommentOnPublicRule',
     'SignatureRestatingTagRule',
-    'StubFragmentRule',
     'UnbreakableSentenceRule',
 ]

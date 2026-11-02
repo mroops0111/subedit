@@ -172,7 +172,7 @@ Reflow works on sentences rather than lines, so the result reads the way the aut
 
 - **One Line When It Fits**: a sentence that fits takes one line, and a wrapped one that would fit is joined.
 - **Clause Commas Only**: a longer sentence breaks only at a comma that ends a clause, never inside brackets or a code span, and preferably not inside a list.
-- **No Stubs**: no break leaves a line shorter than the `stub-fragment` floor, 24 characters by default.
+- **No Short Lines**: no break leaves a line shorter than the `line-too-short` floor, 24 characters by default.
 - **Verbatim Blocks**: code examples, docstring sections, and JSDoc tags are left as written.
 - **Markdown Paragraphs**: Markdown has no column limit, so a paragraph takes one source line, and a hand-wrapped one is joined.
 
@@ -246,12 +246,12 @@ Registering the hook with both agents is fine, since each payload identifies its
 
 ### Configuration
 
-Settings come from `subedit.toml`, or from `[tool.subedit]` in `pyproject.toml`, whichever sits closest above the file being checked. Without either, `check` and `fix` run with the defaults.
+Settings come from `subedit.toml`, or from `[tool.subedit]` in `pyproject.toml`, whichever sits closest above the file being checked. Without either, `check` and `fix` run with the defaults. A config with a misspelled key, level, or option stops subedit with an error that names the file and the key, so a typo never leaves a project on defaults it did not choose.
 
 A rule takes one of two forms, depending on whether it has options to set.
 
 - **Level Only**: a string, `"error"`, `"warning"`, or `"off"`. Every rule takes this form, including the delegated Vale and AutoCorrect rules.
-- **Level and Options**: a `[rules.<name>]` table, holding `severity` and the rule's options. Leave out `severity` to keep the default level. Only `block-too-long` and `stub-fragment` have options, listed in [Rules](#rules).
+- **Level and Options**: a `[rules.<name>]` table, holding `severity` and the rule's options. Leave out `severity` to keep the default level. The [rule reference](docs/rules.md) lists each rule's options with their defaults.
 
 ```toml
 [subedit]
@@ -267,8 +267,8 @@ file-header-comment = "off"
 severity = "error"
 line = 3
 
-[rules.stub-fragment]
-minimum_characters = 30
+[rules.line-too-short]
+minimum-characters = 30
 ```
 
 In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, and `[tool.subedit.rules.<name>]`.

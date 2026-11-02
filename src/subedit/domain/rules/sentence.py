@@ -1,13 +1,15 @@
 import typing
 
 from ..models.comment import CommentGroup, CommentPlacement
-from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, RuleOption, Severity
 from ..models.prose import Prose
-from ..models.reflow import reflow_sentence
+from ..models.reflow import BreakPolicy, reflow_sentence
 from ..ports.rule import Rule, RuleContext
 
 
-_DEFAULT_MINIMUM_CHARACTERS = 24
+_MINIMUM_CHARACTERS = RuleOption('minimum-characters', 24)
+# A piece this short between two commas may be a list item.
+_MAX_ITEM_WORDS = RuleOption('max-item-words', 3)
 _BRACKET_NOTE = 'A comma inside brackets or a code span separates items, so it is no place to break. '
 
 
@@ -16,21 +18,27 @@ def is_summary(group: CommentGroup, index: int) -> bool:
     return index == 0 and group.has_summary_line
 
 
-def stub_floor(context: RuleContext) -> int:
-    """Reflow reads the same floor, so a fix never lays out a stub that this rule then rejects."""
-    if not context.rule_set.is_enabled(StubFragmentRule.metadata.rule_id):
-        return 0
-    return context.settings(StubFragmentRule.metadata.rule_id).integer(
-        'minimum_characters', _DEFAULT_MINIMUM_CHARACTERS
+def break_policy(context: RuleContext) -> BreakPolicy:
+    """What reflow avoids, read from the rules that judge it, so a fix never lays out what they then reject.
+
+    A rule switched off leaves its concern out of the layout too.
+    """
+    rule_set = context.rule_set
+    short = LineTooShortRule.metadata.rule_id
+    split = MidListBreakRule.metadata.rule_id
+    return BreakPolicy(
+        stub_floor=context.settings(short).value(_MINIMUM_CHARACTERS) if rule_set.is_enabled(short) else 0,
+        list_item_words=context.settings(split).value(_MAX_ITEM_WORDS) if rule_set.is_enabled(split) else None,
     )
 
 
-class StubFragmentRule(Rule[CommentGroup]):
+class LineTooShortRule(Rule[CommentGroup]):
     metadata = RuleMetadata(
-        rule_id='stub-fragment',
-        summary='A sentence forced to break must not leave a stub of a line behind.',
+        rule_id='line-too-short',
+        summary='A sentence forced to break must not leave a line too short to read as a clause.',
         fix_kind=FixKind.REWRITE,
         default_severity=Severity.WARNING,
+        options=(_MINIMUM_CHARACTERS,),
     )
     surface = CommentGroup
 
@@ -38,11 +46,12 @@ class StubFragmentRule(Rule[CommentGroup]):
         # A trailing comment never breaks, so a rule judging where a sentence breaks leaves it to line-too-long.
         if group.placement is CommentPlacement.TRAILING:
             return
-        minimum_length = stub_floor(context)
+        policy = break_policy(context)
+        minimum_length = policy.stub_floor
         for index, (sentence, budget) in enumerate(_budgeted_sentences(group, context)):
             if is_summary(group, index):
                 continue
-            split_pieces = reflow_sentence(sentence, budget, minimum_length)
+            split_pieces = reflow_sentence(sentence, budget, policy)
             if len(split_pieces) < 2:
                 continue
             shortest_piece = min(split_pieces, key=len)
@@ -53,7 +62,7 @@ class StubFragmentRule(Rule[CommentGroup]):
                 range=group.range,
                 message=(
                     f'Breaking this sentence leaves a line of {len(shortest_piece)} characters, below the minimum of '
-                    f'{minimum_length}, so the layout reads as a stub rather than a clause. '
+                    f'{minimum_length}, so the short line reads as a leftover rather than a clause. '
                     f'Rewrite it to fit one line, or split it into two complete sentences. '
                     f'The fragment is "{shortest_piece.strip()}".'
                 ),
@@ -119,6 +128,7 @@ class MidListBreakRule(Rule[CommentGroup]):
         summary='A sentence that has to break should not break between the items of a list.',
         fix_kind=FixKind.REWRITE,
         default_severity=Severity.WARNING,
+        options=(_MAX_ITEM_WORDS,),
     )
     surface = CommentGroup
 
@@ -126,7 +136,7 @@ class MidListBreakRule(Rule[CommentGroup]):
         # Whether a comma parts list items or an aside is syntax, which only a reader can settle, so this warns.
         if group.placement is CommentPlacement.TRAILING:
             return
-        for sentence in group.sentences_splitting_a_list(context.rule_set.line_width, stub_floor(context)):
+        for sentence in group.sentences_splitting_a_list(context.rule_set.line_width, break_policy(context)):
             yield Diagnostic(
                 rule_id=self.metadata.rule_id,
                 range=group.range,

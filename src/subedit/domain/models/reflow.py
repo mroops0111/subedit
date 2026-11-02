@@ -1,3 +1,4 @@
+import dataclasses
 import itertools
 import re
 
@@ -28,8 +29,6 @@ _CLAUSE_OPENERS = frozenset(
     }
 )
 
-# A piece this short between two commas is an item in a list, such as "base URL,", not a clause.
-_LIST_ITEM_WORDS = 3
 _LIST_CLOSERS = frozenset({'and', 'or'})
 _ARTICLES = frozenset({'a', 'an', 'the'})
 # Prepositions that open a sentence's framing phrase, such as "By default,", rather than its first item.
@@ -52,7 +51,20 @@ _LIST_OPENERS = (
 )
 
 
-def reflow_sentence(sentence: str, width: int, stub_floor: int = 0, first_width: int | None = None) -> tuple[str, ...]:
+@dataclasses.dataclass(frozen=True, slots=True)
+class BreakPolicy:
+    """What a sentence's breaks avoid besides the width, as the project's rules set it."""
+
+    # No line of a broken sentence runs shorter than this.
+    stub_floor: int = 0
+    # A piece this short between two commas may be a list item, such as "base URL,", which a break avoids.
+    # None leaves lists out of the choice.
+    list_item_words: int | None = None
+
+
+def reflow_sentence(
+    sentence: str, width: int, policy: BreakPolicy = BreakPolicy(), first_width: int | None = None
+) -> tuple[str, ...]:
     """Lay a sentence out on as few lines as fit, breaking only at clause commas.
 
     Among layouts with that fewest count, one that leaves no stub wins, then one whose breaks split no list,
@@ -66,10 +78,10 @@ def reflow_sentence(sentence: str, width: int, stub_floor: int = 0, first_width:
     pieces = _comma_pieces(sentence)
     if len(pieces) == 1:
         return (sentence,)
-    return _best_layout(pieces, width, opening_width, stub_floor) or _pack(pieces, width)
+    return _best_layout(pieces, width, opening_width, policy) or _pack(pieces, width)
 
 
-def break_cost(lines: tuple[str, ...]) -> int:
+def break_cost(lines: tuple[str, ...], item_words: int) -> int:
     """Count the breaks in a laid out sentence that split a list.
 
     A break away from any comma splits a clause rather than a list, which other rules report.
@@ -79,7 +91,9 @@ def break_cost(lines: tuple[str, ...]) -> int:
     piece_at = {offset: index + 1 for index, offset in enumerate(_comma_breaks(sentence))}
     line_ends = (end - 1 for end in itertools.accumulate(len(line) + 1 for line in lines[:-1]))
     return sum(
-        _splits_a_list(pieces, piece_at[end]) for end in line_ends if piece_at.get(end, len(pieces)) < len(pieces)
+        _splits_a_list(pieces, piece_at[end], item_words)
+        for end in line_ends
+        if piece_at.get(end, len(pieces)) < len(pieces)
     )
 
 
@@ -188,7 +202,9 @@ def _pack(pieces: tuple[str, ...], width: int) -> tuple[str, ...]:
     return tuple(lines)
 
 
-def _best_layout(pieces: tuple[str, ...], width: int, opening_width: int, stub_floor: int) -> tuple[str, ...] | None:
+def _best_layout(
+    pieces: tuple[str, ...], width: int, opening_width: int, policy: BreakPolicy
+) -> tuple[str, ...] | None:
     """Pick break points by dynamic programming over the pieces, scoring each layout from the end backwards."""
     count = len(pieces)
     finished: tuple[tuple[int, int, int, int], tuple[str, ...]] = ((0, 0, 0, 0), ())
@@ -204,8 +220,12 @@ def _best_layout(pieces: tuple[str, ...], width: int, opening_width: int, stub_f
             if rest is None:
                 continue
             (rest_lines, rest_stubs, rest_lists, rest_asides), rest_layout = rest
-            is_stub = (start, stop) != (0, count) and len(line) < stub_floor
-            splits_list = stop < count and _splits_a_list(pieces, stop)
+            is_stub = (start, stop) != (0, count) and len(line) < policy.stub_floor
+            splits_list = (
+                stop < count
+                and policy.list_item_words is not None
+                and _splits_a_list(pieces, stop, policy.list_item_words)
+            )
             opens_aside = stop < count and not _opens_a_clause(pieces[stop])
             score = (rest_lines + 1, rest_stubs + is_stub, rest_lists + splits_list, rest_asides + opens_aside)
             candidate = (score, (line, *rest_layout))
@@ -217,45 +237,49 @@ def _best_layout(pieces: tuple[str, ...], width: int, opening_width: int, stub_f
     return None if found is None else found[1]
 
 
-def _splits_a_list(pieces: tuple[str, ...], index: int) -> bool:
+def _splits_a_list(pieces: tuple[str, ...], index: int, item_words: int) -> bool:
     """Whether a break before ``pieces[index]`` falls beside an item of a list rather than between clauses."""
     if _opens_a_list(pieces[index]):
         return False
-    return _is_list_item(pieces, index - 1) or _is_list_item(pieces, index) or _splits_a_serial_run(pieces, index)
+    return (
+        _is_list_item(pieces, index - 1, item_words)
+        or _is_list_item(pieces, index, item_words)
+        or _splits_a_serial_run(pieces, index, item_words)
+    )
 
 
 # A short piece is an item, such as "base URL,", when the run goes on with another short piece or closes on and or or.
 # One standing alone, such as "returns ``None``,", or one opening a clause, such as "then optional params,", is not.
-def _is_list_item(pieces: tuple[str, ...], index: int) -> bool:
-    if not 0 < index < len(pieces) - 1 or not _is_short(pieces[index]) or _opens_a_clause(pieces[index]):
+def _is_list_item(pieces: tuple[str, ...], index: int, item_words: int) -> bool:
+    if not 0 < index < len(pieces) - 1 or not _is_short(pieces[index], item_words) or _opens_a_clause(pieces[index]):
         return False
     if _is_appositive(pieces[index], pieces[index + 1].split()):
         return False
     return (
         _closes_a_run(pieces[index + 1])
-        or _is_short(pieces[index + 1])
-        or (index >= 2 and _is_short(pieces[index - 1]))
+        or _is_short(pieces[index + 1], item_words)
+        or (index >= 2 and _is_short(pieces[index - 1], item_words))
     )
 
 
 # In "No auth, a static token, and an OAuth client", a break before the second item or the closer splits the list,
 # however long one item runs, as long as another is short enough to read as an item.
-def _splits_a_serial_run(pieces: tuple[str, ...], index: int) -> bool:
+def _splits_a_serial_run(pieces: tuple[str, ...], index: int, item_words: int) -> bool:
     for closer in (index, index + 1):
         if not 2 <= closer < len(pieces) or not _closes_a_run(pieces[closer]):
             continue
         items = range(closer - 2, closer)
         if any(_opens_a_clause(pieces[item]) for item in items):
             continue
-        if any(_reads_as_item(pieces, item) for item in items):
+        if any(_reads_as_item(pieces, item, item_words) for item in items):
             return True
     return False
 
 
 # A sentence's opening piece may instead lead in, as "However," or "In practice," does.
-def _reads_as_item(pieces: tuple[str, ...], index: int) -> bool:
+def _reads_as_item(pieces: tuple[str, ...], index: int, item_words: int) -> bool:
     piece = pieces[index]
-    if not _is_short(piece) or _is_appositive(piece, pieces[index + 1].split()):
+    if not _is_short(piece, item_words) or _is_appositive(piece, pieces[index + 1].split()):
         return False
     words = piece.split()
     return index > 0 or (len(words) > 1 and words[0].lower() not in _LEAD_IN_WORDS)
@@ -276,8 +300,8 @@ def _is_appositive(piece: str, following: list[str]) -> bool:
     return not parallel or parallel[0].lower() not in _ARTICLES
 
 
-def _is_short(piece: str) -> bool:
-    return len(piece.split()) <= _LIST_ITEM_WORDS
+def _is_short(piece: str, item_words: int) -> bool:
+    return len(piece.split()) <= item_words
 
 
 def _opens_a_clause(piece: str) -> bool:

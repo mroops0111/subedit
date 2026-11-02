@@ -1,7 +1,9 @@
+import re
+
 import pytest
 
 from subedit.domain import Severity
-from subedit.infrastructure.config_sources import ConfigFile, RuleTable, SubeditSection
+from subedit.infrastructure.config_sources import ConfigError, ConfigFile, RuleTable
 from subedit.infrastructure.linters.vale_linter import ValeReport
 
 
@@ -16,29 +18,27 @@ def test_the_hyphenated_key_is_accepted() -> None:
     assert ConfigFile.parse({'subedit': {'line-width': 88}}).subedit.line_width == 88
 
 
-@pytest.mark.parametrize('width', ['wide', 0, -10, None, [80]])
-def test_a_nonsense_width_falls_back_rather_than_raising(width: object) -> None:
-    assert ConfigFile.parse({'subedit': {'line-width': width}}).subedit.line_width is None
+@pytest.mark.parametrize('width', ['wide', 0, -10, [80]])
+def test_a_nonsense_width_is_a_config_error(width: object) -> None:
+    with pytest.raises(ConfigError, match=re.escape('subedit.line-width')):
+        ConfigFile.parse({'subedit': {'line-width': width}})
 
 
 def test_a_rule_entry_may_be_a_string_or_a_table() -> None:
     parsed = ConfigFile.parse(
-        {'rules': {'a': 'off', 'b': 'warning', 'c': {'severity': 'error', 'minimum_characters': 30}}}
+        {'rules': {'a': 'off', 'b': 'warning', 'c': {'severity': 'error', 'minimum-characters': 30}}}
     )
     assert parsed.rules['a'] == 'off'
     assert parsed.rules['b'] == 'warning'
     table = parsed.rules['c']
     assert isinstance(table, RuleTable)
     assert table.resolved_severity is Severity.ERROR
-    assert table.options == {'minimum_characters': 30}
+    assert table.options == {'minimum-characters': 30}
 
 
 def test_a_boolean_is_not_a_rule_entry() -> None:
-    assert 'a' not in ConfigFile.parse({'rules': {'a': False}}).rules, 'a rule is switched off with "off"'
-
-
-def test_an_unknown_severity_resolves_to_none_rather_than_raising() -> None:
-    assert RuleTable(severity='nonsense').resolved_severity is None
+    with pytest.raises(ConfigError, match=re.escape("rules.a: Input should be 'off'")):
+        ConfigFile.parse({'rules': {'a': False}})
 
 
 def test_extra_options_survive_on_a_rule_table() -> None:
@@ -48,13 +48,6 @@ def test_extra_options_survive_on_a_rule_table() -> None:
 
 def test_exclude_patterns_are_read() -> None:
     assert ConfigFile.parse({'subedit': {'exclude': ['a/**', 'b.py']}}).subedit.exclude == ('a/**', 'b.py')
-
-
-def test_a_project_section_rejects_a_zero_width_at_the_boundary() -> None:
-    import pydantic
-
-    with pytest.raises(pydantic.ValidationError):
-        SubeditSection.model_validate({'line-width': 0})
 
 
 def test_a_vale_report_decodes_alerts() -> None:

@@ -6,7 +6,7 @@ from ..models.prose import is_protected, is_wide, protected_spans
 from ..models.prose_unit import ProseLine, ProseUnit
 from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
-from .markdown import HeadingTitleCaseRule
+from .markdown import KEEP, HeadingTitleCaseRule
 
 
 _COLON = re.compile(r'[:：]')
@@ -165,7 +165,7 @@ class BulletLabelStyleRule(Rule[ProseUnit]):
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # Title Case and the names it leaves lowercase are set once, on the heading rule, and labels follow them.
-        keep = context.settings(HeadingTitleCaseRule.metadata.rule_id).strings('keep')
+        keep = context.settings(HeadingTitleCaseRule.metadata.rule_id).value(KEEP)
         for line in unit.prose_lines():
             if not line.opens_item:
                 continue

@@ -32,7 +32,7 @@ A warning passes when the text meets its criterion. Leave such text exactly as i
 | `heading-not-noun-phrase` | The heading is a noun phrase that happens to open with the flagged word. | It asks a question or gives an instruction. Name the section's subject instead. |
 | `block-too-long` | Every sentence states a constraint the code cannot show. | Some sentences narrate what the code does. Cut them, or move the explanation into a name. |
 | `file-header-comment` | It states a constraint about the whole module that no single declaration owns. | It is a banner or a summary of the file. Delete it, or move the constraint to the declaration it applies to. |
-| `stub-fragment` | Never. A stub reads as a broken clause. | Always. Rewrite the sentence to fit one line, or split it into two complete sentences. |
+| `line-too-short` | Never. A line that short reads as a broken clause. | Always. Rewrite the sentence to fit one line, or split it into two complete sentences. |
 | `mid-list-break` | The comma at the break parts an aside or a clause, as in "stays a reference, rewritten to X, and the component is expanded". | It parts the items of a list. Move the list to the end of the sentence, or split the sentence in two. |
 
 ## Errors

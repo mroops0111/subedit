@@ -61,12 +61,12 @@ These rules read comments, and catch the sentences no layout can save, which the
 | Rule | Catches | Fix Kind | Default | Options |
 | --- | --- | --- | --- | --- |
 | `unbreakable-sentence` | A sentence over the width with no clause comma, or a summary that does not fit one line | Rewrite | `error` | None |
-| `stub-fragment` | A forced break that leaves a line too short to read as a clause | Rewrite | `warning` | `minimum_characters` (24) |
-| `mid-list-break` | A break that seems to fall between the items of a list | Rewrite | `warning` | None |
+| `line-too-short` | A forced break that leaves a line too short to read as a clause | Rewrite | `warning` | `minimum-characters` (24) |
+| `mid-list-break` | A break that seems to fall between the items of a list | Rewrite | `warning` | `max-item-words` (3) |
 
-Reflow reads the same `minimum_characters` floor, so a fix never lays out a stub that `stub-fragment` then rejects.
+Reflow reads the same `minimum-characters` floor, so a fix never lays out a line that `line-too-short` then rejects.
 
-Whether a comma parts list items, clauses, or an aside is a matter of syntax, which subedit can only guess, so `mid-list-break` is a warning. Reflow still prefers a break that splits no list when it lays a sentence out itself, but it keeps a legal break the author chose.
+Whether a comma parts list items, clauses, or an aside is a matter of syntax, which subedit can only guess, so `mid-list-break` is a warning. Reflow still prefers a break that splits no list when it lays a sentence out itself, but it keeps a legal break the author chose. A piece of up to `max-item-words` words between two commas may be a list item. Switching either rule off leaves its concern out of reflow too.
 
 ## Structure
 

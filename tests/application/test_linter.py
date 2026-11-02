@@ -13,6 +13,7 @@ from subedit.domain import (
     Rule,
     RuleContext,
     RuleMetadata,
+    RuleOption,
     RuleSet,
     RuleSettings,
     Severity,
@@ -112,12 +113,10 @@ def test_diagnostics_come_back_in_source_order() -> None:
     assert starts == sorted(starts)
 
 
-def test_rule_settings_read_integer_options_defensively() -> None:
-    settings = RuleSettings(options={'width': 90, 'flag': True, 'name': 'x'})
-    assert settings.integer('width', 120) == 90
-    assert settings.integer('flag', 120) == 120
-    assert settings.integer('name', 120) == 120
-    assert settings.integer('missing', 120) == 120
+def test_an_option_the_project_leaves_unset_takes_its_default() -> None:
+    width = RuleOption('width', 120)
+    assert RuleSettings(options={'width': 90}).value(width) == 90
+    assert RuleSettings().value(width) == 120
 
 
 def test_a_fix_kind_survives_the_engine() -> None:

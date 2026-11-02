@@ -15,7 +15,7 @@ from .comment_layout import (
     LinePrefixLayout,
     QuotedDocLayout,
 )
-from .diagnostic import SEVERITY_BY_NAME, Diagnostic, Fix, FixKind, Report, RuleMetadata, Severity
+from .diagnostic import SEVERITY_BY_NAME, Diagnostic, Fix, FixKind, Report, RuleMetadata, RuleOption, Severity
 from .document import Document
 from .embedded import EmbeddedDocument
 from .file_type import FileType
@@ -60,6 +60,7 @@ __all__ = [
     'QuotedDocLayout',
     'Report',
     'RuleMetadata',
+    'RuleOption',
     'RuleSet',
     'RuleSettings',
     'Sentence',

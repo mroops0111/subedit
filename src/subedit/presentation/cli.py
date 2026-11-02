@@ -8,6 +8,7 @@ import typer
 from .. import __version__
 from ..application import CorpusMeter, CorpusStatistics, Fixer, Linter, ReportAggregator, RuleEngine
 from ..domain.models.document import Document
+from ..domain.models.rule_set import RuleSet
 from ..domain.models.text import source_lines
 from ..domain.ports.external_linter import ExternalLinter
 from ..infrastructure import (
@@ -19,6 +20,7 @@ from ..infrastructure import (
     EXTERNAL_LINTERS,
     GENERATED_NAMES,
     VENDOR_DIRECTORIES,
+    ConfigError,
     language_id_for,
 )
 from . import report as reporters
@@ -54,7 +56,7 @@ def check(
     aggregator = _build_report_aggregator(delegate)
     has_errors = False
     for document in documents:
-        report = aggregator.run(document, DEFAULT_CONFIG_SOURCE.resolve(_file_path(document)))
+        report = aggregator.run(document, _rules_for(document))
         has_errors = has_errors or report.has_errors
         rendered_report = formatter(document, report)
         if rendered_report:
@@ -76,7 +78,7 @@ def fix(
     changed_file_count = 0
     unresolved_finding_count = 0
     for document in documents:
-        fix_result = fixer.run(document, DEFAULT_CONFIG_SOURCE.resolve(_file_path(document)))
+        fix_result = fixer.run(document, _rules_for(document))
         unresolved_finding_count += len(fix_result.unresolved_findings)
         if fix_result.has_changes:
             changed_file_count += 1
@@ -123,6 +125,22 @@ def main() -> int:
     return 0
 
 
+def _rules_for(document: Document) -> RuleSet:
+    return _config(DEFAULT_CONFIG_SOURCE.resolve, _file_path(document))
+
+
+ConfigT = typing.TypeVar('ConfigT')
+
+
+# A config subedit cannot read stops the run, since checking against defaults the project never chose misleads.
+def _config(read: typing.Callable[[str], ConfigT], path: str) -> ConfigT:
+    try:
+        return read(path)
+    except ConfigError as error:
+        typer.echo(f'subedit: {error}', err=True)
+        raise typer.Exit(2) from None
+
+
 def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
     source_paths: list[pathlib.Path] = []
     for path in paths:
@@ -138,9 +156,9 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
             source_paths.append(path)
     documents: list[Document] = []
     for source_path in source_paths:
-        root = DEFAULT_CONFIG_SOURCE.root_for(str(source_path))
+        root = _config(DEFAULT_CONFIG_SOURCE.root_for, str(source_path))
         if DEFAULT_CONFIG_SOURCE.is_excluded(
-            source_path, root, DEFAULT_CONFIG_SOURCE.exclude_patterns(str(source_path))
+            source_path, root, _config(DEFAULT_CONFIG_SOURCE.exclude_patterns, str(source_path))
         ):
             continue
         try:
