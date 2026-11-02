@@ -113,9 +113,9 @@ class UnbreakableSentenceRule(Rule[CommentGroup]):
         )
 
 
-class SplitListRule(Rule[CommentGroup]):
+class MidListBreakRule(Rule[CommentGroup]):
     metadata = RuleMetadata(
-        rule_id='split-list',
+        rule_id='mid-list-break',
         summary='A sentence that has to break should not break between the items of a list.',
         fix_kind=FixKind.REWRITE,
         default_severity=Severity.WARNING,

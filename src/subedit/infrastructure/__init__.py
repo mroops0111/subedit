@@ -11,13 +11,13 @@ from ..domain.rules import (
     InclusionVerbRule,
     LineTooLongRule,
     MidClauseBreakRule,
+    MidListBreakRule,
     MidSentenceColonRule,
     MissingLeadSentenceRule,
     ParagraphLineBreakRule,
     ParenthesisStyleRule,
     PlainCommentOnPublicRule,
     SignatureRestatingTagRule,
-    SplitListRule,
     StubFragmentRule,
     UnbreakableSentenceRule,
 )
@@ -49,7 +49,7 @@ GENERATED_NAMES = frozenset(name for file_type in FILE_TYPES for name in file_ty
 SUFFIX_ALIASES = {alias: canonical for file_type in FILE_TYPES for alias, canonical in file_type.aliases.items()}
 
 LAYOUT_RULES = (MidClauseBreakRule(), LineTooLongRule())
-REWRITE_RULES = (StubFragmentRule(), UnbreakableSentenceRule(), SplitListRule())
+REWRITE_RULES = (StubFragmentRule(), UnbreakableSentenceRule(), MidListBreakRule())
 STRUCTURAL_RULES = (
     FileHeaderCommentRule(),
     PlainCommentOnPublicRule(LANGUAGES),

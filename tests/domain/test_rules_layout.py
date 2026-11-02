@@ -212,7 +212,7 @@ def test_a_mid_clause_break_moves_to_a_clause_comma_even_one_inside_a_list() -> 
         '    the API as one shared identity.\n'
         '    """\n'
     )
-    # A break in mid clause is certain, while a break inside a list is a guess that split-list reports.
+    # A break in mid clause is certain, while a break inside a list is a guess that mid-list-break reports.
     assert '    and an ``oauth2`` service token all call the API as one shared identity.\n' in fixed(source, width=90)
 
 

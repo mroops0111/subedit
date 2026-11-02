@@ -6,7 +6,7 @@ from factories import lint as lint_document
 from subedit.domain import FixKind, Report, RuleSettings, Severity
 
 
-REWRITE_IDS = frozenset({'stub-fragment', 'unbreakable-sentence', 'split-list'})
+REWRITE_IDS = frozenset({'stub-fragment', 'unbreakable-sentence', 'mid-list-break'})
 
 
 def lint(
@@ -107,7 +107,7 @@ def test_a_clause_too_long_to_fit_is_unbreakable_despite_other_commas() -> None:
 def test_a_sentence_that_breaks_only_inside_a_list_is_a_warning() -> None:
     text = 'No auth, a static bearer or api key, and an oauth2 service token all call the API as one identity.'
     [finding] = lint(comment(text), width=80).diagnostics
-    assert (finding.rule_id, finding.severity) == ('split-list', Severity.WARNING)
+    assert (finding.rule_id, finding.severity) == ('mid-list-break', Severity.WARNING)
 
 
 def test_a_docstring_summary_too_long_for_one_line_needs_its_author() -> None:
@@ -146,7 +146,7 @@ def docstring(*lines: str) -> str:
     ids=['on one line', 'broken inside the list'],
 )
 def test_a_sentence_that_splits_a_list_wherever_it_breaks_is_left_to_its_reader(lines: tuple[str, ...]) -> None:
-    assert ids(docstring(*lines), width=120, enabled_rule_ids=REWRITE_IDS) == ['split-list']
+    assert ids(docstring(*lines), width=120, enabled_rule_ids=REWRITE_IDS) == ['mid-list-break']
 
 
 def test_a_sentence_broken_inside_a_list_keeps_the_layout_its_author_gave_it() -> None:
