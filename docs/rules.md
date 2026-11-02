@@ -1,6 +1,6 @@
 # Rules
 
-`subedit` ships 18 native rules, a bundled Vale style of 6 rules, and AutoCorrect. The [README](../README.md#rules) compares what comments and Markdown share and where they differ, and this page lists every rule by group.
+`subedit` ships 19 native rules, a bundled Vale style of 6 rules, and AutoCorrect. The [README](../README.md#rules) compares what comments and Markdown share and where they differ, and this page lists every rule by group.
 
 Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, as in `"subedit.DateRef" = "off"`. An error fails `check` and stops an agent, while a warning is shown as advice. The fix kind states who resolves a finding, as [Fix Kinds](../README.md#fix-kinds) describes.
 
@@ -60,10 +60,13 @@ These rules read comments, and catch the sentences no layout can save, which the
 
 | Rule | Catches | Fix Kind | Default | Options |
 | --- | --- | --- | --- | --- |
-| `unbreakable-sentence` | A sentence over the width with no clause comma, a break that would split a list, or a summary that does not fit one line | Rewrite | `error` | None |
+| `unbreakable-sentence` | A sentence over the width with no clause comma, or a summary that does not fit one line | Rewrite | `error` | None |
 | `stub-fragment` | A forced break that leaves a line too short to read as a clause | Rewrite | `warning` | `minimum_characters` (24) |
+| `mid-list-break` | A break that seems to fall between the items of a list | Rewrite | `warning` | None |
 
 Reflow reads the same `minimum_characters` floor, so a fix never lays out a stub that `stub-fragment` then rejects.
+
+Whether a comma parts list items, clauses, or an aside is a matter of syntax, which subedit can only guess, so `mid-list-break` is a warning. Reflow still prefers a break that splits no list when it lays a sentence out itself, but it keeps a legal break the author chose.
 
 ## Structure
 

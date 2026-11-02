@@ -65,7 +65,7 @@ class UnbreakableSentenceRule(Rule[CommentGroup]):
     metadata = RuleMetadata(
         rule_id='unbreakable-sentence',
         summary=(
-            'A sentence over the width must carry a clause comma, splitting no list, wherever it has to break, '
+            'A sentence over the width must carry a clause comma wherever it has to break, '
             'and a summary its style guide keeps to one line must fit it.'
         ),
         fix_kind=FixKind.REWRITE,
@@ -86,13 +86,6 @@ class UnbreakableSentenceRule(Rule[CommentGroup]):
                 message = self._sentence_message(sentence, budget)
             if message is not None:
                 yield Diagnostic(rule_id=self.metadata.rule_id, range=group.range, message=message, fix=Fix.rewrite())
-        for sentence in group.sentences_held_by_a_list(context.rule_set.line_width, stub_floor(context)):
-            yield Diagnostic(
-                rule_id=self.metadata.rule_id,
-                range=group.range,
-                message=self._list_message(sentence),
-                fix=Fix.rewrite(),
-            )
 
     def _summary_message(self, sentence: str, budget: int, convention: str | None) -> str | None:
         if len(sentence) <= budget:
@@ -119,13 +112,32 @@ class UnbreakableSentenceRule(Rule[CommentGroup]):
             f'The part that does not fit is "{longest_line}".'
         )
 
-    def _list_message(self, sentence: str) -> str:
-        return (
-            f'This sentence breaks in mid clause, and every clause comma it could break at instead splits a list, '
-            'leaving its items on two lines. '
-            'Move the list to the end of the sentence, or split it into two sentences. '
-            f'The sentence opens with "{" ".join(sentence.split()[:8])}".'
-        )
+
+class MidListBreakRule(Rule[CommentGroup]):
+    metadata = RuleMetadata(
+        rule_id='mid-list-break',
+        summary='A sentence that has to break should not break between the items of a list.',
+        fix_kind=FixKind.REWRITE,
+        default_severity=Severity.WARNING,
+    )
+    surface = CommentGroup
+
+    def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
+        # Whether a comma parts list items or an aside is syntax, which only a reader can settle, so this warns.
+        if group.placement is CommentPlacement.TRAILING:
+            return
+        for sentence in group.sentences_splitting_a_list(context.rule_set.line_width, stub_floor(context)):
+            yield Diagnostic(
+                rule_id=self.metadata.rule_id,
+                range=group.range,
+                message=(
+                    'This sentence seems to break between the items of a list, leaving them on two lines. '
+                    'If the comma does part list items, move the list to the end of the sentence, '
+                    'or split it into two sentences. If it parts an aside or a clause, leave it. '
+                    f'The sentence opens with "{" ".join(sentence.split()[:8])}".'
+                ),
+                fix=Fix.rewrite(),
+            )
 
 
 def _prose_sentences(group: CommentGroup) -> tuple[str, ...]:

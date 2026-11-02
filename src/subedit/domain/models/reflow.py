@@ -120,15 +120,14 @@ def occupied_lines(lines: tuple[str, ...], sentence: Sentence) -> tuple[str, ...
 def keeps_given(
     given_lines: tuple[str, ...], best_lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int
 ) -> bool:
-    """Whether the author's layout of a sentence stays, since it breaks no worse than the best one."""
+    """Whether the author's layout of a sentence stays, since it is legal and takes no more lines than the best one.
+
+    Whether a break splits a list is a guess, so it never overrules the author.
+    """
     # A colon ending a line in mid sentence is a rewrite finding, so its layout waits for that rewrite.
     if _breaks_at_a_colon(given_lines):
         return _fits(given_lines, budgets)
-    return (
-        len(given_lines) == len(best_lines)
-        and is_legal(given_lines, budgets, stub_floor)
-        and break_cost(given_lines) <= break_cost(best_lines)
-    )
+    return len(given_lines) == len(best_lines) and is_legal(given_lines, budgets, stub_floor)
 
 
 def is_legal(lines: tuple[str, ...], budgets: tuple[int, int], stub_floor: int) -> bool:
