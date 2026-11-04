@@ -178,6 +178,18 @@ def test_a_capitalized_word_that_may_be_a_preposition_is_a_warning() -> None:
     assert finding.message.startswith('In stays lowercase')
 
 
+def test_a_table_header_takes_title_case_and_its_body_is_left_alone() -> None:
+    source = 'Lead.\n\n| rule name | `code` | fix kind |\n| --- | --- | --- |\n| a body cell | b | c |\n'
+    expected = 'Lead.\n\n| Rule Name | `code` | Fix Kind |\n| --- | --- | --- |\n| a body cell | b | c |\n'
+    assert fixed(markdown(source)) == expected
+
+
+def test_a_table_header_follows_the_heading_standard() -> None:
+    rules = rule_set(**{'heading-title-case': RuleSettings(options={'style': 'chicago'})})
+    source = 'Lead.\n\n| working with lists | b |\n| --- | --- |\n| 1 | 2 |\n'
+    assert fixed(markdown(source), rules).startswith('Lead.\n\n| Working with Lists | b |')
+
+
 def test_a_name_listed_under_keep_stays_lowercase() -> None:
     rules = rule_set(**{'heading-title-case': RuleSettings(options={'keep': ['uv', 'CLI']})})
     assert fixed(markdown('## install uv and the cli\n'), rules) == '## Install uv and the CLI\n'

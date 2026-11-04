@@ -16,7 +16,7 @@ MARKDOWN = FileType('markdown', frozenset({'.md', '.markdown'}), '.md')
 _MARKDOWN_LANGUAGE = Language(tree_sitter_markdown.language())
 _HEADINGS = frozenset({'atx_heading', 'setext_heading'})
 
-# Code, tables, HTML, and front matter hold no prose, so nothing under them is read.
+# Code, tables, HTML, and front matter hold no prose, so no checker reads them, though a rule reads a table's header.
 _LITERAL_BLOCKS = frozenset(
     {
         'fenced_code_block',
@@ -31,7 +31,7 @@ _LITERAL_BLOCKS = frozenset(
 
 
 class MarkdownParser(SourceParser[MarkdownBlock]):
-    """Finds the headings and paragraphs of a Markdown document, and skips code, tables, HTML, and quotes."""
+    """Finds the headings, paragraphs, and table headers of a Markdown document, and skips code, HTML, and quotes."""
 
     @property
     def file_types(self) -> tuple[FileType, ...]:
@@ -56,6 +56,8 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
     def _collect(self, node: Node, source_bytes: bytes, context: '_Context', found: '_Found') -> None:
         if node.type in _LITERAL_BLOCKS:
             found.literals.append(SourceRange(node.start_byte, node.end_byte))
+            if node.type == 'pipe_table':
+                found.blocks.extend(self._header_cells(node, source_bytes, context))
             if node.type == 'fenced_code_block':
                 embedded = self._embedded_code(node, source_bytes)
                 if embedded is not None:
@@ -128,6 +130,26 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
             quoted=context.quoted,
             leads_into_list=kind is MarkdownBlockKind.HEADING and self._next_block_type(node) == 'list',
         )
+
+    def _header_cells(self, table: Node, source_bytes: bytes, context: '_Context') -> list[MarkdownBlock]:
+        header = next((child for child in table.children if child.type == 'pipe_table_header'), None)
+        cells: list[MarkdownBlock] = []
+        for cell in header.children if header is not None else ():
+            raw = source_bytes[cell.start_byte : cell.end_byte]
+            if cell.type != 'pipe_table_cell' or not raw.strip():
+                continue
+            start = cell.start_byte + len(raw) - len(raw.lstrip())
+            end = cell.end_byte - (len(raw) - len(raw.rstrip()))
+            cells.append(
+                MarkdownBlock(
+                    range=SourceRange(start, end),
+                    kind=MarkdownBlockKind.TABLE_HEADER,
+                    lines=(MarkdownLine(SourceRange(start, end), source_bytes[start:end].decode('utf-8')),),
+                    list_depth=context.list_depth,
+                    quoted=context.quoted,
+                )
+            )
+        return cells
 
     # A list item's children begin with its marker, so the first block is the first child that holds text.
     def _first_block(self, item: Node) -> Node | None:

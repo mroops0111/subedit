@@ -103,32 +103,54 @@ class HeadingTitleCaseRule(Rule[MarkdownBlock]):
         settings = context.settings(self.metadata.rule_id)
         if unit.kind is not MarkdownBlockKind.HEADING or unit.level not in settings.value(LEVELS):
             return
-        style = title_case_style(context)
-        cased = title_case(unit.text, settings.value(KEEP), style)
-        if cased != unit.text:
-            yield Diagnostic(
-                rule_id=self.metadata.rule_id,
-                range=unit.range,
-                message=(
-                    f'This heading is not in Title Case, so it reads "{cased}". '
-                    'List a name that stays lowercase, such as npm, under keep for this rule.'
-                ),
-                fix=Fix.targeted(unit.as_edit(cased)),
-            )
-        ambiguous = capitalized_ambiguous_words(cased, style)
-        if ambiguous:
-            words = ', '.join(ambiguous)
-            yield Diagnostic(
-                rule_id=self.metadata.rule_id,
-                range=unit.range,
-                message=(
-                    f'{words} stays lowercase in Title Case as a preposition or conjunction, as in Getting Started in Go, '
-                    'but is capitalized as an adverb, as in Set Up. Lowercase it unless it is an adverb here.'
-                ),
-                fix=Fix.rewrite(),
-                # Whether the word is a preposition or an adverb is a matter of syntax, which subedit can only guess.
-                tentative=True,
-            )
+        yield from _title_case_findings(self.metadata.rule_id, unit, context, 'heading')
+
+
+class TableHeaderTitleCaseRule(Rule[MarkdownBlock]):
+    metadata = RuleMetadata(
+        rule_id='table-header-title-case',
+        summary='The English words of a Markdown table header are in Title Case.',
+        fix_kind=FixKind.TARGETED,
+    )
+    surface = MarkdownBlock
+
+    def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
+        if unit.kind is not MarkdownBlockKind.TABLE_HEADER:
+            return
+        yield from _title_case_findings(self.metadata.rule_id, unit, context, 'table header')
+
+
+def _title_case_findings(
+    rule_id: str, unit: MarkdownBlock, context: RuleContext, what: str
+) -> typing.Iterator[Diagnostic]:
+    # The heading rule owns the standard and the names kept lowercase, which every title follows.
+    keep = context.settings(HeadingTitleCaseRule.metadata.rule_id).value(KEEP)
+    style = title_case_style(context)
+    cased = title_case(unit.text, keep, style)
+    if cased != unit.text:
+        yield Diagnostic(
+            rule_id=rule_id,
+            range=unit.range,
+            message=(
+                f'This {what} is not in Title Case, so it reads "{cased}". '
+                'List a name that stays lowercase, such as npm, under keep for heading-title-case.'
+            ),
+            fix=Fix.targeted(unit.as_edit(cased)),
+        )
+    ambiguous = capitalized_ambiguous_words(cased, style)
+    if ambiguous:
+        yield Diagnostic(
+            rule_id=rule_id,
+            range=unit.range,
+            message=(
+                f'{", ".join(ambiguous)} stays lowercase in Title Case as a preposition or conjunction, '
+                'as in Getting Started in Go, but is capitalized as an adverb, as in Set Up. '
+                'Lowercase it unless it is an adverb here.'
+            ),
+            fix=Fix.rewrite(),
+            # Whether the word is a preposition or an adverb is a matter of syntax, which subedit can only guess.
+            tentative=True,
+        )
 
 
 def title_case_style(context: RuleContext) -> TitleCaseStyle:

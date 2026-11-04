@@ -5,6 +5,7 @@ from .markdown import (
     HeadingWrappedInBoldRule,
     MissingLeadSentenceRule,
     ParagraphLineBreakRule,
+    TableHeaderTitleCaseRule,
 )
 from .sentence import LineTooShortRule, MidListBreakRule, UnbreakableSentenceRule
 from .structure import BlockTooLongRule, FileHeaderCommentRule, PlainCommentOnPublicRule, SignatureRestatingTagRule
@@ -36,5 +37,6 @@ __all__ = [
     'ParenthesisStyleRule',
     'PlainCommentOnPublicRule',
     'SignatureRestatingTagRule',
+    'TableHeaderTitleCaseRule',
     'UnbreakableSentenceRule',
 ]

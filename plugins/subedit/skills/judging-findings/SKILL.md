@@ -23,7 +23,7 @@ Rewrite in place, keep the meaning, and keep the comment to the constraint the c
 
 A warning passes when the text meets its criterion. Leave such text exactly as it is, and say so in one line if anyone asks.
 
-| Rule | Keep the text when | Rewrite it when |
+| Rule | Keep the Text When | Rewrite It When |
 | --- | --- | --- |
 | `subedit.ExternalRef` | The identifier is public and resolvable by anyone, such as an RFC, an MCP SEP, a PEP, a CVE, or an ISO standard. | It is a private ticket, such as a Jira key or an internal issue number. State the constraint the ticket recorded instead. |
 | `subedit.DateRef` | The date names a version or a spec revision, such as the dated revision an MCP specification is named by. | It records when something happened or changed. State the constraint that holds now. |

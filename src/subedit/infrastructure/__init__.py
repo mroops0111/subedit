@@ -19,6 +19,7 @@ from ..domain.rules import (
     ParenthesisStyleRule,
     PlainCommentOnPublicRule,
     SignatureRestatingTagRule,
+    TableHeaderTitleCaseRule,
     UnbreakableSentenceRule,
 )
 from .config_sources import CONFIG_NAME, ConfigError, FormatterWidths, TomlConfigSource
@@ -67,6 +68,7 @@ MARKDOWN_RULES = (
     ParagraphLineBreakRule(),
     HeadingWrappedInBoldRule(),
     HeadingTitleCaseRule(),
+    TableHeaderTitleCaseRule(),
     MissingLeadSentenceRule(),
     HeadingNotNounPhraseRule(),
 )
