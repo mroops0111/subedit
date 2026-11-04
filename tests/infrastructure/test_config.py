@@ -82,6 +82,7 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         ('[rules]\nmid-clause-break = { width = 3 }\n', 'is not an option of mid-clause-break, it takes none'),
         ('[rules]\nline-too-short = { minimum-characters = "30" }\n', 'must be a whole number of zero or more'),
         ('[rules]\nheading-title-case = { keep = "npm" }\n', 'must be a list of strings'),
+        ('[rules]\nheading-title-case = { style = "ap" }\n', 'must be one of apa, chicago'),
         ('[rules\n', 'Expected'),
     ],
     ids=[
@@ -94,6 +95,7 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         'option of a rule with none',
         'option type',
         'list option type',
+        'choice option value',
         'broken toml',
     ],
 )

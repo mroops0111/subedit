@@ -164,11 +164,17 @@ def _load(config_path: pathlib.Path) -> dict[str, object] | None:
 def _fits(option: RuleOption[typing.Any], value: object) -> bool:
     if isinstance(option.default, int):
         return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+    if isinstance(option.default, str):
+        return value in option.choices
     return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
 def _kind(option: RuleOption[typing.Any]) -> str:
-    return 'a whole number of zero or more' if isinstance(option.default, int) else 'a list of strings'
+    if isinstance(option.default, int):
+        return 'a whole number of zero or more'
+    if isinstance(option.default, str):
+        return f'one of {", ".join(option.choices)}'
+    return 'a list of strings'
 
 
 # TOML reads an array as a list, while an option's default is a tuple, so a rule always meets the same type.

@@ -3,7 +3,7 @@ import typing
 
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, RuleOption, Severity
 from ..models.markdown import MarkdownBlock, MarkdownBlockKind
-from ..models.title_case import title_case
+from ..models.title_case import TITLE_CASE_STYLES, TitleCaseStyle, capitalized_ambiguous_words, title_case
 from ..ports.rule import Rule, RuleContext
 
 
@@ -97,6 +97,8 @@ class HeadingWrappedInBoldRule(Rule[MarkdownBlock]):
 
 # Names that stay lowercase in a title, such as npm, which list labels follow too.
 KEEP: RuleOption[tuple[str, ...]] = RuleOption('keep', ())
+# The standard that decides which words stay lowercase in a title, which list labels follow too.
+STYLE: RuleOption[str] = RuleOption('style', 'apa', choices=tuple(TITLE_CASE_STYLES))
 
 
 class HeadingTitleCaseRule(Rule[MarkdownBlock]):
@@ -104,25 +106,45 @@ class HeadingTitleCaseRule(Rule[MarkdownBlock]):
         rule_id='heading-title-case',
         summary='The English words of a Markdown heading are in Title Case.',
         fix_kind=FixKind.TARGETED,
-        options=(KEEP,),
+        options=(KEEP, STYLE),
     )
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
         if unit.kind is not MarkdownBlockKind.HEADING:
             return
-        cased = title_case(unit.text, context.settings(self.metadata.rule_id).value(KEEP))
-        if cased == unit.text:
-            return
-        yield Diagnostic(
-            rule_id=self.metadata.rule_id,
-            range=unit.range,
-            message=(
-                f'This heading is not in Title Case, so it reads "{cased}". '
-                'List a name that stays lowercase, such as npm, under keep for this rule.'
-            ),
-            fix=Fix.targeted(unit.as_edit(cased)),
-        )
+        settings = context.settings(self.metadata.rule_id)
+        style = title_case_style(context)
+        cased = title_case(unit.text, settings.value(KEEP), style)
+        if cased != unit.text:
+            yield Diagnostic(
+                rule_id=self.metadata.rule_id,
+                range=unit.range,
+                message=(
+                    f'This heading is not in Title Case, so it reads "{cased}". '
+                    'List a name that stays lowercase, such as npm, under keep for this rule.'
+                ),
+                fix=Fix.targeted(unit.as_edit(cased)),
+            )
+        ambiguous = capitalized_ambiguous_words(cased, style)
+        if ambiguous:
+            words = ', '.join(ambiguous)
+            yield Diagnostic(
+                rule_id=self.metadata.rule_id,
+                range=unit.range,
+                message=(
+                    f'{words} stays lowercase in Title Case as a preposition or conjunction, as in Getting Started in Go, '
+                    'but is capitalized as an adverb, as in Set Up. Lowercase it unless it is an adverb here.'
+                ),
+                fix=Fix.rewrite(),
+                # Whether the word is a preposition or an adverb is a matter of syntax, which subedit can only guess.
+                tentative=True,
+            )
+
+
+def title_case_style(context: RuleContext) -> TitleCaseStyle:
+    """The heading rule owns the standard, and list labels follow it, so the two never disagree."""
+    return TITLE_CASE_STYLES[context.settings(HeadingTitleCaseRule.metadata.rule_id).value(STYLE)]
 
 
 class MissingLeadSentenceRule(Rule[MarkdownBlock]):

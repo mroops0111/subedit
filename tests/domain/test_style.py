@@ -143,6 +143,41 @@ def test_a_heading_is_put_in_title_case() -> None:
     assert fixed(markdown('## getting started with the cli\n')) == '## Getting Started With the Cli\n'
 
 
+@pytest.mark.parametrize(
+    ('style', 'expected'),
+    [
+        ('apa', '## Reading Config From the Project, so Far\n'),
+        ('chicago', '## Reading Config from the Project, So Far\n'),
+    ],
+)
+def test_a_heading_follows_the_title_case_standard_the_project_names(style: str, expected: str) -> None:
+    rules = rule_set(**{'heading-title-case': RuleSettings(options={'style': style})})
+    assert fixed(markdown('## reading config from the project, so far\n'), rules) == expected
+
+
+def test_a_list_label_follows_the_heading_standard() -> None:
+    rules = rule_set(**{'heading-title-case': RuleSettings(options={'style': 'chicago'})})
+    source = '# Title\n\nLead.\n\n- working with lists: a description\n'
+    assert fixed(markdown(source), rules) == '# Title\n\nLead.\n\n- **Working with Lists**: a description\n'
+
+
+@pytest.mark.parametrize('heading', ['## Set Up the Project\n', '## Set up the Project\n'])
+def test_a_word_that_may_be_an_adverb_keeps_the_case_written(heading: str) -> None:
+    assert fixed(markdown(heading)) == heading
+
+
+@pytest.mark.parametrize('heading', ['## Cloud and On-Prem Pairing\n', '## A Pick-up Line\n'])
+def test_a_minor_word_in_a_hyphenated_compound_keeps_its_case(heading: str) -> None:
+    assert ids(markdown(heading)) == []
+
+
+def test_a_capitalized_word_that_may_be_a_preposition_is_a_warning() -> None:
+    report = lint(markdown('## Getting Started In Python\n'), rule_set(), RULES)
+    (finding,) = [item for item in report.diagnostics if item.rule_id == 'heading-title-case']
+    assert finding.severity is Severity.WARNING
+    assert finding.message.startswith('In stays lowercase')
+
+
 def test_a_name_listed_under_keep_stays_lowercase() -> None:
     rules = rule_set(**{'heading-title-case': RuleSettings(options={'keep': ['uv', 'CLI']})})
     assert fixed(markdown('## install uv and the cli\n'), rules) == '## Install uv and the CLI\n'

@@ -101,7 +101,12 @@ def test_the_rule_reference_matches_each_rule() -> None:
 
 
 def _option_cell(option: RuleOption[typing.Any]) -> str:
-    default = f'`{list(option.default)}`' if isinstance(option.default, tuple) else option.default
+    if isinstance(option.default, tuple):
+        default = f'`{list(option.default)}`'
+    elif isinstance(option.default, str):
+        default = f'`{option.default}`'
+    else:
+        default = option.default
     return f'`{option.name}` ({default})'
 
 

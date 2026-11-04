@@ -55,7 +55,7 @@ class Fix:
         return cls(FixKind.REWRITE)
 
 
-OptionT = typing.TypeVar('OptionT', int, tuple[str, ...])
+OptionT = typing.TypeVar('OptionT', int, str, tuple[str, ...])
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -64,6 +64,8 @@ class RuleOption(typing.Generic[OptionT]):
 
     name: str
     default: OptionT
+    # The values a text option may take, such as the names of the standards a rule follows.
+    choices: tuple[str, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

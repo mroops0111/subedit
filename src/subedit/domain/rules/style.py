@@ -7,7 +7,7 @@ from ..models.prose import is_protected, is_wide, protected_spans
 from ..models.prose_unit import ProseLine, ProseUnit
 from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
-from .markdown import KEEP, HeadingTitleCaseRule
+from .markdown import KEEP, HeadingTitleCaseRule, title_case_style
 
 
 _COLON = re.compile(r'[:：]')
@@ -216,7 +216,7 @@ class BulletLabelStyleRule(Rule[ProseUnit]):
             # A label written as `**Label:**` closes its bold after the colon.
             if opener and not label.group('close') and line.text.startswith(opener, end):
                 bold, end = True, end + len(opener)
-            words = title_case(label.group('label'), keep)
+            words = title_case(label.group('label'), keep, title_case_style(context))
             marker = '**' if bold or unit.renders_markup else ''
             styled = f'{marker}{words}{marker}{label.group("note") or ""}{label.group("colon")}'
             if styled == line.text[:end]:
