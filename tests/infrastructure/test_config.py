@@ -83,6 +83,7 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         ('[rules]\nline-too-short = { minimum-characters = "30" }\n', 'must be a whole number of zero or more'),
         ('[rules]\nheading-title-case = { keep = "npm" }\n', 'must be a list of strings'),
         ('[rules]\nheading-title-case = { style = "ap" }\n', 'must be one of apa, chicago'),
+        ('[rules]\nheading-title-case = { levels = [0, 2] }\n', 'must be a list of heading levels from 1 to 6'),
         ('[rules\n', 'Expected'),
     ],
     ids=[
@@ -96,6 +97,7 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         'option type',
         'list option type',
         'choice option value',
+        'heading level',
         'broken toml',
     ],
 )

@@ -3,142 +3,13 @@ import re
 import typing
 
 from .prose import is_protected, protected_spans
+from .word_classes import ADVERBS, ARTICLES, COORDINATING_CONJUNCTIONS, PREPOSITIONS, SUBORDINATING_CONJUNCTIONS
 
 
 _WORD = re.compile(r"[A-Za-z][A-Za-z'’]*")
 # A token joined to a dot, slash, underscore, or at sign is a name such as a file, a path, or a handle.
 _NAME_JOINERS = frozenset('./_@\\')
 _RUN = re.compile(r'\S+')
-_ARTICLES = frozenset({'a', 'an', 'the'})
-_COORDINATING_CONJUNCTIONS = frozenset({'and', 'but', 'for', 'nor', 'or', 'so', 'yet'})
-_SUBORDINATING_CONJUNCTIONS = frozenset(
-    {
-        'after',
-        'although',
-        'as',
-        'because',
-        'before',
-        'if',
-        'lest',
-        'once',
-        'since',
-        'than',
-        'that',
-        'though',
-        'till',
-        'unless',
-        'until',
-        'when',
-        'whenever',
-        'where',
-        'whereas',
-        'wherever',
-        'whether',
-        'while',
-    }
-)
-_PREPOSITIONS = frozenset(
-    {
-        'about',
-        'above',
-        'across',
-        'after',
-        'against',
-        'along',
-        'amid',
-        'among',
-        'around',
-        'as',
-        'at',
-        'before',
-        'behind',
-        'below',
-        'beneath',
-        'beside',
-        'besides',
-        'between',
-        'beyond',
-        'but',
-        'by',
-        'despite',
-        'down',
-        'during',
-        'except',
-        'for',
-        'from',
-        'in',
-        'inside',
-        'into',
-        'like',
-        'near',
-        'of',
-        'off',
-        'on',
-        'onto',
-        'out',
-        'outside',
-        'over',
-        'past',
-        'per',
-        'since',
-        'than',
-        'through',
-        'throughout',
-        'till',
-        'to',
-        'toward',
-        'towards',
-        'under',
-        'underneath',
-        'unlike',
-        'until',
-        'up',
-        'upon',
-        'versus',
-        'via',
-        'vs',
-        'with',
-        'within',
-        'without',
-    }
-)
-# Words among those above that also stand as an adverb, as up does in Set Up and so in So Far,
-# which a title capitalizes.
-_ADVERBS = frozenset(
-    {
-        'about',
-        'above',
-        'across',
-        'after',
-        'along',
-        'around',
-        'before',
-        'behind',
-        'below',
-        'beneath',
-        'besides',
-        'beyond',
-        'by',
-        'down',
-        'in',
-        'inside',
-        'near',
-        'off',
-        'on',
-        'out',
-        'outside',
-        'over',
-        'past',
-        'since',
-        'so',
-        'through',
-        'throughout',
-        'under',
-        'underneath',
-        'up',
-        'yet',
-    }
-)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -154,15 +25,15 @@ def _short(words: frozenset[str]) -> frozenset[str]:
     return frozenset(word for word in words if len(word) <= 3)
 
 
-_APA_MINOR = _short(_ARTICLES | _COORDINATING_CONJUNCTIONS | _SUBORDINATING_CONJUNCTIONS | _PREPOSITIONS)
+_APA_MINOR = _short(ARTICLES | COORDINATING_CONJUNCTIONS | SUBORDINATING_CONJUNCTIONS | PREPOSITIONS)
 # APA lowercases articles, conjunctions, and prepositions of three letters or fewer.
-APA = TitleCaseStyle(minor=_APA_MINOR, ambiguous=_APA_MINOR & _ADVERBS)
-_CHICAGO_MINOR = _ARTICLES | frozenset({'and', 'but', 'for', 'nor', 'or'}) | _PREPOSITIONS
+APA = TitleCaseStyle(minor=_APA_MINOR, ambiguous=_APA_MINOR & ADVERBS)
+_CHICAGO_MINOR = ARTICLES | frozenset({'and', 'but', 'for', 'nor', 'or'}) | PREPOSITIONS
 # Chicago lowercases articles, five coordinating conjunctions, and every preposition, and as in any role,
 # while it capitalizes a subordinating conjunction, such as until in Wait Until It Ends.
 CHICAGO = TitleCaseStyle(
     minor=_CHICAGO_MINOR,
-    ambiguous=_CHICAGO_MINOR & (_ADVERBS | (_SUBORDINATING_CONJUNCTIONS - {'as'})),
+    ambiguous=_CHICAGO_MINOR & (ADVERBS | (SUBORDINATING_CONJUNCTIONS - {'as'})),
 )
 TITLE_CASE_STYLES = {'apa': APA, 'chicago': CHICAGO}
 

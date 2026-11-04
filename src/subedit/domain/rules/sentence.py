@@ -1,15 +1,15 @@
 import typing
 
 from ..models.comment import CommentGroup, CommentPlacement
-from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, RuleOption, Severity
+from ..models.diagnostic import CountOption, Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.prose import Prose
 from ..models.reflow import BreakPolicy, reflow_sentence
 from ..ports.rule import Rule, RuleContext
 
 
-_MINIMUM_CHARACTERS = RuleOption('minimum-characters', 24)
+_MINIMUM_CHARACTERS = CountOption('minimum-characters', 24)
 # A piece this short between two commas may be a list item.
-_MAX_ITEM_WORDS = RuleOption('max-item-words', 3)
+_MAX_ITEM_WORDS = CountOption('max-item-words', 3)
 _BRACKET_NOTE = 'A comma inside brackets or a code span separates items, so it is no place to break. '
 
 

@@ -2,7 +2,7 @@ import re
 import typing
 
 from ..models.comment import CommentForm, CommentGroup, CommentPlacement
-from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, RuleOption, Severity
+from ..models.diagnostic import CountOption, Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..ports.language_conventions import LanguageConventions
 from ..ports.rule import Rule, RuleContext
 
@@ -10,9 +10,9 @@ from ..ports.rule import Rule, RuleContext
 # Set from the p95 of a measured corpus, which subedit stats reports.
 # A comment past this length has usually started restating the code below it.
 _LIMITS = {
-    'line': RuleOption('line', 4),
-    'doc-internal': RuleOption('doc-internal', 13),
-    'doc-public': RuleOption('doc-public', 20),
+    'line': CountOption('line', 4),
+    'doc-internal': CountOption('doc-internal', 13),
+    'doc-public': CountOption('doc-public', 20),
 }
 
 

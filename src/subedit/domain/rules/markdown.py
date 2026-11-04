@@ -1,46 +1,35 @@
 import re
 import typing
 
-from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, RuleOption, Severity
+from ..models.diagnostic import (
+    ChoiceOption,
+    Diagnostic,
+    Fix,
+    FixKind,
+    HeadingLevelsOption,
+    RuleMetadata,
+    WordsOption,
+)
 from ..models.markdown import MarkdownBlock, MarkdownBlockKind
 from ..models.title_case import TITLE_CASE_STYLES, TitleCaseStyle, capitalized_ambiguous_words, title_case
+from ..models.word_classes import (
+    ARTICLES,
+    COORDINATING_CONJUNCTIONS,
+    OBJECT_OPENERS,
+    PREPOSITIONS,
+    QUESTION_WORDS,
+    SUBORDINATING_CONJUNCTIONS,
+)
 from ..ports.rule import Rule, RuleContext
 
 
-_QUESTION_WORDS = frozenset({'when', 'what', 'where', 'why', 'how', 'who', 'which'})
-# Verbs a heading most often opens with when it gives an instruction instead of naming its subject.
-_IMPERATIVE_VERBS = frozenset(
-    {
-        'add',
-        'apply',
-        'avoid',
-        'build',
-        'check',
-        'choose',
-        'configure',
-        'create',
-        'define',
-        'disable',
-        'enable',
-        'follow',
-        'get',
-        'install',
-        'keep',
-        'make',
-        'open',
-        'prefer',
-        'read',
-        'remove',
-        'run',
-        'set',
-        'start',
-        'stop',
-        'update',
-        'use',
-        'write',
-    }
+_WORD = re.compile(r'[A-Za-z]+')
+# A word that cannot give an instruction even when an object opener follows it, as in For a Client or All the Rules.
+_NOT_VERBS = (
+    ARTICLES | COORDINATING_CONJUNCTIONS | SUBORDINATING_CONJUNCTIONS | PREPOSITIONS | OBJECT_OPENERS | QUESTION_WORDS
 )
-_FIRST_WORD = re.compile(r'[A-Za-z]+')
+# The heading levels a heading rule reads, all of them unless the project narrows it, such as to leave out a title.
+LEVELS = HeadingLevelsOption('levels', (1, 2, 3, 4, 5, 6))
 
 
 # The whole heading sits inside one pair of markers, with no second pair closing and reopening in between.
@@ -96,9 +85,9 @@ class HeadingWrappedInBoldRule(Rule[MarkdownBlock]):
 
 
 # Names that stay lowercase in a title, such as npm, which list labels follow too.
-KEEP: RuleOption[tuple[str, ...]] = RuleOption('keep', ())
+KEEP = WordsOption('keep', ())
 # The standard that decides which words stay lowercase in a title, which list labels follow too.
-STYLE: RuleOption[str] = RuleOption('style', 'apa', choices=tuple(TITLE_CASE_STYLES))
+STYLE = ChoiceOption('style', 'apa', choices=tuple(TITLE_CASE_STYLES))
 
 
 class HeadingTitleCaseRule(Rule[MarkdownBlock]):
@@ -106,14 +95,14 @@ class HeadingTitleCaseRule(Rule[MarkdownBlock]):
         rule_id='heading-title-case',
         summary='The English words of a Markdown heading are in Title Case.',
         fix_kind=FixKind.TARGETED,
-        options=(KEEP, STYLE),
+        options=(KEEP, STYLE, LEVELS),
     )
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.kind is not MarkdownBlockKind.HEADING:
-            return
         settings = context.settings(self.metadata.rule_id)
+        if unit.kind is not MarkdownBlockKind.HEADING or unit.level not in settings.value(LEVELS):
+            return
         style = title_case_style(context)
         cased = title_case(unit.text, settings.value(KEEP), style)
         if cased != unit.text:
@@ -174,19 +163,20 @@ class HeadingNotNounPhraseRule(Rule[MarkdownBlock]):
         rule_id='heading-not-noun-phrase',
         summary='A Markdown heading is a noun phrase, not a question or an instruction.',
         fix_kind=FixKind.REWRITE,
-        default_severity=Severity.WARNING,
+        options=(LEVELS,),
     )
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.kind is not MarkdownBlockKind.HEADING:
+        levels = context.settings(self.metadata.rule_id).value(LEVELS)
+        if unit.kind is not MarkdownBlockKind.HEADING or unit.level not in levels:
             return
-        first_word = _FIRST_WORD.search(unit.text)
-        word = first_word.group().lower() if first_word else ''
-        if word in _QUESTION_WORDS or unit.text.rstrip().endswith('?'):
-            shape = 'a question'
-        elif word in _IMPERATIVE_VERBS:
-            shape = 'an instruction'
+        words = list(_WORD.finditer(unit.text))
+        opens_with_question_word = bool(words) and words[0].group().lower() in QUESTION_WORDS
+        if opens_with_question_word or unit.text.rstrip().endswith(('?', '\uff1f')):
+            shape, is_sure = 'a question', True
+        elif _opens_with_verb_and_object(unit.text, words):
+            shape, is_sure = 'an instruction', False
         else:
             return
         yield Diagnostic(
@@ -197,4 +187,18 @@ class HeadingNotNounPhraseRule(Rule[MarkdownBlock]):
                 'Name the subject of the section as a noun phrase, such as Installation rather than How to Install.'
             ),
             fix=Fix.rewrite(),
+            # A word opening an object marks the word before it as a verb, which only syntax could confirm.
+            tentative=not is_sure,
         )
+
+
+# An instruction is a verb and its object, so a first word followed straight by an object opener,
+# as in Add a Rule, reads as one, while a noun phrase such as Build Steps has none.
+def _opens_with_verb_and_object(text: str, words: list[re.Match[str]]) -> bool:
+    if len(words) < 2:
+        return False
+    first, second = words[0], words[1]
+    verb = first.group().lower()
+    if verb in _NOT_VERBS or verb.endswith('ing') or text[first.end() : second.start()].strip():
+        return False
+    return second.group().lower() in OBJECT_OPENERS

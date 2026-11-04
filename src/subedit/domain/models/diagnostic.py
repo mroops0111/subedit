@@ -1,3 +1,4 @@
+import abc
 import dataclasses
 import enum
 import typing
@@ -55,17 +56,69 @@ class Fix:
         return cls(FixKind.REWRITE)
 
 
-OptionT = typing.TypeVar('OptionT', int, str, tuple[str, ...])
+OptionT = typing.TypeVar('OptionT')
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
-class RuleOption(typing.Generic[OptionT]):
+@dataclasses.dataclass(frozen=True)
+class RuleOption(abc.ABC, typing.Generic[OptionT]):
     """A setting a rule takes under its table in the config, with the value it has when the project sets none."""
 
     name: str
     default: OptionT
-    # The values a text option may take, such as the names of the standards a rule follows.
-    choices: tuple[str, ...] = ()
+
+    @abc.abstractmethod
+    def accepts(self, value: object) -> bool:
+        """Whether a value read from the config, where a list arrives as a list, is one this option takes."""
+
+    @property
+    @abc.abstractmethod
+    def expected(self) -> str:
+        """What the option takes, as the end of the sentence a config error states."""
+
+
+@dataclasses.dataclass(frozen=True)
+class CountOption(RuleOption[int]):
+    def accepts(self, value: object) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+    @property
+    def expected(self) -> str:
+        return 'a whole number of zero or more'
+
+
+@dataclasses.dataclass(frozen=True)
+class ChoiceOption(RuleOption[str]):
+    # The names the option may take, such as the standards a rule can follow.
+    choices: tuple[str, ...]
+
+    def accepts(self, value: object) -> bool:
+        return value in self.choices
+
+    @property
+    def expected(self) -> str:
+        return f'one of {", ".join(self.choices)}'
+
+
+@dataclasses.dataclass(frozen=True)
+class WordsOption(RuleOption[tuple[str, ...]]):
+    def accepts(self, value: object) -> bool:
+        return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+    @property
+    def expected(self) -> str:
+        return 'a list of strings'
+
+
+@dataclasses.dataclass(frozen=True)
+class HeadingLevelsOption(RuleOption[tuple[int, ...]]):
+    def accepts(self, value: object) -> bool:
+        return isinstance(value, list) and all(
+            isinstance(item, int) and not isinstance(item, bool) and 1 <= item <= 6 for item in value
+        )
+
+    @property
+    def expected(self) -> str:
+        return 'a list of heading levels from 1 to 6'
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

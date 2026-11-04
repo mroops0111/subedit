@@ -1,9 +1,8 @@
 import fnmatch
 import pathlib
 import tomllib
-import typing
 
-from ...domain.models.diagnostic import RuleMetadata, RuleOption
+from ...domain.models.diagnostic import RuleMetadata
 from ...domain.models.rule_set import DEFAULT_LINE_WIDTH, RuleSet, RuleSettings
 from .config_schema import ConfigError, ConfigFile, RuleTable
 from .formatter_width import FormatterWidths
@@ -119,8 +118,8 @@ class TomlConfigSource:
                 if option is None:
                     takes = f'it takes {", ".join(declared)}' if declared else 'it takes none'
                     raise ConfigError(f'rules.{rule_id}.{name}: is not an option of {rule_id}, {takes}')
-                if not _fits(option, value):
-                    raise ConfigError(f'rules.{rule_id}.{name}: must be {_kind(option)}')
+                if not option.accepts(value):
+                    raise ConfigError(f'rules.{rule_id}.{name}: must be {option.expected}')
 
     def _to_rule_set(self, config_file: ConfigFile, path: str) -> RuleSet:
         enabled_ids = set(self._available_rule_ids)
@@ -159,22 +158,6 @@ def _load(config_path: pathlib.Path) -> dict[str, object] | None:
         return tomllib.loads(text)
     except tomllib.TOMLDecodeError as error:
         raise ConfigError(f'{config_path}: {error}') from None
-
-
-def _fits(option: RuleOption[typing.Any], value: object) -> bool:
-    if isinstance(option.default, int):
-        return isinstance(value, int) and not isinstance(value, bool) and value >= 0
-    if isinstance(option.default, str):
-        return value in option.choices
-    return isinstance(value, list) and all(isinstance(item, str) for item in value)
-
-
-def _kind(option: RuleOption[typing.Any]) -> str:
-    if isinstance(option.default, int):
-        return 'a whole number of zero or more'
-    if isinstance(option.default, str):
-        return f'one of {", ".join(option.choices)}'
-    return 'a list of strings'
 
 
 # TOML reads an array as a list, while an option's default is a tuple, so a rule always meets the same type.

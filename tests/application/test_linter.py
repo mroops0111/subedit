@@ -4,6 +4,7 @@ from factories import document, rule_set
 from subedit.application import Linter, RuleEngine
 from subedit.domain import (
     CommentGroup,
+    CountOption,
     Diagnostic,
     Document,
     FileType,
@@ -13,7 +14,6 @@ from subedit.domain import (
     Rule,
     RuleContext,
     RuleMetadata,
-    RuleOption,
     RuleSet,
     RuleSettings,
     Severity,
@@ -114,7 +114,7 @@ def test_diagnostics_come_back_in_source_order() -> None:
 
 
 def test_an_option_the_project_leaves_unset_takes_its_default() -> None:
-    width = RuleOption('width', 120)
+    width = CountOption('width', 120)
     assert RuleSettings(options={'width': 90}).value(width) == 90
     assert RuleSettings().value(width) == 120
 

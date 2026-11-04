@@ -15,7 +15,20 @@ from .comment_layout import (
     LinePrefixLayout,
     QuotedDocLayout,
 )
-from .diagnostic import SEVERITY_BY_NAME, Diagnostic, Fix, FixKind, Report, RuleMetadata, RuleOption, Severity
+from .diagnostic import (
+    SEVERITY_BY_NAME,
+    ChoiceOption,
+    CountOption,
+    Diagnostic,
+    Fix,
+    FixKind,
+    HeadingLevelsOption,
+    Report,
+    RuleMetadata,
+    RuleOption,
+    Severity,
+    WordsOption,
+)
 from .document import Document
 from .embedded import EmbeddedDocument
 from .file_type import FileType
@@ -33,11 +46,13 @@ __all__ = [
     'PLAIN_MARKUP',
     'QUOTED_DOC_LAYOUT',
     'SEVERITY_BY_NAME',
+    'ChoiceOption',
     'CommentForm',
     'CommentGroup',
     'CommentLayout',
     'CommentLine',
     'CommentPlacement',
+    'CountOption',
     'Diagnostic',
     'Document',
     'EmbeddedDocument',
@@ -46,6 +61,7 @@ __all__ = [
     'Fix',
     'FixKind',
     'FramedDocLayout',
+    'HeadingLevelsOption',
     'LinePrefixLayout',
     'MarkdownBlock',
     'MarkdownBlockKind',
@@ -70,5 +86,6 @@ __all__ = [
     'SymbolRef',
     'TextEdit',
     'Visibility',
+    'WordsOption',
     'apply_edits',
 ]

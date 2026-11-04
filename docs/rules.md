@@ -91,10 +91,12 @@ These rules read Markdown files, and keep each paragraph on one source line and 
 | --- | --- | --- | --- | --- |
 | `paragraph-line-break` | A paragraph or list item broken across source lines | Reflow | `error` | None |
 | `heading-wrapped-in-bold` | A heading whose whole text is bold, though a heading already renders bold | Targeted | `error` | None |
-| `heading-title-case` | An English heading not in Title Case | Targeted | `error` | `keep` (`[]`), `style` (`apa`) |
+| `heading-title-case` | An English heading not in Title Case | Targeted | `error` | `keep` (`[]`), `style` (`apa`), `levels` (`[1, 2, 3, 4, 5, 6]`) |
 | `missing-lead-sentence` | A heading that opens straight into a list, with no sentence to frame it | Rewrite | `error` | None |
-| `heading-not-noun-phrase` | A heading that asks a question or gives an instruction | Rewrite | `warning` | None |
+| `heading-not-noun-phrase` | A heading that asks a question or gives an instruction | Rewrite | `error` | `levels` (`[1, 2, 3, 4, 5, 6]`) |
 
 GitHub issues, Notion, and Heptabase can show a source newline as a line break, so a hand-wrapped paragraph breaks once it is copied there. Joining puts no space between two CJK characters, and keeps a break the author marked with two trailing spaces or a backslash.
 
 Title Case follows a published standard, which `style` names. `apa` lowercases articles, conjunctions, and prepositions of three letters or fewer, so it writes *Working With a List*. `chicago` lowercases articles, *and*, *but*, *for*, *or*, *nor*, and every preposition, so it writes *Working with a List*. A word such as *up* or *in* that may stand as an adverb, as in *Set Up*, keeps the case the author wrote, and a capitalized one inside a heading is a warning. Title Case leaves code, file names, acronyms, and a lone lowercase word alone. A lowercase name such as `npm` goes under `keep`. List labels follow `style` and `keep` too.
+
+A heading that opens with a question word such as *How* or *What*, or ends with a question mark, is a question, so it is an error. A heading whose first word is followed straight by a word opening an object, such as *a*, *the*, or *your*, reads as an instruction, as in *Add a Rule*. That is a guess, so it is a warning unless the project sets the rule's severity. A single word such as *Install* passes, since it may name the subject. Both heading rules read only the heading levels listed under `levels`, so a project can leave out a document title or a FAQ.

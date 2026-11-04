@@ -2,7 +2,7 @@ import dataclasses
 import re
 import typing
 
-from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, RuleOption, Severity
+from ..models.diagnostic import CountOption, Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.prose import is_protected, is_wide, protected_spans
 from ..models.prose_unit import ProseLine, ProseUnit
 from ..models.title_case import title_case
@@ -18,11 +18,11 @@ _LABEL = re.compile(
     r'(?P<label>(?:`[^`]*`|[^\s*_:：.,;!?。，；！？`])(?:`[^`]*`|\.(?=\S)|[^*_:：.;!?。；！？`]){0,79}?)'
     r'(?P<close>\*\*|__)?(?P<note>\s*\([^()]*\))?(?P<colon>[:：])'
 )
-_MAX_LABEL_WORDS = RuleOption('max-label-words', 5)
-_MAX_BOLD_LABEL_WORDS = RuleOption('max-bold-label-words', 10)
-_MAX_WIDE_LABEL_CHARACTERS = RuleOption('max-wide-label-characters', 12)
+_MAX_LABEL_WORDS = CountOption('max-label-words', 5)
+_MAX_BOLD_LABEL_WORDS = CountOption('max-bold-label-words', 10)
+_MAX_WIDE_LABEL_CHARACTERS = CountOption('max-wide-label-characters', 12)
 # A paragraph, unlike a list item, opens with a label only as a capitalized tag such as Note.
-_MAX_TAG_WORDS = RuleOption('max-tag-words', 3)
+_MAX_TAG_WORDS = CountOption('max-tag-words', 3)
 # The auxiliary and modal verbs, each finite in every form listed,
 # which make the words before a colon a clause, as in "The write is idempotent:", rather than a label.
 _AUXILIARIES = frozenset(

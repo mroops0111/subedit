@@ -203,16 +203,52 @@ def test_a_heading_straight_into_a_list_needs_a_lead_sentence() -> None:
     assert 'missing-lead-sentence' not in ids(markdown('## Transport\n\nThere are two.\n\n- stdio\n- SSE\n'))
 
 
+def noun_phrase_severities(source: str, rules: RuleSet | None = None) -> list[Severity]:
+    report = lint(markdown(source), rules or rule_set(), RULES)
+    return [item.severity for item in report.diagnostics if item.rule_id == 'heading-not-noun-phrase']
+
+
 @pytest.mark.parametrize(
-    'heading', ['## How to Install\n', '## When to Apply\n', '## Use the Cache\n', '## Is It Fast?\n']
+    'heading',
+    ['## How to Install\n', '## When to Apply\n', '## Whose Config Wins\n', '## Is It Fast?\n', '## 設定在哪？\n'],
 )
-def test_a_question_or_an_instruction_is_no_noun_heading(heading: str) -> None:
-    assert 'heading-not-noun-phrase' in ids(markdown(heading))
+def test_a_question_heading_is_an_error(heading: str) -> None:
+    assert noun_phrase_severities(heading) == [Severity.ERROR]
 
 
-@pytest.mark.parametrize('heading', ['## Installation\n', '## Getting Started\n', '## Bullet Points\n'])
+@pytest.mark.parametrize(
+    'heading', ['## Use the Cache\n', '## Connect an MCP Server\n', '## 3. Configure Your Tools\n', '## Run It\n']
+)
+def test_a_verb_followed_by_its_object_is_an_instruction_and_a_warning(heading: str) -> None:
+    assert noun_phrase_severities(heading) == [Severity.WARNING]
+
+
+@pytest.mark.parametrize(
+    'heading',
+    [
+        '## Installation\n',
+        '## Getting Started\n',
+        '## Bullet Points\n',
+        '## Build Steps\n',
+        '## Open Items\n',
+        '## Install\n',
+        '## For a Client\n',
+        '## All the Rules\n',
+        '## Proof That It Works\n',
+        '## Reading the Config\n',
+        '## Authority: the Oracle\n',
+        '## Spine (Every Skill)\n',
+    ],
+)
 def test_a_noun_heading_is_silent(heading: str) -> None:
-    assert 'heading-not-noun-phrase' not in ids(markdown(heading))
+    assert noun_phrase_severities(heading) == []
+
+
+def test_heading_rules_read_only_the_levels_a_project_lists() -> None:
+    levels = RuleSettings(options={'levels': (2, 3)})
+    rules = rule_set(**{'heading-not-noun-phrase': levels, 'heading-title-case': levels})
+    source = '# how subedit works\n\n## How It Works\n'
+    assert ids(markdown(source), rules) == ['heading-not-noun-phrase']
 
 
 @pytest.mark.parametrize(
