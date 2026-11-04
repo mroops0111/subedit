@@ -198,7 +198,7 @@ class CommentGroup(ProseUnit):
                 out.extend(paragraph)
                 continue
             lines = tuple(line.strip() for line in paragraph if line.strip())
-            sentences = Prose(' '.join(lines)).sentences()
+            sentences = Prose(' '.join(lines)).sentences(policy.abbreviations)
             shared_until = 0
             for sentence_index, sentence in enumerate(sentences):
                 if sentence.offset < shared_until:

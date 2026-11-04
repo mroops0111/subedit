@@ -39,6 +39,16 @@ class SubeditSection(pydantic.BaseModel):
     line_width: int | None = pydantic.Field(default=None, alias='line-width', gt=0)
     exclude: tuple[str, ...] = ()
     code_blocks: bool = pydantic.Field(default=False, alias='code-blocks')
+    # Each is written with its period, as in Dept., since the case and the period are matched as written.
+    abbreviations: tuple[str, ...] = ()
+
+    @pydantic.field_validator('abbreviations')
+    @classmethod
+    def _written_with_a_period(cls, abbreviations: tuple[str, ...]) -> tuple[str, ...]:
+        for abbreviation in abbreviations:
+            if len(abbreviation) < 2 or not abbreviation.endswith('.') or ' ' in abbreviation:
+                raise ValueError(f'{abbreviation!r} must be one word ending in its period, as in Dept.')
+        return abbreviations
 
 
 class ConfigFile(pydantic.BaseModel):
@@ -71,4 +81,6 @@ def _describe(detail: typing.Any) -> str:
         str(part) for part in detail['loc'] if not str(part).startswith('literal[') and part != 'RuleTable'
     )
     message = 'is not a setting subedit knows' if detail['type'] == 'extra_forbidden' else detail['msg']
+    # A validator's own sentence comes after the prefix pydantic puts on it.
+    message = message.removeprefix('Value error, ')
     return f'{location}: {message}' if location else message

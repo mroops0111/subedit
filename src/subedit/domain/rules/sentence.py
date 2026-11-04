@@ -29,6 +29,7 @@ def break_policy(context: RuleContext) -> BreakPolicy:
     return BreakPolicy(
         stub_floor=context.settings(short).value(_MINIMUM_CHARACTERS) if rule_set.is_enabled(short) else 0,
         list_item_words=context.settings(split).value(_MAX_ITEM_WORDS) if rule_set.is_enabled(split) else None,
+        abbreviations=rule_set.abbreviations,
     )
 
 
@@ -150,12 +151,12 @@ class MidListBreakRule(Rule[CommentGroup]):
             )
 
 
-def _prose_sentences(group: CommentGroup) -> tuple[str, ...]:
+def _prose_sentences(group: CommentGroup, context: RuleContext) -> tuple[str, ...]:
     return tuple(
         sentence.text
         for segment in group.prose().segments()
         if not segment.is_literal
-        for sentence in Prose(segment.text, group.markup).sentences()
+        for sentence in Prose(segment.text, group.markup).sentences(context.rule_set.abbreviations)
     )
 
 
@@ -163,5 +164,5 @@ def _budgeted_sentences(group: CommentGroup, context: RuleContext) -> tuple[tupl
     """Pair each sentence with the budget reflow lays it out in, so no rule judges a layout reflow would not make."""
     return tuple(
         (sentence, group.text_budget(context.rule_set.line_width, first_line=index == 0))
-        for index, sentence in enumerate(_prose_sentences(group))
+        for index, sentence in enumerate(_prose_sentences(group, context))
     )

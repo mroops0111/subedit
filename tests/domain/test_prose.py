@@ -51,6 +51,38 @@ def test_no_ends_a_sentence_unless_a_number_follows() -> None:
 @pytest.mark.parametrize(
     'text',
     [
+        'Ask Mr. Smith before the release.',
+        'Ask Prof. Lee about the Dept. budget.',
+        'Read the Ph.D. thesis first.',
+        'Runs at 5 p.m. every day.',
+        'The change landed in Sec. 4 of the spec.',
+        'See Fig. 3 for the layout.',
+    ],
+)
+def test_an_abbreviation_unicode_cldr_or_prose_lists_ends_no_sentence(text: str) -> None:
+    assert len(Prose(text).sentences()) == 1
+
+
+def test_a_reference_abbreviation_ends_its_sentence_when_no_number_follows() -> None:
+    assert texts(Prose('The layout is in the next sec. Then it ends.')) == [
+        'The layout is in the next sec.',
+        'Then it ends.',
+    ]
+
+
+def test_a_project_abbreviation_ends_no_sentence_and_keeps_its_case() -> None:
+    prose = Prose('Ask the Corp. head first. The corp. moves.')
+    assert texts(prose) == ['Ask the Corp.', 'head first.', 'The corp.', 'moves.']
+    assert [sentence.text for sentence in prose.sentences(frozenset({'Corp.'}))] == [
+        'Ask the Corp. head first.',
+        'The corp.',
+        'moves.',
+    ]
+
+
+@pytest.mark.parametrize(
+    'text',
+    [
         'the cap is 3.14 percent of the budget',
         'requires version 3.11 or newer to build',
         'the ratio 0.5 holds across every run',

@@ -145,6 +145,7 @@ class TomlConfigSource:
             line_width=config_file.subedit.line_width or self.default_width(path),
             disabled_external_ids=frozenset(disabled_external_ids),
             reads_embedded=config_file.subedit.code_blocks,
+            abbreviations=frozenset(config_file.subedit.abbreviations),
         )
 
 

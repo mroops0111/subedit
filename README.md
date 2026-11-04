@@ -274,7 +274,7 @@ minimum-characters = 30
 In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, and `[tool.subedit.rules.<name>]`.
 
 <details>
-<summary><b>Settings</b>: the width, excluded paths, and code blocks</summary>
+<summary><b>Settings</b>: the width, excluded paths, code blocks, and abbreviations</summary>
 
 <br>
 
@@ -283,6 +283,7 @@ In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.ru
 | `line-width` | Integer | The formatter's width, else 120 | The column every comment line must fit, counting indent and delimiter |
 | `exclude` | List of globs | `[]` | Paths a directory walk skips, relative to the config file |
 | `code-blocks` | Boolean | `false` | Whether the comments in a Markdown code block are read, in a language subedit supports |
+| `abbreviations` | List of strings | `[]` | Abbreviations whose period ends no sentence, each written with its period and its case, such as `"Dept."` |
 
 Left unset, `line-width` follows the formatter that would format the file, read from its own config.
 
@@ -323,7 +324,7 @@ A surface is a kind of file where prose lives. Every surface goes through the sa
 | Code comments and docstrings | Available | Layout, because a comment must fit a column limit |
 | Markdown | Available | One line per paragraph and the shape of headings, because Markdown has no column limit |
 
-Markdown is read from `.md` and `.markdown` files, leaving front matter, code, tables, and HTML blocks alone. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. Each block is checked as a file of that language would be, by Vale and AutoCorrect as well, except for the rules on a whole file. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
+Markdown is read from `.md` and `.markdown` files, leaving front matter, code, and HTML blocks alone, and reading only the header of a table. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. Each block is checked as a file of that language would be, by Vale and AutoCorrect as well, except for the rules on a whole file. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
 
 #### Languages
 
@@ -353,4 +354,4 @@ Each language is a profile that knows its comment forms, its doc comment, and wh
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The English abbreviations that end no sentence come from the [Unicode CLDR](https://cldr.unicode.org/) under the Unicode License v3, whose notice ships with the [data file](src/subedit/domain/models/cldr_sentence_suppressions.txt).

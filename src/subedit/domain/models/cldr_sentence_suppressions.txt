@@ -1,0 +1,194 @@
+# English sentence break suppressions from the Unicode Common Locale Data Repository (CLDR),
+# common/segments/en.xml at commit f69257926c43, https://github.com/unicode-org/cldr.
+# Each line is an abbreviation after whose period a sentence does not end, matched with its case.
+#
+# COPYRIGHT AND PERMISSION NOTICE
+#
+# Copyright © 2001–2026 Unicode, Inc.
+#
+# NOTICE TO USER: Carefully read the following legal agreement. BY
+# DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+# SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+# TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+# DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of data files and any associated documentation (the "Data Files") or
+# software and any associated documentation (the "Software") to deal in the
+# Data Files or Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, and/or sell
+# copies of the Data Files or Software, and to permit persons to whom the
+# Data Files or Software are furnished to do so, provided that either (a)
+# this copyright and permission notice appear with all copies of the Data
+# Files or Software, or (b) this copyright and permission notice appear in
+# associated Documentation.
+#
+# THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+# KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+# THIRD PARTY RIGHTS.
+#
+# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+# BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+# OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+# WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+# ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+# FILES OR SOFTWARE.
+#
+# Except as contained in this notice, the name of a copyright holder shall
+# not be used in advertising or otherwise to promote the sale, use or other
+# dealings in these Data Files or Software without prior written
+# authorization of the copyright holder.
+#
+# SPDX-License-Identifier: Unicode-3.0
+A.
+A.D.
+A.M.
+A.S.
+AA.
+AB.
+AD.
+Abs.
+Act.
+Adj.
+Adv.
+All.
+Alt.
+Approx.
+As.
+Aug.
+B.
+B.V.
+By.
+C.F.
+C.O.D.
+Cap.
+Capt.
+Card.
+Col.
+Comm.
+Conn.
+Cont.
+D.
+D.A.
+D.C.
+DC.
+Dec.
+Def.
+Dept.
+Diff.
+Do.
+E.
+E.G.
+E.g.
+Ed.
+Est.
+Etc.
+Ex.
+Exec.
+F.
+Feb.
+Fn.
+Fri.
+G.
+Gb.
+Go.
+Hat.
+Hon.B.A.
+Hz.
+I.
+I.D.
+I.T.
+I.e.
+Id.
+In.
+Is.
+J.B.
+J.D.
+J.K.
+Jam.
+Jan.
+Job.
+Joe.
+Jun.
+K.
+K.R.
+Kb.
+L.
+L.A.
+L.P.
+Lev.
+Lib.
+Link.
+Long.
+Lt.
+Lt.Cdr.
+M.
+M.I.T.
+M.R.
+M.T.
+MR.
+Maj.
+Mar.
+Mart.
+Mb.
+Md.
+Mgr.
+Min.
+Misc.
+Mr.
+Mrs.
+Ms.
+Mt.
+N.V.
+N.Y.
+Nov.
+Nr.
+Num.
+O.
+OK.
+Ok.
+On.
+Op.
+Or.
+Org.
+P.M.
+P.O.
+P.V.
+PC.
+PP.
+Ph.D.
+Phys.
+Pro.
+Prof.
+Pvt.
+Q.
+R.L.
+R.T.
+Rep.
+Rev.
+S.
+S.A.
+S.A.R.
+S.E.
+S.p.A.
+Sep.
+Sept.
+Sgt.
+Sq.
+T.
+To.
+U.
+U.S.
+U.S.A.
+U.S.C.
+Up.
+VS.
+Var.
+X.
+Yr.
+Z.
+a.m.
+exec.
+pp.
+vs.

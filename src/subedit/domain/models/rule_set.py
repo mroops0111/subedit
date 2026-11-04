@@ -32,6 +32,8 @@ class RuleSet:
     # A document embedded in another, such as a Markdown code block, is often an example,
     # so a project opts in to having it read.
     reads_embedded: bool = False
+    # Abbreviations the project adds to the built-in ones, each with its period, such as Dept.
+    abbreviations: frozenset[str] = frozenset()
 
     def is_enabled(self, rule_id: str) -> bool:
         return rule_id in self.enabled_rule_ids

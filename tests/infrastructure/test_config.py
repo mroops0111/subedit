@@ -84,6 +84,7 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         ('[rules]\nheading-title-case = { keep = "npm" }\n', 'must be a list of strings'),
         ('[rules]\nheading-title-case = { style = "ap" }\n', 'must be one of apa, chicago'),
         ('[rules]\nheading-title-case = { levels = [0, 2] }\n', 'must be a list of heading levels from 1 to 6'),
+        ('[subedit]\nabbreviations = ["Dept"]\n', "'Dept' must be one word ending in its period"),
         ('[rules\n', 'Expected'),
     ],
     ids=[
@@ -98,6 +99,7 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         'list option type',
         'choice option value',
         'heading level',
+        'abbreviation without its period',
         'broken toml',
     ],
 )
@@ -111,6 +113,11 @@ def test_a_config_written_wrong_names_its_file_and_mistake(project: Project, bod
 def test_a_list_option_reaches_its_rule_as_a_tuple(project: Project) -> None:
     target = configured(project, '[rules]\nheading-title-case = { keep = ["npm"] }\n')
     assert source().resolve(str(target)).settings_for('heading-title-case').options == {'keep': ('npm',)}
+
+
+def test_a_project_lists_its_own_abbreviations(project: Project) -> None:
+    target = configured(project, '[subedit]\nabbreviations = ["Dept.", "Est."]\n')
+    assert source().resolve(str(target)).abbreviations == frozenset({'Dept.', 'Est.'})
 
 
 def test_a_delegated_rule_table_keeps_options_subedit_cannot_check(project: Project) -> None:

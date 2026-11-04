@@ -60,6 +60,8 @@ class BreakPolicy:
     # A piece this short between two commas may be a list item, such as "base URL,", which a break avoids.
     # None leaves lists out of the choice.
     list_item_words: int | None = None
+    # The project's own abbreviations, each with its period, which end no sentence reflow lays out.
+    abbreviations: frozenset[str] = frozenset()
 
 
 def reflow_sentence(

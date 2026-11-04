@@ -68,6 +68,8 @@ Reflow reads the same `minimum-characters` floor, so a fix never lays out a line
 
 Whether a comma parts list items, clauses, or an aside is a matter of syntax, which subedit can only guess, so `mid-list-break` is a warning. Reflow still prefers a break that splits no list when it lays a sentence out itself, but it keeps a legal break the author chose. A piece of up to `max-item-words` words between two commas may be a list item. Switching either rule off leaves its concern out of reflow too.
 
+A period ends a sentence unless it closes an abbreviation. The abbreviations are the English ones Unicode CLDR lists, such as *Mr.* and *Ph.D.*, matched with their case, the Latin ones in lowercase, such as *e.g.* and *etc.*, and a reference such as *Fig.* or *Sec.* before a number. A project adds its own under `abbreviations` in its settings.
+
 ## Structure
 
 These rules read comments, and check where documentation lives and how much of it there is.
