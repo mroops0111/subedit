@@ -166,9 +166,30 @@ def test_a_word_that_may_be_an_adverb_keeps_the_case_written(heading: str) -> No
     assert fixed(markdown(heading)) == heading
 
 
-@pytest.mark.parametrize('heading', ['## Cloud and On-Prem Pairing\n', '## A Pick-up Line\n'])
-def test_a_minor_word_in_a_hyphenated_compound_keeps_its_case(heading: str) -> None:
-    assert ids(markdown(heading)) == []
+@pytest.mark.parametrize(
+    ('heading', 'expected'),
+    [
+        ('## cloud and on-prem pairing\n', '## Cloud and On-Prem Pairing\n'),
+        ('## real per-user OAuth2\n', '## Real Per-User OAuth2\n'),
+        ('## out-of-print books\n', '## Out-of-Print Books\n'),
+        ('## A Pick-up Line\n', '## A Pick-up Line\n'),
+    ],
+)
+def test_a_compound_capitalizes_its_first_part_and_cases_the_rest_as_words(heading: str, expected: str) -> None:
+    assert fixed(markdown(heading)) == expected
+
+
+@pytest.mark.parametrize(
+    ('heading', 'expected'),
+    [
+        ('### 1. A Model in the Language of the Domain\n', '### 1. A Model in the Language of the Domain\n'),
+        ('### 2) the plan\n', '### 2) The Plan\n'),
+        ('### 1.2 the scope\n', '### 1.2 The Scope\n'),
+        ('### 3 of the best\n', '### 3 of the Best\n'),
+    ],
+)
+def test_an_ordinal_before_a_heading_is_no_first_word(heading: str, expected: str) -> None:
+    assert fixed(markdown(heading)) == expected
 
 
 def test_a_capitalized_word_that_may_be_a_preposition_is_a_warning() -> None:

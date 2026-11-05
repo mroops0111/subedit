@@ -10,6 +10,8 @@ _WORD = re.compile(r"[A-Za-z][A-Za-z'’]*")
 # A token joined to a dot, slash, underscore, or at sign is a name such as a file, a path, or a handle.
 _NAME_JOINERS = frozenset('./_@\\')
 _RUN = re.compile(r'\S+')
+# A number that orders a heading, such as 1. or 2) or 1.2, comes before its first word rather than being one.
+_ORDINAL = re.compile(r'\d+(?:\.\d+)*[.)]\s+|\d+(?:\.\d+)+\s+')
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -70,9 +72,10 @@ def capitalized_ambiguous_words(text: str, style: TitleCaseStyle = APA) -> tuple
 @dataclasses.dataclass(frozen=True, slots=True)
 class _TitleWord:
     match: re.Match[str]
-    # The first word, the last, and the first after a colon are capitalized whatever they are.
+    # A word at an edge is capitalized whatever it is.
+    # The edges are the first and last words, the word after a colon, and the first part of a compound such as Per-User.
     is_edge: bool
-    # A word joined by a hyphen, such as on in On-Prem, is part of a compound rather than a preposition.
+    # A word joined by a hyphen, such as in in Sign-In, is no preposition a reader would flag.
     in_compound: bool
 
 
@@ -81,14 +84,17 @@ def _title_words(text: str) -> typing.Iterator[_TitleWord]:
     if len(text.split()) == 1 and text.islower():
         return
     spans = protected_spans(text) + _name_spans(text)
+    ordinal = _ORDINAL.match(text)
+    ordinal_end = ordinal.end() if ordinal else 0
     for match in _WORD.finditer(text):
         if is_protected(match.start(), spans) or text[match.end() : match.end() + 1].isdigit():
             continue
-        before = text[: match.start()]
+        before = text[ordinal_end : match.start()]
         opens = not any(character.isalnum() for character in before) or before.rstrip().endswith((':', '：'))
         closes = not any(character.isalnum() for character in text[match.end() :])
-        in_compound = text[match.start() - 1 : match.start()] == '-' or text[match.end() : match.end() + 1] == '-'
-        yield _TitleWord(match, is_edge=opens or closes, in_compound=in_compound)
+        follows_hyphen = text[match.start() - 1 : match.start()] == '-'
+        opens_compound = text[match.end() : match.end() + 1] == '-' and not follows_hyphen
+        yield _TitleWord(match, is_edge=opens or closes or opens_compound, in_compound=follows_hyphen or opens_compound)
 
 
 def _cased(title_word: _TitleWord, kept: dict[str, str], style: TitleCaseStyle) -> str:
@@ -96,8 +102,6 @@ def _cased(title_word: _TitleWord, kept: dict[str, str], style: TitleCaseStyle) 
     if word.lower() in kept:
         return kept[word.lower()]
     if any(character.isupper() for character in word[1:]):
-        return word
-    if not title_word.is_edge and word.lower() in style.minor and title_word.in_compound:
         return word
     if not title_word.is_edge and word.lower() in style.ambiguous:
         return word
