@@ -101,9 +101,47 @@ def test_a_comment_follows_the_parenthesis_style_too() -> None:
     assert fixed(document('# 使用（全形括號）說明。\nx = 1\n')) == '# 使用 (全形括號) 說明。\nx = 1\n'
 
 
-def test_the_inclusion_verb_is_rewritten() -> None:
+FULL_WIDTH = rule_set(**{'parenthesis-style': RuleSettings(options={'style': 'full-width'})})
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ('工具 (一個筆記工具) 提供白板。\n', '工具（一個筆記工具）提供白板。\n'),
+        ('使用 MCP (協定) 連線。\n', '使用 MCP（協定）連線。\n'),
+        ('使用（全形括號）說明。\n', '使用（全形括號）說明。\n'),
+        ('An aside (in English) stays half-width.\n', 'An aside (in English) stays half-width.\n'),
+        ('An aside（in English）stays half-width.\n', 'An aside (in English) stays half-width.\n'),
+    ],
+)
+def test_a_project_may_pick_full_width_parentheses_beside_cjk(source: str, expected: str) -> None:
+    assert fixed(markdown(source), FULL_WIDTH) == expected
+
+
+def test_a_discouraged_word_is_replaced_with_the_preferred_one() -> None:
     assert fixed(markdown('三種方式包括這些。\n')) == '三種方式包含這些。\n'
     assert fixed(document('# 三種方式包括這些。\nx = 1\n')) == '# 三種方式包含這些。\nx = 1\n'
+
+
+def test_a_project_lists_its_own_discouraged_words() -> None:
+    rules = rule_set(**{'discouraged-word': RuleSettings(options={'replacements': {'utilize': 'use'}})})
+    assert fixed(markdown('We utilize it, as underutilized code shows.\n'), rules) == (
+        'We use it, as underutilized code shows.\n'
+    )
+    assert fixed(markdown('三種方式包括這些。\n'), rules) == '三種方式包括這些。\n'
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        '用 A 而不是 B，是因為 C 比較快。\n',
+        '這是不是問題，是要看情況。\n',
+        '不是每個都要，是否保留看情況。\n',
+        '不是所有人都會，是為了新手才寫。\n',
+    ],
+)
+def test_a_reason_or_question_after_not_is_no_contrast_framing(source: str) -> None:
+    assert 'contrast-framing' not in ids(markdown(source))
 
 
 def test_contrast_framing_is_advice_for_a_rewrite() -> None:
@@ -126,6 +164,13 @@ def test_contrast_framing_is_advice_for_a_rewrite() -> None:
 )
 def test_a_markdown_label_is_bold_and_in_title_case(source: str, expected: str) -> None:
     assert fixed(markdown(source)) == expected
+
+
+def test_a_label_may_skip_bold_while_keeping_title_case() -> None:
+    rules = enabling(rule_ids(RULES) - {'list-label-not-bold'})
+    assert fixed(markdown('# Title\n\nLead.\n\n- cache size: the limit\n'), rules) == (
+        '# Title\n\nLead.\n\n- Cache Size: the limit\n'
+    )
 
 
 def test_a_line_comment_label_takes_title_case_but_no_bold() -> None:
@@ -212,7 +257,7 @@ def test_a_table_header_follows_the_heading_standard() -> None:
 
 
 def test_a_name_listed_under_keep_stays_lowercase() -> None:
-    rules = rule_set(**{'heading-title-case': RuleSettings(options={'keep': ['uv', 'CLI']})})
+    rules = rule_set(**{'heading-title-case': RuleSettings(options={'exceptions': ['uv', 'CLI']})})
     assert fixed(markdown('## install uv and the cli\n'), rules) == '## Install uv and the CLI\n'
 
 
@@ -299,7 +344,7 @@ def test_a_label_may_hold_code_or_a_parenthetical(item: str) -> None:
 def test_a_clause_before_a_colon_is_no_label() -> None:
     found = ids(markdown('# Title\n\nLead.\n\n- The write is idempotent: dates with an entry are skipped.\n'))
     assert 'mid-sentence-colon' in found
-    assert 'bullet-label-style' not in found
+    assert 'list-label-title-case' not in found
 
 
 def colon_severities(source: str, rules: RuleSet | None = None) -> list[Severity]:

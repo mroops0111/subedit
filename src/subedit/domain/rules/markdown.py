@@ -85,7 +85,7 @@ class HeadingWrappedInBoldRule(Rule[MarkdownBlock]):
 
 
 # Names that stay lowercase in a title, such as npm, which list labels follow too.
-KEEP = WordsOption('keep', ())
+EXCEPTIONS = WordsOption('exceptions', ())
 # The standard that decides which words stay lowercase in a title, which list labels follow too.
 STYLE = ChoiceOption('style', 'apa', choices=tuple(TITLE_CASE_STYLES))
 
@@ -95,7 +95,7 @@ class HeadingTitleCaseRule(Rule[MarkdownBlock]):
         rule_id='heading-title-case',
         summary='The English words of a Markdown heading are in Title Case.',
         fix_kind=FixKind.TARGETED,
-        options=(KEEP, STYLE, LEVELS),
+        options=(EXCEPTIONS, STYLE, LEVELS),
     )
     surface = MarkdownBlock
 
@@ -124,16 +124,16 @@ def _title_case_findings(
     rule_id: str, unit: MarkdownBlock, context: RuleContext, what: str
 ) -> typing.Iterator[Diagnostic]:
     # The heading rule owns the standard and the names kept lowercase, which every title follows.
-    keep = context.settings(HeadingTitleCaseRule.metadata.rule_id).value(KEEP)
+    exceptions = context.settings(HeadingTitleCaseRule.metadata.rule_id).value(EXCEPTIONS)
     style = title_case_style(context)
-    cased = title_case(unit.text, keep, style)
+    cased = title_case(unit.text, exceptions, style)
     if cased != unit.text:
         yield Diagnostic(
             rule_id=rule_id,
             range=unit.range,
             message=(
                 f'This {what} is not in Title Case, so it reads "{cased}". '
-                'List a name that stays lowercase, such as npm, under keep for heading-title-case.'
+                'List a name that stays lowercase, such as npm, under exceptions for heading-title-case.'
             ),
             fix=Fix.targeted(unit.as_edit(cased)),
         )

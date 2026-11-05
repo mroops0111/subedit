@@ -26,14 +26,14 @@ def test_a_nonsense_width_is_a_config_error(width: object) -> None:
 
 def test_a_rule_entry_may_be_a_string_or_a_table() -> None:
     parsed = ConfigFile.parse(
-        {'rules': {'a': 'off', 'b': 'warning', 'c': {'severity': 'error', 'minimum-characters': 30}}}
+        {'rules': {'a': 'off', 'b': 'warning', 'c': {'severity': 'error', 'min-line-characters': 30}}}
     )
     assert parsed.rules['a'] == 'off'
     assert parsed.rules['b'] == 'warning'
     table = parsed.rules['c']
     assert isinstance(table, RuleTable)
     assert table.resolved_severity is Severity.ERROR
-    assert table.options == {'minimum-characters': 30}
+    assert table.options == {'min-line-characters': 30}
 
 
 def test_a_boolean_is_not_a_rule_entry() -> None:
@@ -42,8 +42,8 @@ def test_a_boolean_is_not_a_rule_entry() -> None:
 
 
 def test_extra_options_survive_on_a_rule_table() -> None:
-    table = RuleTable.model_validate({'severity': 'warning', 'line': 4, 'doc-public': 17})
-    assert table.options == {'line': 4, 'doc-public': 17}
+    table = RuleTable.model_validate({'severity': 'warning', 'max-plain-lines': 4, 'max-public-doc-lines': 17})
+    assert table.options == {'max-plain-lines': 4, 'max-public-doc-lines': 17}
 
 
 def test_exclude_patterns_are_read() -> None:

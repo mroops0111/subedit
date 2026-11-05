@@ -8,27 +8,29 @@ from .markdown import (
     TableHeaderTitleCaseRule,
 )
 from .sentence import LineTooShortRule, MidListBreakRule, UnbreakableSentenceRule
-from .structure import BlockTooLongRule, FileHeaderCommentRule, PlainCommentOnPublicRule, SignatureRestatingTagRule
+from .structure import CommentTooLongRule, FileHeaderCommentRule, PlainCommentOnPublicRule, SignatureRestatingTagRule
 from .style import (
-    BulletLabelStyleRule,
     ContrastFramingRule,
-    InclusionVerbRule,
+    DiscouragedWordRule,
+    ListLabelNotBoldRule,
+    ListLabelTitleCaseRule,
     MidSentenceColonRule,
     ParenthesisStyleRule,
 )
 
 
 __all__ = [
-    'BlockTooLongRule',
-    'BulletLabelStyleRule',
+    'CommentTooLongRule',
     'ContrastFramingRule',
+    'DiscouragedWordRule',
     'FileHeaderCommentRule',
     'HeadingNotNounPhraseRule',
     'HeadingTitleCaseRule',
     'HeadingWrappedInBoldRule',
-    'InclusionVerbRule',
     'LineTooLongRule',
     'LineTooShortRule',
+    'ListLabelNotBoldRule',
+    'ListLabelTitleCaseRule',
     'MidClauseBreakRule',
     'MidListBreakRule',
     'MidSentenceColonRule',

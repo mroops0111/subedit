@@ -42,7 +42,7 @@ def test_blocks_group_by_form_placement_and_visibility() -> None:
         'x = 1  # trailing\n',
     )
     labels = {distribution.label for distribution in report.line_counts}
-    assert labels == {'doc/public', 'doc/internal', 'line/inline-body', 'line/trailing'}
+    assert labels == {'doc/public', 'doc/internal', 'plain/inline-body', 'plain/trailing'}
     public = next(item for item in report.line_counts if item.label == 'doc/public')
     assert public.count == 1
 

@@ -110,6 +110,19 @@ class WordsOption(RuleOption[tuple[str, ...]]):
 
 
 @dataclasses.dataclass(frozen=True)
+class ReplacementsOption(RuleOption[typing.Mapping[str, str]]):
+    def accepts(self, value: object) -> bool:
+        return isinstance(value, dict) and all(
+            isinstance(word, str) and word and isinstance(replacement, str) and replacement
+            for word, replacement in typing.cast(dict[object, object], value).items()
+        )
+
+    @property
+    def expected(self) -> str:
+        return 'a table of words, each set to the word that replaces it'
+
+
+@dataclasses.dataclass(frozen=True)
 class HeadingLevelsOption(RuleOption[tuple[int, ...]]):
     def accepts(self, value: object) -> bool:
         return isinstance(value, list) and all(

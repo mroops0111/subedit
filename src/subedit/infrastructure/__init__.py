@@ -1,16 +1,17 @@
 import pathlib
 
 from ..domain.rules import (
-    BlockTooLongRule,
-    BulletLabelStyleRule,
+    CommentTooLongRule,
     ContrastFramingRule,
+    DiscouragedWordRule,
     FileHeaderCommentRule,
     HeadingNotNounPhraseRule,
     HeadingTitleCaseRule,
     HeadingWrappedInBoldRule,
-    InclusionVerbRule,
     LineTooLongRule,
     LineTooShortRule,
+    ListLabelNotBoldRule,
+    ListLabelTitleCaseRule,
     MidClauseBreakRule,
     MidListBreakRule,
     MidSentenceColonRule,
@@ -55,14 +56,15 @@ STRUCTURAL_RULES = (
     FileHeaderCommentRule(),
     PlainCommentOnPublicRule(LANGUAGES),
     SignatureRestatingTagRule(LANGUAGES),
-    BlockTooLongRule(),
+    CommentTooLongRule(),
 )
 WORDING_RULES = (
     MidSentenceColonRule(),
     ParenthesisStyleRule(),
-    InclusionVerbRule(),
+    DiscouragedWordRule(),
     ContrastFramingRule(),
-    BulletLabelStyleRule(),
+    ListLabelTitleCaseRule(),
+    ListLabelNotBoldRule(),
 )
 MARKDOWN_RULES = (
     ParagraphLineBreakRule(),

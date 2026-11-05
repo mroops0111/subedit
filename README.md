@@ -263,12 +263,12 @@ mid-clause-break = "warning"
 file-header-comment = "off"
 "subedit.DateRef" = "off"
 
-[rules.block-too-long]
+[rules.comment-too-long]
 severity = "error"
-line = 3
+max-plain-lines = 3
 
 [rules.line-too-short]
-minimum-characters = 30
+min-line-characters = 30
 ```
 
 In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, and `[tool.subedit.rules.<name>]`.
@@ -296,7 +296,7 @@ Left unset, `line-width` follows the formatter that would format the file, read 
 
 ### Rules
 
-`subedit` ships 19 native rules, a bundled Vale style of 6 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
+`subedit` ships 21 native rules, a bundled Vale style of 5 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
 
 Comments and Markdown share one house style, and differ where their forms differ. A comment has a column limit and sits beside the code it explains, while Markdown has no limit and is built from paragraphs and headings.
 

@@ -27,7 +27,7 @@ def test_stats_reports_a_measured_corpus(project: Project, capsys: pytest.Captur
     output = capsys.readouterr().out
     assert '1 documents, 2 comment blocks' in output
     assert 'doc/public' in output
-    assert 'line/inline-body' in output
+    assert 'plain/inline-body' in output
 
 
 def test_stats_exits_non_zero_when_nothing_is_readable(tmp_path: pathlib.Path) -> None:

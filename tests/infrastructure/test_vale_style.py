@@ -9,7 +9,6 @@ CONFIG = REPOSITORY_ROOT / '.vale.ini'
 VALE_FIXTURES = FIXTURES / 'vale'
 
 EXPECTED_RULES = [
-    'SignatureTag',
     'EmDash',
     'EditHistory',
     'ExternalRef',

@@ -8,7 +8,7 @@ from subedit.domain import Severity
 from subedit.infrastructure import ALL_RULES, CONFIG_NAME, DEFAULT_CONFIG_SOURCE, ConfigError, TomlConfigSource
 
 
-AVAILABLE = ('mid-clause-break', 'line-too-long', 'line-too-short', 'heading-title-case')
+AVAILABLE = ('mid-clause-break', 'line-too-long', 'line-too-short', 'heading-title-case', 'discouraged-word')
 
 
 def source() -> TomlConfigSource:
@@ -48,15 +48,10 @@ def test_a_severity_string_is_honoured(project: Project) -> None:
 
 
 def test_a_table_carries_severity_and_options(project: Project) -> None:
-    target = configured(project, '[rules]\nline-too-short = { severity = "warning", minimum-characters = 30 }\n')
+    target = configured(project, '[rules]\nline-too-short = { severity = "warning", min-line-characters = 30 }\n')
     settings = source().resolve(str(target)).settings_for('line-too-short')
     assert settings.severity is Severity.WARNING
-    assert settings.options == {'minimum-characters': 30}
-
-
-def test_an_unknown_rule_leaves_the_native_rules_alone(project: Project) -> None:
-    target = configured(project, '[rules]\nnot-a-rule = "off"\n')
-    assert source().resolve(str(target)).enabled_rule_ids == frozenset(AVAILABLE)
+    assert settings.options == {'min-line-characters': 30}
 
 
 def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None:
@@ -77,14 +72,16 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         ('[rules]\nmid-clause-break = { severity = "loud" }\n', 'rules.mid-clause-break.severity'),
         (
             '[rules]\nline-too-short = { minimum_characters = 30 }\n',
-            'minimum_characters: is not an option of line-too-short, it takes minimum-characters',
+            'minimum_characters: is not an option of line-too-short, it takes min-line-characters',
         ),
         ('[rules]\nmid-clause-break = { width = 3 }\n', 'is not an option of mid-clause-break, it takes none'),
-        ('[rules]\nline-too-short = { minimum-characters = "30" }\n', 'must be a whole number of zero or more'),
-        ('[rules]\nheading-title-case = { keep = "npm" }\n', 'must be a list of strings'),
+        ('[rules]\nline-too-short = { min-line-characters = "30" }\n', 'must be a whole number of zero or more'),
+        ('[rules]\nheading-title-case = { exceptions = "npm" }\n', 'must be a list of strings'),
         ('[rules]\nheading-title-case = { style = "ap" }\n', 'must be one of apa, chicago'),
         ('[rules]\nheading-title-case = { levels = [0, 2] }\n', 'must be a list of heading levels from 1 to 6'),
         ('[subedit]\nabbreviations = ["Dept"]\n', "'Dept' must be one word ending in its period"),
+        ('[rules]\nstub-fragment = "off"\n', 'rules.stub-fragment: is not a rule subedit defines'),
+        ('[rules]\ndiscouraged-word = { replacements = ["utilize"] }\n', 'must be a table of words'),
         ('[rules\n', 'Expected'),
     ],
     ids=[
@@ -100,6 +97,8 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         'choice option value',
         'heading level',
         'abbreviation without its period',
+        'old rule name',
+        'replacements type',
         'broken toml',
     ],
 )
@@ -111,8 +110,8 @@ def test_a_config_written_wrong_names_its_file_and_mistake(project: Project, bod
 
 
 def test_a_list_option_reaches_its_rule_as_a_tuple(project: Project) -> None:
-    target = configured(project, '[rules]\nheading-title-case = { keep = ["npm"] }\n')
-    assert source().resolve(str(target)).settings_for('heading-title-case').options == {'keep': ('npm',)}
+    target = configured(project, '[rules]\nheading-title-case = { exceptions = ["npm"] }\n')
+    assert source().resolve(str(target)).settings_for('heading-title-case').options == {'exceptions': ('npm',)}
 
 
 def test_a_project_lists_its_own_abbreviations(project: Project) -> None:

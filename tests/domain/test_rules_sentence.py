@@ -41,7 +41,7 @@ def test_a_balanced_split_is_not_a_stub() -> None:
 
 def test_the_stub_floor_is_configurable() -> None:
     source = comment('cap the size to the runner limit, an unbounded value faults it.')
-    assert 'line-too-short' in ids(source, **{'line-too-short': RuleSettings(options={'minimum-characters': 40})})
+    assert 'line-too-short' in ids(source, **{'line-too-short': RuleSettings(options={'min-line-characters': 40})})
 
 
 def test_a_long_sentence_with_no_comma_is_unbreakable() -> None:

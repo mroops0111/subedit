@@ -5,12 +5,12 @@ exclude = ["tests/fixtures/**"]
 [rules]
 mid-clause-break = "error"
 line-too-long = "error"
-stub-fragment = "error"
+line-too-short = "error"
 unbreakable-sentence = "error"
 file-header-comment = "error"
 plain-comment-on-public = "error"
 signature-restating-tag = "error"
-block-too-long = "error"
+comment-too-long = "error"
 
 [rules.heading-title-case]
-keep = ["subedit"]
+exceptions = ["subedit"]

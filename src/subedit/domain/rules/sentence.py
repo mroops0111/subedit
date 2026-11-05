@@ -7,7 +7,7 @@ from ..models.reflow import BreakPolicy, reflow_sentence
 from ..ports.rule import Rule, RuleContext
 
 
-_MINIMUM_CHARACTERS = CountOption('minimum-characters', 24)
+_MINIMUM_CHARACTERS = CountOption('min-line-characters', 24)
 # A piece this short between two commas may be a list item.
 _MAX_ITEM_WORDS = CountOption('max-item-words', 3)
 _BRACKET_NOTE = 'A comma inside brackets or a code span separates items, so it is no place to break. '

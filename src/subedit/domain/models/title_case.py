@@ -40,14 +40,14 @@ CHICAGO = TitleCaseStyle(
 TITLE_CASE_STYLES = {'apa': APA, 'chicago': CHICAGO}
 
 
-def title_case(text: str, keep: tuple[str, ...] = (), style: TitleCaseStyle = APA) -> str:
+def title_case(text: str, exceptions: tuple[str, ...] = (), style: TitleCaseStyle = APA) -> str:
     """The English words of a title in Title Case, leaving code, names, acronyms, and anything not English alone.
 
     A word with a capital past its first letter,
-    such as OAuth or iOS, keeps its case, and so does a word listed in keep, such as a lowercase name like npm.
+    such as OAuth or iOS, keeps its case, and so does a word listed in exceptions, such as a lowercase name like npm.
     A minor word that may also be an adverb, such as up, keeps the case it was written in.
     """
-    kept = {word.lower(): word for word in keep}
+    kept = {word.lower(): word for word in exceptions}
     pieces: list[str] = []
     cursor = 0
     for word in _title_words(text):

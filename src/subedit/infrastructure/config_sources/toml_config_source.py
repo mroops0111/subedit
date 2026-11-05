@@ -108,8 +108,14 @@ class TomlConfigSource:
 
     def _check_options(self, config_file: ConfigFile) -> None:
         # A rule subedit does not define belongs to a delegated tool, whose options it cannot know.
+        # A delegated tool names its rules Style.Rule, as Vale and AutoCorrect do,
+        # so a name with no dot that subedit does not define is a mistake, such as a rule's old name.
         for rule_id, rule_entry in config_file.rules.items():
             metadata = self._rules.get(rule_id)
+            if metadata is None and '.' not in rule_id:
+                raise ConfigError(
+                    f'rules.{rule_id}: is not a rule subedit defines, and a Vale rule is named Style.Rule'
+                )
             if metadata is None or not isinstance(rule_entry, RuleTable):
                 continue
             declared = {option.name: option for option in metadata.options}

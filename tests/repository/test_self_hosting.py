@@ -103,6 +103,10 @@ def test_the_rule_reference_matches_each_rule() -> None:
 def _option_cell(option: RuleOption[typing.Any]) -> str:
     if isinstance(option.default, tuple):
         default = f'`{list(option.default)}`'
+    # A table of words may hold CJK ones, which the reference counts rather than prints, since it stays English.
+    elif isinstance(option.default, dict):
+        count = len(option.default)
+        default = f'{count} pair' if count == 1 else f'{count} pairs'
     elif isinstance(option.default, str):
         default = f'`{option.default}`'
     else:

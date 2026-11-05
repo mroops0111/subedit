@@ -86,8 +86,8 @@ class CorpusMeter:
             visibility = Visibility.PUBLIC if group.attaches_to_public_symbol else Visibility.INTERNAL
             return f'doc/{visibility.value}'
         if group.placement is CommentPlacement.FILE_HEADER:
-            return 'line/file-header'
-        return f'line/{group.placement.value}'
+            return 'plain/file-header'
+        return f'plain/{group.placement.value}'
 
     def _is_unbreakable(self, sentence: str, width: int) -> bool:
         return len(sentence) > width and ',' not in sentence

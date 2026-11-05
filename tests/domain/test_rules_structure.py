@@ -5,7 +5,9 @@ from factories import lint as lint_document
 from subedit.domain import FixKind, Report, RuleSettings
 
 
-STRUCTURAL = frozenset({'file-header-comment', 'plain-comment-on-public', 'signature-restating-tag', 'block-too-long'})
+STRUCTURAL = frozenset(
+    {'file-header-comment', 'plain-comment-on-public', 'signature-restating-tag', 'comment-too-long'}
+)
 
 
 def lint(
@@ -74,11 +76,11 @@ def test_a_plain_comment_is_not_checked_for_tags() -> None:
 
 def test_an_overlong_line_comment_is_reported() -> None:
     body = ''.join(f'    # line {index}.\n' for index in range(6))
-    assert 'block-too-long' in ids(f'def f():\n{body}    pass\n')
+    assert 'comment-too-long' in ids(f'def f():\n{body}    pass\n')
 
 
 def test_a_short_line_comment_is_fine() -> None:
-    assert 'block-too-long' not in ids('def f():\n    # one.\n    # two.\n    pass\n')
+    assert 'comment-too-long' not in ids('def f():\n    # one.\n    # two.\n    pass\n')
 
 
 def test_the_limit_differs_between_public_and_internal_docstrings() -> None:
@@ -86,13 +88,13 @@ def test_the_limit_differs_between_public_and_internal_docstrings() -> None:
     public = f'def build():\n    """Summary.\n\n{body}\n    """\n'
     internal = f'def _helper():\n    """Summary.\n\n{body}\n    """\n'
 
-    assert 'block-too-long' not in ids(public)
-    assert 'block-too-long' in ids(internal)
+    assert 'comment-too-long' not in ids(public)
+    assert 'comment-too-long' in ids(internal)
 
 
 def test_the_limits_are_configurable_per_group() -> None:
     source = 'def f():\n    # one.\n    # two.\n    # three.\n    pass\n'
-    assert 'block-too-long' in ids(source, **{'block-too-long': RuleSettings(options={'line': 2})})
+    assert 'comment-too-long' in ids(source, **{'comment-too-long': RuleSettings(options={'max-plain-lines': 2})})
 
 
 def test_every_structural_finding_needs_an_author() -> None:
