@@ -3,52 +3,32 @@ import itertools
 import re
 
 from .prose import Sentence, enclosed_spans
+from .word_classes import (
+    APPOSITION_MARKERS,
+    ARTICLES,
+    CONJUNCTIVE_ADVERBS,
+    COORDINATING_CONJUNCTIONS,
+    PREPOSITIONS,
+    RELATIVE_PRONOUNS,
+    SUBORDINATING_CONJUNCTIONS,
+)
 
 
 # Words that open a clause, so a comma before one is where a sentence divides in meaning.
+# For is left out, since it opens a phrase as a preposition far more often than a clause.
 # As is left out, since it opens an aside such as "as this once did" as often as a clause.
-_CLAUSE_OPENERS = frozenset(
-    {
-        'although',
-        'and',
-        'because',
-        'but',
-        'nor',
-        'or',
-        'otherwise',
-        'since',
-        'so',
-        'then',
-        'though',
-        'unless',
-        'until',
-        'whereas',
-        'which',
-        'while',
-        'yet',
-    }
+# That is left out, since it also points at a noun, as in "that file".
+_CLAUSE_OPENERS = (
+    (COORDINATING_CONJUNCTIONS - {'for'})
+    | (SUBORDINATING_CONJUNCTIONS - {'as', 'that'})
+    | RELATIVE_PRONOUNS
+    | CONJUNCTIVE_ADVERBS
 )
-
 _LIST_CLOSERS = frozenset({'and', 'or'})
-_ARTICLES = frozenset({'a', 'an', 'the'})
-# Prepositions that open a sentence's framing phrase, such as "By default,", rather than its first item.
-_LEAD_IN_WORDS = frozenset({'after', 'at', 'before', 'by', 'during', 'for', 'from', 'in', 'on', 'once', 'when', 'with'})
+# Words that open a sentence's framing phrase, such as "By default," or "When it fails,", rather than its first item.
+_LEAD_IN_WORDS = PREPOSITIONS | SUBORDINATING_CONJUNCTIONS | CONJUNCTIVE_ADVERBS
 # Words that open a list, so a break before them falls ahead of its first item rather than inside it.
-# An abbreviation or for example may take its own comma, as in "e.g., Python, Go,".
-_LIST_OPENERS = (
-    'e.g.',
-    'especially',
-    'for example',
-    'for instance',
-    'i.e.',
-    'in particular',
-    'including',
-    'like',
-    'namely',
-    'notably',
-    'particularly',
-    'such as',
-)
+_LIST_OPENERS = APPOSITION_MARKERS
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -296,10 +276,10 @@ def _closes_a_run(piece: str) -> bool:
 # unless the next piece runs on in parallel, as in "a cat, a dog".
 def _is_appositive(piece: str, following: list[str]) -> bool:
     words = piece.split()
-    if not words or words[0].lower() not in _ARTICLES:
+    if not words or words[0].lower() not in ARTICLES:
         return False
     parallel = following[1:] if following and following[0].lower() in _LIST_CLOSERS else following
-    return not parallel or parallel[0].lower() not in _ARTICLES
+    return not parallel or parallel[0].lower() not in ARTICLES
 
 
 def _is_short(piece: str, item_words: int) -> bool:

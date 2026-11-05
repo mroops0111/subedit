@@ -163,3 +163,50 @@ OBJECT_OPENERS = frozenset(
     }
 )
 QUESTION_WORDS = frozenset({'how', 'what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why'})
+RELATIVE_PRONOUNS = frozenset({'which', 'who', 'whom', 'whose'})
+# Adverbs that join a clause to the one before it, as however does.
+# Adverbs that may also stand inside a list item,
+# as also and likewise do in "the cache, likewise the queue", are left out.
+CONJUNCTIVE_ADVERBS = frozenset(
+    {
+        'accordingly',
+        'consequently',
+        'furthermore',
+        'hence',
+        'however',
+        'meanwhile',
+        'moreover',
+        'nevertheless',
+        'nonetheless',
+        'otherwise',
+        'subsequently',
+        'then',
+        'thereafter',
+        'therefore',
+        'thus',
+    }
+)
+# The markers that open an apposition or an example,
+# after Quirk et al., A Comprehensive Grammar of the English Language.
+# An abbreviation or for example may take its own comma, as in "e.g., Python, Go,".
+APPOSITION_MARKERS = (
+    'chiefly',
+    'e.g.',
+    'especially',
+    'for example',
+    'for instance',
+    'i.e.',
+    'in particular',
+    'including',
+    'like',
+    'mainly',
+    'mostly',
+    'namely',
+    'notably',
+    'particularly',
+    'primarily',
+    'specifically',
+    'such as',
+    'that is',
+    'viz.',
+)
