@@ -269,7 +269,12 @@ max-plain-lines = 3
 
 [rules.line-too-short]
 min-line-characters = 30
+
+[rules.heading-title-case]
+exceptions = ["npm"]
 ```
+
+A name Title Case must leave as written, such as `npm`, goes under `exceptions`, which headings, table headers, and list labels all follow.
 
 In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, and `[tool.subedit.rules.<name>]`.
 
