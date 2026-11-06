@@ -221,6 +221,11 @@ def _opens_with_verb_and_object(text: str, words: list[re.Match[str]]) -> bool:
         return False
     first, second = words[0], words[1]
     verb = first.group().lower()
-    if verb in _NOT_VERBS or verb.endswith('ing') or text[first.end() : second.start()].strip():
+    if verb in _NOT_VERBS or _is_gerund(verb) or text[first.end() : second.start()].strip():
         return False
     return second.group().lower() in OBJECT_OPENERS
+
+
+# A gerund such as Using names an activity, while Bring or String, whose stem before ing holds no vowel, is a verb.
+def _is_gerund(word: str) -> bool:
+    return word.endswith('ing') and any(letter in 'aeiouy' for letter in word[:-3])

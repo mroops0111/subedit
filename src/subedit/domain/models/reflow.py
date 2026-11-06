@@ -29,6 +29,7 @@ _LIST_CLOSERS = frozenset({'and', 'or'})
 _LEAD_IN_WORDS = PREPOSITIONS | SUBORDINATING_CONJUNCTIONS | CONJUNCTIVE_ADVERBS
 # Words that open a list, so a break before them falls ahead of its first item rather than inside it.
 _LIST_OPENERS = APPOSITION_MARKERS
+_OPENER_ENDS = {'that is': (',',)}
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -292,10 +293,12 @@ def _opens_a_clause(piece: str) -> bool:
 
 
 # An opener ends at a space or a comma, so likewise opens no list.
+# That is renames only when a comma sets it off, as in "that is, the cache", and otherwise opens a clause.
 def _opens_a_list(piece: str) -> bool:
     lowered = piece.lower()
     return any(
-        lowered.startswith(opener) and lowered[len(opener) : len(opener) + 1] in (' ', ',') for opener in _LIST_OPENERS
+        lowered.startswith(opener) and lowered[len(opener) : len(opener) + 1] in _OPENER_ENDS.get(opener, (' ', ','))
+        for opener in _LIST_OPENERS
     )
 
 

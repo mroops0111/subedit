@@ -68,3 +68,8 @@ class ProseUnit(abc.ABC):
     def is_quoted(self) -> bool:
         """Whether the text quotes someone else's words, which punctuation rules leave as written."""
         return False
+
+    @property
+    def is_fragment(self) -> bool:
+        """Whether the text is a fragment rather than prose, such as a table header cell, which wording rules skip."""
+        return False

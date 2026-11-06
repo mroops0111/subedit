@@ -92,6 +92,10 @@ class MarkdownBlock(ProseUnit):
     def is_quoted(self) -> bool:
         return self.quoted
 
+    @property
+    def is_fragment(self) -> bool:
+        return self.kind is MarkdownBlockKind.TABLE_HEADER
+
     def code_ranges(self) -> tuple[SourceRange, ...]:
         return ()
 

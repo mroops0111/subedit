@@ -63,6 +63,14 @@ def test_an_abbreviation_unicode_cldr_or_prose_lists_ends_no_sentence(text: str)
     assert len(Prose(text).sentences()) == 1
 
 
+@pytest.mark.parametrize(
+    'text',
+    ['The tool is written in Go. It runs fast.', 'Then click OK. The dialog closes.', 'Restart your PC. Then log in.'],
+)
+def test_a_cldr_entry_that_is_also_a_word_ends_a_sentence_before_a_capital(text: str) -> None:
+    assert len(Prose(text).sentences()) == 2
+
+
 def test_a_reference_abbreviation_ends_its_sentence_when_no_number_follows() -> None:
     assert texts(Prose('The layout is in the next sec. Then it ends.')) == [
         'The layout is in the next sec.',
@@ -322,6 +330,11 @@ def test_a_break_after_a_list_opener_parts_it_from_the_first_item() -> None:
 def test_a_word_that_only_starts_like_an_opener_opens_no_list() -> None:
     lines = ('Holds the cache, the index,', 'likewise the queue, and the log.')
     assert break_cost(lines, ITEM_WORDS) == 1
+
+
+def test_that_is_opens_a_list_only_when_a_comma_sets_it_off() -> None:
+    assert break_cost(('Holds two stores,', 'that is, the cache and the log.'), ITEM_WORDS) == 0
+    assert break_cost(('Holds cache, index,', 'that is it, and the log.'), ITEM_WORDS) == 1
 
 
 def test_a_layout_left_without_lists_takes_the_longest_opening_line() -> None:

@@ -4,6 +4,7 @@ import enum
 import typing
 
 from .position import SourceRange
+from .prose import words_pattern
 from .text import TextEdit
 
 
@@ -112,14 +113,18 @@ class WordsOption(RuleOption[tuple[str, ...]]):
 @dataclasses.dataclass(frozen=True)
 class ReplacementsOption(RuleOption[typing.Mapping[str, str]]):
     def accepts(self, value: object) -> bool:
-        return isinstance(value, dict) and all(
-            isinstance(word, str) and word and isinstance(replacement, str) and replacement
-            for word, replacement in typing.cast(dict[object, object], value).items()
-        )
+        if not isinstance(value, dict):
+            return False
+        pairs = typing.cast(dict[object, object], value).items()
+        if not all(isinstance(word, str) and word and isinstance(new, str) and new for word, new in pairs):
+            return False
+        # A replacement holding a word the table replaces, as cancel out holds cancel, is replaced again each round.
+        replaced = words_pattern(typing.cast(dict[str, str], value))
+        return not any(replaced.search(new) for new in typing.cast(dict[str, str], value).values())
 
     @property
     def expected(self) -> str:
-        return 'a table of words, each set to the word that replaces it'
+        return 'a table of words, each set to a word that holds none of the words it replaces'
 
 
 @dataclasses.dataclass(frozen=True)

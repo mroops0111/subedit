@@ -102,7 +102,11 @@ class TomlConfigSource:
     def _carries_settings(self, config_path: pathlib.Path) -> bool:
         if config_path.name != _PYPROJECT_NAME:
             return True
-        raw_table = _load(config_path)
+        # A pyproject.toml that does not parse shows no opt in, and its mistake belongs to the project's other tools.
+        try:
+            raw_table = _load(config_path)
+        except ConfigError:
+            return False
         tools = raw_table.get('tool') if raw_table else None
         return isinstance(tools, dict) and 'subedit' in tools
 

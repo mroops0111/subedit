@@ -118,6 +118,16 @@ def test_a_project_may_pick_full_width_parentheses_beside_cjk(source: str, expec
     assert fixed(markdown(source), FULL_WIDTH) == expected
 
 
+def test_a_table_header_is_left_to_title_case_alone() -> None:
+    source = 'Lead.\n\n| Note: Value | 包括 | Size(中文) |\n| --- | --- | --- |\n| a | b | c |\n'
+    assert ids(markdown(source)) == []
+
+
+def test_full_width_parentheses_keep_a_hard_break_after_them() -> None:
+    source = '這是說明 (注意)  \n下一行文字。\n'
+    assert fixed(markdown(source), FULL_WIDTH) == '這是說明（注意）  \n下一行文字。\n'
+
+
 def test_a_discouraged_word_is_replaced_with_the_preferred_one() -> None:
     assert fixed(markdown('三種方式包括這些。\n')) == '三種方式包含這些。\n'
     assert fixed(document('# 三種方式包括這些。\nx = 1\n')) == '# 三種方式包含這些。\nx = 1\n'
@@ -295,7 +305,15 @@ def test_a_question_heading_is_an_error(heading: str) -> None:
 
 
 @pytest.mark.parametrize(
-    'heading', ['## Use the Cache\n', '## Connect an MCP Server\n', '## 3. Configure Your Tools\n', '## Run It\n']
+    'heading',
+    [
+        '## Use the Cache\n',
+        '## Connect an MCP Server\n',
+        '## 3. Configure Your Tools\n',
+        '## Run It\n',
+        '## Bring Your Own Key\n',
+        '## String the Calls Together\n',
+    ],
 )
 def test_a_verb_followed_by_its_object_is_an_instruction_and_a_warning(heading: str) -> None:
     assert noun_phrase_severities(heading) == [Severity.WARNING]

@@ -10,6 +10,8 @@ from .abbreviations import ends_no_sentence
 LIST_MARKER = re.compile(r'(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s+')
 
 _SENTENCE_END = re.compile(r'[.!?]')
+# How far past a period an abbreviation looks for the word after it, so splitting never copies the rest of the text.
+_LOOKAHEAD = 33
 # A colon ends a lead-in as a period ends a sentence, so the line after either opens something new.
 _ENDS_A_SENTENCE = re.compile(r'[.!?:]["\')\]]*\s*$')
 _TRAILING_WORD = re.compile(r'([A-Za-z][A-Za-z.]*)$')
@@ -243,7 +245,9 @@ class Prose:
         # The s of a possessive is no initial, so a sentence closing on a word like API's still ends there.
         if trailing_word and text[: trailing_word.start()].endswith(_APOSTROPHES):
             return self._followed_by_break(text, offset)
-        if trailing_word and ends_no_sentence(trailing_word.group(1) + '.', text[offset + 1 :], abbreviations):
+        if trailing_word and ends_no_sentence(
+            trailing_word.group(1) + '.', text[offset + 1 : offset + _LOOKAHEAD], abbreviations
+        ):
             return False
         if (
             trailing_word
@@ -302,3 +306,21 @@ def is_protected(offset: int, spans: tuple[tuple[int, int], ...]) -> bool:
 def is_wide(character: str) -> bool:
     """Whether a character is set full width, as Chinese, Japanese, and Korean text and its punctuation are."""
     return bool(character) and unicodedata.east_asian_width(character) in {'W', 'F'}
+
+
+def words_pattern(words: typing.Iterable[str]) -> re.Pattern[str]:
+    """A pattern matching any of the words, the longest first where two overlap, so a phrase matches whole.
+
+    A word of Latin letters matches whole, so cancel never matches inside cancellation.
+    CJK text runs with no spaces between its words, so a CJK word matches wherever it stands.
+    """
+    return re.compile('|'.join(map(_word_pattern, sorted(words, key=len, reverse=True))))
+
+
+def _word_pattern(word: str) -> str:
+    pattern = re.escape(word)
+    if word[:1].isascii() and word[:1].isalnum():
+        pattern = rf'(?<!\w){pattern}'
+    if word[-1:].isascii() and word[-1:].isalnum():
+        pattern = rf'{pattern}(?!\w)'
+    return pattern

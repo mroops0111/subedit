@@ -12,7 +12,7 @@ from ..models.diagnostic import (
     RuleMetadata,
     Severity,
 )
-from ..models.prose import is_protected, is_wide, protected_spans
+from ..models.prose import is_protected, is_wide, protected_spans, words_pattern
 from ..models.prose_unit import ProseLine, ProseUnit
 from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
@@ -92,7 +92,7 @@ class MidSentenceColonRule(Rule[ProseUnit]):
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.is_heading or unit.is_quoted:
+        if unit.is_heading or unit.is_quoted or unit.is_fragment:
             return
         limits = _LabelLimits.of(context)
         for line in unit.prose_lines():
@@ -127,7 +127,7 @@ class ParenthesisStyleRule(Rule[ProseUnit]):
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.is_quoted:
+        if unit.is_quoted or unit.is_fragment:
             return
         full_width_style = context.settings(self.metadata.rule_id).value(_PARENTHESIS_STYLE) == 'full-width'
         for line in unit.prose_lines():
@@ -169,13 +169,12 @@ class DiscouragedWordRule(Rule[ProseUnit]):
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.is_quoted:
+        if unit.is_quoted or unit.is_fragment:
             return
         replacements = context.settings(self.metadata.rule_id).value(_REPLACEMENTS)
         if not replacements:
             return
-        # The longest word wins where two overlap, so a phrase is replaced whole.
-        discouraged = re.compile('|'.join(map(_as_word, sorted(replacements, key=len, reverse=True))))
+        discouraged = words_pattern(replacements)
         for line in unit.prose_lines():
             spans = protected_spans(line.text)
             for found in discouraged.finditer(line.text):
@@ -200,7 +199,7 @@ class ContrastFramingRule(Rule[ProseUnit]):
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.is_quoted:
+        if unit.is_quoted or unit.is_fragment:
             return
         for line in unit.prose_lines():
             for found in _CONTRAST.finditer(line.text):
@@ -283,17 +282,6 @@ def _list_labels(unit: ProseUnit, context: RuleContext) -> typing.Iterator[tuple
             yield line, label
 
 
-# A word of Latin letters matches whole, so cancel never matches inside cancellation.
-# CJK text runs with no spaces between its words, so a CJK word matches wherever it stands.
-def _as_word(word: str) -> str:
-    pattern = re.escape(word)
-    if word[:1].isascii() and word[:1].isalnum():
-        pattern = rf'(?<!\w){pattern}'
-    if word[-1:].isascii() and word[-1:].isalnum():
-        pattern = rf'{pattern}(?!\w)'
-    return pattern
-
-
 def _half_width(text: str, start: int, end: int, inside: str) -> str:
     before = text[start - 1] if start else ''
     after = text[end] if end < len(text) else ''
@@ -311,12 +299,14 @@ def _beside_cjk(text: str, start: int, end: int) -> bool:
     return any(map(is_wide, text[start + 1 : end - 1])) or is_wide(before) or is_wide(after)
 
 
-# Full-width parentheses carry their own spacing, so the spaces beside them go, though not a line's indent.
+# Full-width parentheses carry their own spacing, so the spaces beside them go,
+# though not a line's indent, nor the trailing spaces that mark a Markdown hard break.
 def _spaces_around(text: str, start: int, end: int) -> tuple[int, int]:
     while start > 0 and text[start - 1] == ' ' and text[: start - 1].strip():
         start -= 1
-    while end < len(text) and text[end] == ' ':
-        end += 1
+    if text[end:].strip():
+        while text[end] == ' ':
+            end += 1
     return start, end
 
 

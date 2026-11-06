@@ -82,6 +82,7 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         ('[subedit]\nabbreviations = ["Dept"]\n', "'Dept' must be one word ending in its period"),
         ('[rules]\nstub-fragment = "off"\n', 'rules.stub-fragment: is not a rule subedit defines'),
         ('[rules]\ndiscouraged-word = { replacements = ["utilize"] }\n', 'must be a table of words'),
+        ('[rules]\ndiscouraged-word = { replacements = { cancel = "cancel out" } }\n', 'holds none of the words'),
         ('[rules\n', 'Expected'),
     ],
     ids=[
@@ -99,6 +100,7 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
         'abbreviation without its period',
         'old rule name',
         'replacements type',
+        'replacement that is replaced again',
         'broken toml',
     ],
 )
@@ -148,6 +150,12 @@ def test_excludes_are_read_from_pyproject(project: Project) -> None:
 def test_a_pyproject_without_our_table_is_ignored(project: Project) -> None:
     target = configured(project, '[project]\nname = "x"\n\n[tool.ruff]\nline-length = 88\n', PYPROJECT)
     assert source().resolve(str(target)).line_width == 120
+
+
+def test_a_pyproject_that_does_not_parse_and_never_opted_in_is_ignored(project: Project) -> None:
+    target = configured(project, '[project\nname = "x"\n', PYPROJECT)
+    assert source().resolve(str(target)).enabled_rule_ids == frozenset(AVAILABLE)
+    assert not source().is_adopted(str(target))
 
 
 def test_a_dedicated_file_wins_over_pyproject(project: Project) -> None:
