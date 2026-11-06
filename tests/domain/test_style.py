@@ -268,8 +268,11 @@ def test_a_table_header_takes_title_case_and_its_body_is_left_alone() -> None:
 
 
 def test_a_table_header_is_left_to_title_case_alone() -> None:
-    source = 'Lead.\n\n| Note: Value | 包括 | Size(中文) |\n| --- | --- | --- |\n| a | b | c |\n'
-    assert ids(markdown(source)) == []
+    rules = rule_set(**{'discouraged-word': RuleSettings(options={'replacements': {'Utilize': 'Use'}})})
+    cells = 'The Rows Are Kept: Then Dropped | Utilize | Size(in Bytes)'
+    wording = {'mid-sentence-colon', 'discouraged-word', 'parenthesis-style'}
+    assert set(ids(markdown(f'Lead.\n\n{cells}.\n'), rules)) == wording
+    assert ids(markdown(f'Lead.\n\n| {cells} |\n| --- | --- | --- |\n| a | b | c |\n'), rules) == []
 
 
 def test_a_table_header_follows_the_heading_standard() -> None:
