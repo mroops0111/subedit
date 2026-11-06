@@ -8,6 +8,11 @@ from subedit.domain import FixKind, Report, RuleSettings, Severity
 
 REWRITE_IDS = frozenset({'line-too-short', 'unbreakable-sentence', 'mid-list-break'})
 
+LIST_SENTENCE = (
+    'Write only what to draw, which is inline `data.values` rows taken from tool results, `mark`, '
+    '`encoding`, and optionally `transform` or `layer`.'
+)
+
 
 def lint(
     source: str, width: int = 50, enabled_rule_ids: frozenset[str] = REWRITE_IDS, **settings: RuleSettings
@@ -124,12 +129,6 @@ def test_a_summary_that_fits_beside_its_quotes_is_fine() -> None:
 def test_a_summary_the_author_wrapped_still_needs_shortening() -> None:
     source = 'def f():\n    """Return the code, state, and iss of the redirect\n    once the user completes the flow.\n    """\n'
     assert ids(source, width=80) == ['unbreakable-sentence'], 'a wrapped summary is as far from one line as a long one'
-
-
-LIST_SENTENCE = (
-    'Write only what to draw, which is inline `data.values` rows taken from tool results, `mark`, '
-    '`encoding`, and optionally `transform` or `layer`.'
-)
 
 
 def docstring(*lines: str) -> str:

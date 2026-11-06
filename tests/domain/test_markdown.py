@@ -17,6 +17,10 @@ from subedit.infrastructure import (
 )
 
 
+MIS_WRAPPED = '# cap the size so the mmap does not\n# blow past it, an unbounded value faults.\n'
+REFLOWED = '# cap the size so the mmap does not blow past it,\n# an unbounded value faults.\n'
+
+
 def blocks(source: str) -> tuple[MarkdownBlock, ...]:
     return MarkdownParser().parse(markdown(source))
 
@@ -156,10 +160,6 @@ def test_front_matter_code_and_tables_count_as_code_to_an_outside_checker() -> N
     inspection = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).inspect(markdown(source), rule_set())
     covered = [source.encode()[region.start : region.end].decode() for region in inspection.prose_map.code]
     assert covered == ['---\ntitle: a\n---\n', '```\ncode\n```\n', '| a |\n| --- |\n| 1 |\n']
-
-
-MIS_WRAPPED = '# cap the size so the mmap does not\n# blow past it, an unbounded value faults.\n'
-REFLOWED = '# cap the size so the mmap does not blow past it,\n# an unbounded value faults.\n'
 
 
 def code_blocks(width: int = 60) -> RuleSet:

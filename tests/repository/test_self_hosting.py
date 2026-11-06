@@ -100,20 +100,6 @@ def test_the_rule_reference_matches_each_rule() -> None:
         assert options == declared, f'{metadata.rule_id} options are {options}'
 
 
-def _option_cell(option: RuleOption[typing.Any]) -> str:
-    if isinstance(option.default, tuple):
-        default = f'`{list(option.default)}`'
-    # A table of words may hold CJK ones, which the reference counts rather than prints, since it stays English.
-    elif isinstance(option.default, dict):
-        count = len(option.default)
-        default = f'{count} pair' if count == 1 else f'{count} pairs'
-    elif isinstance(option.default, str):
-        default = f'`{option.default}`'
-    else:
-        default = option.default
-    return f'`{option.name}` ({default})'
-
-
 def test_the_rule_reference_lists_every_vale_rule() -> None:
     reference = (REPOSITORY_ROOT / 'docs' / 'rules.md').read_text(encoding='utf-8')
     styles = REPOSITORY_ROOT / 'src' / 'subedit' / 'vale' / 'styles' / 'subedit'
@@ -144,3 +130,17 @@ def test_the_excluded_fixture_is_actually_excluded() -> None:
     assert not DEFAULT_CONFIG_SOURCE.is_excluded(
         REPOSITORY_ROOT / 'src' / 'subedit' / 'domain' / 'prose.py', REPOSITORY_ROOT, patterns
     )
+
+
+def _option_cell(option: RuleOption[typing.Any]) -> str:
+    if isinstance(option.default, tuple):
+        default = f'`{list(option.default)}`'
+    # A table of words may hold CJK ones, which the reference counts rather than prints, since it stays English.
+    elif isinstance(option.default, dict):
+        count = len(option.default)
+        default = f'{count} pair' if count == 1 else f'{count} pairs'
+    elif isinstance(option.default, str):
+        default = f'`{option.default}`'
+    else:
+        default = option.default
+    return f'`{option.name}` ({default})'

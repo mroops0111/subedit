@@ -159,23 +159,6 @@ def test_the_actionable_format_says_so_when_nothing_is_wrong(
     assert 'No findings' in capsys.readouterr().out
 
 
-class _PreparedLinter(ExternalLinter):
-    name = 'probe'
-
-    def __init__(self, ready_after_prepare: bool) -> None:
-        self._ready_after_prepare = ready_after_prepare
-        self.prepared = False
-
-    def prepare(self) -> None:
-        self.prepared = True
-
-    def is_available(self) -> bool:
-        return self.prepared and self._ready_after_prepare
-
-    def run(self, document: Document) -> tuple[Diagnostic, ...]:
-        return ()
-
-
 @pytest.mark.parametrize('ready_after_prepare', [True, False])
 def test_check_prepares_delegated_tools_and_says_when_one_is_missing(
     project: Project,
@@ -216,3 +199,20 @@ def test_a_diff_keeps_a_blank_last_context_line(project: Project, capsys: pytest
         app(['fix', '--no-delegate', str(target)])
     hunk = capsys.readouterr().out.split('@@')[-1]
     assert hunk.endswith('\n \n'), 'patch counts a blank context line, so dropping it makes the hunk short'
+
+
+class _PreparedLinter(ExternalLinter):
+    name = 'probe'
+
+    def __init__(self, ready_after_prepare: bool) -> None:
+        self._ready_after_prepare = ready_after_prepare
+        self.prepared = False
+
+    def prepare(self) -> None:
+        self.prepared = True
+
+    def is_available(self) -> bool:
+        return self.prepared and self._ready_after_prepare
+
+    def run(self, document: Document) -> tuple[Diagnostic, ...]:
+        return ()

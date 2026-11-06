@@ -38,6 +38,8 @@ _FORMATTERS = {
 }
 _PERCENTILES = (0.5, 0.75, 0.9, 0.95, 0.99)
 
+ConfigT = typing.TypeVar('ConfigT')
+
 
 @app.command()
 def check(
@@ -127,9 +129,6 @@ def main() -> int:
 
 def _rules_for(document: Document) -> RuleSet:
     return _config(DEFAULT_CONFIG_SOURCE.resolve, _file_path(document))
-
-
-ConfigT = typing.TypeVar('ConfigT')
 
 
 # A config subedit cannot read stops the run, since checking against defaults the project never chose misleads.

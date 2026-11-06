@@ -10,6 +10,8 @@ from subedit.infrastructure import ALL_RULES, CONFIG_NAME, DEFAULT_CONFIG_SOURCE
 
 AVAILABLE = ('mid-clause-break', 'line-too-long', 'line-too-short', 'heading-title-case', 'discouraged-word')
 
+PYPROJECT = 'pyproject.toml'
+
 
 def source() -> TomlConfigSource:
     return TomlConfigSource(tuple(rule.metadata for rule in ALL_RULES if rule.metadata.rule_id in AVAILABLE))
@@ -145,9 +147,6 @@ def test_a_delegated_rule_table_keeps_options_subedit_cannot_check(project: Proj
     settings = source().resolve(str(target)).settings_for('subedit.EmDash')
     assert settings.severity is Severity.WARNING
     assert settings.options == {'level': 2}
-
-
-PYPROJECT = 'pyproject.toml'
 
 
 def test_settings_are_read_from_pyproject(project: Project) -> None:

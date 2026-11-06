@@ -13,6 +13,14 @@ _RUN = re.compile(r'\S+')
 # A number that orders a heading, such as 1. or 2) or 1.2, comes before its first word rather than being one.
 _ORDINAL = re.compile(r'\d+(?:\.\d+)*[.)]\s+|\d+(?:\.\d+)+\s+')
 
+# APA lowercases articles, conjunctions, and prepositions of three letters or fewer.
+_APA_MINOR = frozenset(
+    word for word in ARTICLES | COORDINATING_CONJUNCTIONS | SUBORDINATING_CONJUNCTIONS | PREPOSITIONS if len(word) <= 3
+)
+# Chicago lowercases articles, five coordinating conjunctions, and every preposition, and as in any role,
+# while it capitalizes a subordinating conjunction, such as until in Wait Until It Ends.
+_CHICAGO_MINOR = ARTICLES | frozenset({'and', 'but', 'for', 'nor', 'or'}) | PREPOSITIONS
+
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class TitleCaseStyle:
@@ -23,16 +31,8 @@ class TitleCaseStyle:
     ambiguous: frozenset[str]
 
 
-def _short(words: frozenset[str]) -> frozenset[str]:
-    return frozenset(word for word in words if len(word) <= 3)
-
-
-_APA_MINOR = _short(ARTICLES | COORDINATING_CONJUNCTIONS | SUBORDINATING_CONJUNCTIONS | PREPOSITIONS)
-# APA lowercases articles, conjunctions, and prepositions of three letters or fewer.
+# The standards a project picks from, built after the class they are instances of.
 APA = TitleCaseStyle(minor=_APA_MINOR, ambiguous=_APA_MINOR & ADVERBS)
-_CHICAGO_MINOR = ARTICLES | frozenset({'and', 'but', 'for', 'nor', 'or'}) | PREPOSITIONS
-# Chicago lowercases articles, five coordinating conjunctions, and every preposition, and as in any role,
-# while it capitalizes a subordinating conjunction, such as until in Wait Until It Ends.
 CHICAGO = TitleCaseStyle(
     minor=_CHICAGO_MINOR,
     ambiguous=_CHICAGO_MINOR & (ADVERBS | (SUBORDINATING_CONJUNCTIONS - {'as'})),

@@ -10,6 +10,9 @@ from subedit.infrastructure import MARKDOWN_RULES, WORDING_RULES
 
 RULES = WORDING_RULES + MARKDOWN_RULES
 
+# A list needs a heading and a lead sentence above it, or other rules report it.
+LIST_LEAD = '# Title\n\nLead.\n\n'
+
 
 def rule_set(**settings: RuleSettings) -> RuleSet:
     return enabling(rule_ids(RULES), settings=settings)
@@ -31,9 +34,10 @@ def severities(rule_id: str, subject: Document, rules: RuleSet | None = None) ->
     return [item.severity for item in findings(rule_id, subject, rules)]
 
 
-# A list needs a heading and a lead sentence above it, or other rules report it.
-LIST_LEAD = '# Title\n\nLead.\n\n'
+# Settings a project may pick, built once the rule set helper above exists.
 CHICAGO = rule_set(**{'heading-title-case': RuleSettings(options={'style': 'chicago'})})
+FULL_WIDTH = rule_set(**{'parenthesis-style': RuleSettings(options={'style': 'full-width'})})
+UTILIZE = rule_set(**{'discouraged-word': RuleSettings(options={'replacements': {'utilize': 'use'}})})
 
 
 @pytest.mark.parametrize(
@@ -114,9 +118,6 @@ def test_a_comment_follows_the_parenthesis_style_too() -> None:
     assert fixed(document('# 使用（全形括號）說明。\nx = 1\n')) == '# 使用 (全形括號) 說明。\nx = 1\n'
 
 
-FULL_WIDTH = rule_set(**{'parenthesis-style': RuleSettings(options={'style': 'full-width'})})
-
-
 @pytest.mark.parametrize(
     ('source', 'expected'),
     [
@@ -139,9 +140,6 @@ def test_full_width_parentheses_keep_a_hard_break_after_them() -> None:
 def test_a_discouraged_word_is_replaced_with_the_preferred_one() -> None:
     assert fixed(markdown('三種方式包括這些。\n')) == '三種方式包含這些。\n'
     assert fixed(document('# 三種方式包括這些。\nx = 1\n')) == '# 三種方式包含這些。\nx = 1\n'
-
-
-UTILIZE = rule_set(**{'discouraged-word': RuleSettings(options={'replacements': {'utilize': 'use'}})})
 
 
 def test_a_discouraged_word_in_latin_letters_matches_only_as_a_whole_word() -> None:

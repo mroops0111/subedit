@@ -6,6 +6,12 @@ from subedit.domain.models.reflow import BreakPolicy, break_cost, reflow_sentenc
 
 ITEM_WORDS = 3
 
+# A clause, then a list that a break before its last item would split.
+GATEWAY = (
+    'Goes through the full Gateway assembly, so the auth resolver, base URL, '
+    'and URI-template-driven kwarg passing are all exercised together.'
+)
+
 
 def texts(prose: Prose) -> list[str]:
     return [sentence.text for sentence in prose.sentences()]
@@ -245,13 +251,6 @@ def test_a_period_inside_brackets_ends_no_sentence() -> None:
 )
 def test_only_a_comma_outside_brackets_and_code_breaks_a_sentence(sentence: str, expected: tuple[str, ...]) -> None:
     assert reflow_sentence(sentence, width=len(sentence) - 1) == expected
-
-
-# A clause, then a list that a break before its last item would split.
-GATEWAY = (
-    'Goes through the full Gateway assembly, so the auth resolver, base URL, '
-    'and URI-template-driven kwarg passing are all exercised together.'
-)
 
 
 def test_a_break_lands_between_clauses_rather_than_inside_a_list() -> None:

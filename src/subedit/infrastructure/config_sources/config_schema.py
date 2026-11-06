@@ -5,11 +5,11 @@ import pydantic
 from ...domain.models.diagnostic import SEVERITY_BY_NAME, Severity
 
 
+_SeverityName = typing.Literal['error', 'warning', 'suggestion']
+
+
 class ConfigError(ValueError):
     """A config subedit cannot read as written, which it reports rather than run on defaults the project never chose."""
-
-
-_SeverityName = typing.Literal['error', 'warning', 'suggestion']
 
 
 class RuleTable(pydantic.BaseModel):

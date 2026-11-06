@@ -17,13 +17,19 @@ from ..models.word_classes import (
 from ..ports.rule import Rule, RuleContext
 
 
+# Names that stay lowercase in a title, such as npm, which list labels follow too.
+EXCEPTIONS = WordsOption('exceptions', ())
+# The standard that decides which words stay lowercase in a title, which list labels follow too.
+STYLE = ChoiceOption('style', 'apa', choices=tuple(TITLE_CASE_STYLES))
+# The heading levels a heading rule reads, all of them unless the project narrows it, such as to leave out a title.
+LEVELS = HeadingLevelsOption('levels', tuple(HEADING_LEVELS))
+
+
 _WORD = re.compile(r'[A-Za-z]+')
 # A word that cannot give an instruction even when an object opener follows it, as in For a Client or All the Rules.
 _NOT_VERBS = (
     ARTICLES | COORDINATING_CONJUNCTIONS | SUBORDINATING_CONJUNCTIONS | PREPOSITIONS | OBJECT_OPENERS | QUESTION_WORDS
 )
-# The heading levels a heading rule reads, all of them unless the project narrows it, such as to leave out a title.
-LEVELS = HeadingLevelsOption('levels', tuple(HEADING_LEVELS))
 
 
 # The whole heading sits inside one pair of markers, with no second pair closing and reopening in between.
@@ -78,12 +84,6 @@ class HeadingWrappedInBoldRule(Rule[MarkdownBlock]):
         )
 
 
-# Names that stay lowercase in a title, such as npm, which list labels follow too.
-EXCEPTIONS = WordsOption('exceptions', ())
-# The standard that decides which words stay lowercase in a title, which list labels follow too.
-STYLE = ChoiceOption('style', 'apa', choices=tuple(TITLE_CASE_STYLES))
-
-
 class HeadingTitleCaseRule(Rule[MarkdownBlock]):
     metadata = RuleMetadata(
         rule_id='heading-title-case',
@@ -111,37 +111,6 @@ class TableHeaderTitleCaseRule(Rule[MarkdownBlock]):
         if unit.kind is not MarkdownBlockKind.TABLE_HEADER:
             return
         yield from _title_case_findings(self.metadata.rule_id, unit, context, 'table header')
-
-
-def _title_case_findings(
-    rule_id: str, unit: MarkdownBlock, context: RuleContext, what: str
-) -> typing.Iterator[Diagnostic]:
-    exceptions, style = title_case_settings(context)
-    cased = title_case(unit.text, exceptions, style)
-    if cased != unit.text:
-        yield Diagnostic(
-            rule_id=rule_id,
-            range=unit.range,
-            message=(
-                f'This {what} is not in Title Case, so it reads "{cased}". '
-                'List a name that stays lowercase, such as npm, under exceptions for heading-title-case.'
-            ),
-            fix=Fix.targeted(unit.as_edit(cased)),
-        )
-    ambiguous = capitalized_ambiguous_words(cased, style)
-    if ambiguous:
-        yield Diagnostic(
-            rule_id=rule_id,
-            range=unit.range,
-            message=(
-                f'{", ".join(ambiguous)} stays lowercase in Title Case as a preposition or conjunction, '
-                'as in Getting Started in Go, but is capitalized as an adverb, as in Set Up. '
-                'Lowercase it unless it is an adverb here.'
-            ),
-            fix=Fix.rewrite(),
-            # Whether the word is a preposition or an adverb is a matter of syntax, which subedit can only guess.
-            tentative=True,
-        )
 
 
 def title_case_settings(context: RuleContext) -> tuple[tuple[str, ...], TitleCaseStyle]:
@@ -224,3 +193,34 @@ def _is_gerund(word: str) -> bool:
 
 def _is_listed_heading(unit: MarkdownBlock, settings: RuleSettings) -> bool:
     return unit.kind is MarkdownBlockKind.HEADING and unit.level in settings.value(LEVELS)
+
+
+def _title_case_findings(
+    rule_id: str, unit: MarkdownBlock, context: RuleContext, what: str
+) -> typing.Iterator[Diagnostic]:
+    exceptions, style = title_case_settings(context)
+    cased = title_case(unit.text, exceptions, style)
+    if cased != unit.text:
+        yield Diagnostic(
+            rule_id=rule_id,
+            range=unit.range,
+            message=(
+                f'This {what} is not in Title Case, so it reads "{cased}". '
+                'List a name that stays lowercase, such as npm, under exceptions for heading-title-case.'
+            ),
+            fix=Fix.targeted(unit.as_edit(cased)),
+        )
+    ambiguous = capitalized_ambiguous_words(cased, style)
+    if ambiguous:
+        yield Diagnostic(
+            rule_id=rule_id,
+            range=unit.range,
+            message=(
+                f'{", ".join(ambiguous)} stays lowercase in Title Case as a preposition or conjunction, '
+                'as in Getting Started in Go, but is capitalized as an adverb, as in Set Up. '
+                'Lowercase it unless it is an adverb here.'
+            ),
+            fix=Fix.rewrite(),
+            # Whether the word is a preposition or an adverb is a matter of syntax, which subedit can only guess.
+            tentative=True,
+        )
