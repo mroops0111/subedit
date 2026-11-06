@@ -1,16 +1,10 @@
 import re
 import typing
 
-from ..models.diagnostic import (
-    ChoiceOption,
-    Diagnostic,
-    Fix,
-    FixKind,
-    HeadingLevelsOption,
-    RuleMetadata,
-    WordsOption,
-)
+from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata
 from ..models.markdown import MarkdownBlock, MarkdownBlockKind
+from ..models.rule_option import HEADING_LEVELS, ChoiceOption, HeadingLevelsOption, WordsOption
+from ..models.rule_set import RuleSettings
 from ..models.title_case import TITLE_CASE_STYLES, TitleCaseStyle, capitalized_ambiguous_words, title_case
 from ..models.word_classes import (
     ARTICLES,
@@ -29,7 +23,7 @@ _NOT_VERBS = (
     ARTICLES | COORDINATING_CONJUNCTIONS | SUBORDINATING_CONJUNCTIONS | PREPOSITIONS | OBJECT_OPENERS | QUESTION_WORDS
 )
 # The heading levels a heading rule reads, all of them unless the project narrows it, such as to leave out a title.
-LEVELS = HeadingLevelsOption('levels', (1, 2, 3, 4, 5, 6))
+LEVELS = HeadingLevelsOption('levels', tuple(HEADING_LEVELS))
 
 
 # The whole heading sits inside one pair of markers, with no second pair closing and reopening in between.
@@ -100,8 +94,7 @@ class HeadingTitleCaseRule(Rule[MarkdownBlock]):
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        settings = context.settings(self.metadata.rule_id)
-        if unit.kind is not MarkdownBlockKind.HEADING or unit.level not in settings.value(LEVELS):
+        if not _is_listed_heading(unit, context.settings(self.metadata.rule_id)):
             return
         yield from _title_case_findings(self.metadata.rule_id, unit, context, 'heading')
 
@@ -123,9 +116,7 @@ class TableHeaderTitleCaseRule(Rule[MarkdownBlock]):
 def _title_case_findings(
     rule_id: str, unit: MarkdownBlock, context: RuleContext, what: str
 ) -> typing.Iterator[Diagnostic]:
-    # The heading rule owns the standard and the names kept lowercase, which every title follows.
-    exceptions = context.settings(HeadingTitleCaseRule.metadata.rule_id).value(EXCEPTIONS)
-    style = title_case_style(context)
+    exceptions, style = title_case_settings(context)
     cased = title_case(unit.text, exceptions, style)
     if cased != unit.text:
         yield Diagnostic(
@@ -153,9 +144,10 @@ def _title_case_findings(
         )
 
 
-def title_case_style(context: RuleContext) -> TitleCaseStyle:
-    """The heading rule owns the standard, and list labels follow it, so the two never disagree."""
-    return TITLE_CASE_STYLES[context.settings(HeadingTitleCaseRule.metadata.rule_id).value(STYLE)]
+def title_case_settings(context: RuleContext) -> tuple[tuple[str, ...], TitleCaseStyle]:
+    """The exceptions and the standard the heading rule sets, which every title follows, so no two disagree."""
+    settings = context.settings(HeadingTitleCaseRule.metadata.rule_id)
+    return settings.value(EXCEPTIONS), TITLE_CASE_STYLES[settings.value(STYLE)]
 
 
 class MissingLeadSentenceRule(Rule[MarkdownBlock]):
@@ -190,8 +182,7 @@ class HeadingNotNounPhraseRule(Rule[MarkdownBlock]):
     surface = MarkdownBlock
 
     def check(self, unit: MarkdownBlock, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        levels = context.settings(self.metadata.rule_id).value(LEVELS)
-        if unit.kind is not MarkdownBlockKind.HEADING or unit.level not in levels:
+        if not _is_listed_heading(unit, context.settings(self.metadata.rule_id)):
             return
         words = list(_WORD.finditer(unit.text))
         opens_with_question_word = bool(words) and words[0].group().lower() in QUESTION_WORDS
@@ -229,3 +220,7 @@ def _opens_with_verb_and_object(text: str, words: list[re.Match[str]]) -> bool:
 # A gerund such as Using names an activity, while Bring or String, whose stem before ing holds no vowel, is a verb.
 def _is_gerund(word: str) -> bool:
     return word.endswith('ing') and any(letter in 'aeiouy' for letter in word[:-3])
+
+
+def _is_listed_heading(unit: MarkdownBlock, settings: RuleSettings) -> bool:
+    return unit.kind is MarkdownBlockKind.HEADING and unit.level in settings.value(LEVELS)

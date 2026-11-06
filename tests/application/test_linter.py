@@ -4,7 +4,6 @@ from factories import document, rule_set
 from subedit.application import Linter, RuleEngine
 from subedit.domain import (
     CommentGroup,
-    CountOption,
     Diagnostic,
     Document,
     FileType,
@@ -111,12 +110,6 @@ def test_diagnostics_come_back_in_source_order() -> None:
     report = Linter(DEFAULT_PARSER, engine).run(document('# one\nx = 1\n# two\n'), rule_set({'a', 'b'}))
     starts = [item.range.start for item in report.diagnostics]
     assert starts == sorted(starts)
-
-
-def test_an_option_the_project_leaves_unset_takes_its_default() -> None:
-    width = CountOption('width', 120)
-    assert RuleSettings(options={'width': 90}).value(width) == 90
-    assert RuleSettings().value(width) == 120
 
 
 def test_a_fix_kind_survives_the_engine() -> None:

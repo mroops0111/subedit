@@ -65,43 +65,62 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
 @pytest.mark.parametrize(
     ('body', 'complaint'),
     [
-        ('[subedit]\nline-width = "wide"\n', 'subedit.line-width'),
-        ('[subedit]\nlinewidth = 88\n', 'subedit.linewidth: is not a setting subedit knows'),
-        ('[subedt]\n', 'subedt: is not a setting subedit knows'),
-        ('[rules]\nmid-clause-break = false\n', "rules.mid-clause-break: Input should be 'off'"),
-        ('[rules]\nmid-clause-break = { severity = "loud" }\n', 'rules.mid-clause-break.severity'),
-        (
+        pytest.param('[subedit]\nline-width = "wide"\n', 'subedit.line-width', id='width'),
+        pytest.param(
+            '[subedit]\nlinewidth = 88\n', 'subedit.linewidth: is not a setting subedit knows', id='misspelled key'
+        ),
+        pytest.param('[subedt]\n', 'subedt: is not a setting subedit knows', id='misspelled section'),
+        pytest.param(
+            '[rules]\nmid-clause-break = false\n', "rules.mid-clause-break: Input should be 'off'", id='boolean'
+        ),
+        pytest.param(
+            '[rules]\nmid-clause-break = { severity = "loud" }\n', 'rules.mid-clause-break.severity', id='severity'
+        ),
+        pytest.param(
             '[rules]\nline-too-short = { minimum_characters = 30 }\n',
             'minimum_characters: is not an option of line-too-short, it takes min-line-characters',
+            id='snake case option',
         ),
-        ('[rules]\nmid-clause-break = { width = 3 }\n', 'is not an option of mid-clause-break, it takes none'),
-        ('[rules]\nline-too-short = { min-line-characters = "30" }\n', 'must be a whole number of zero or more'),
-        ('[rules]\nheading-title-case = { exceptions = "npm" }\n', 'must be a list of strings'),
-        ('[rules]\nheading-title-case = { style = "ap" }\n', 'must be one of apa, chicago'),
-        ('[rules]\nheading-title-case = { levels = [0, 2] }\n', 'must be a list of heading levels from 1 to 6'),
-        ('[subedit]\nabbreviations = ["Dept"]\n', "'Dept' must be one word ending in its period"),
-        ('[rules]\nstub-fragment = "off"\n', 'rules.stub-fragment: is not a rule subedit defines'),
-        ('[rules]\ndiscouraged-word = { replacements = ["utilize"] }\n', 'must be a table of words'),
-        ('[rules]\ndiscouraged-word = { replacements = { cancel = "cancel out" } }\n', 'holds none of the words'),
-        ('[rules\n', 'Expected'),
-    ],
-    ids=[
-        'width',
-        'misspelled key',
-        'misspelled section',
-        'boolean',
-        'severity',
-        'snake case option',
-        'option of a rule with none',
-        'option type',
-        'list option type',
-        'choice option value',
-        'heading level',
-        'abbreviation without its period',
-        'old rule name',
-        'replacements type',
-        'replacement that is replaced again',
-        'broken toml',
+        pytest.param(
+            '[rules]\nmid-clause-break = { width = 3 }\n',
+            'is not an option of mid-clause-break, it takes none',
+            id='option of a rule with none',
+        ),
+        pytest.param(
+            '[rules]\nline-too-short = { min-line-characters = "30" }\n',
+            'must be a whole number of zero or more',
+            id='option type',
+        ),
+        pytest.param(
+            '[rules]\nheading-title-case = { exceptions = "npm" }\n', 'must be a list of strings', id='list option type'
+        ),
+        pytest.param(
+            '[rules]\nheading-title-case = { style = "ap" }\n', 'must be one of apa, chicago', id='choice option value'
+        ),
+        pytest.param(
+            '[rules]\nheading-title-case = { levels = [0, 2] }\n',
+            'must be a list of heading levels from 1 to 6',
+            id='heading level',
+        ),
+        pytest.param(
+            '[subedit]\nabbreviations = ["Dept"]\n',
+            "'Dept' must be one word ending in its period",
+            id='abbreviation without its period',
+        ),
+        pytest.param(
+            '[rules]\nstub-fragment = "off"\n', 'rules.stub-fragment: is not a rule subedit defines', id='old rule name'
+        ),
+        pytest.param(
+            '[rules]\ndiscouraged-word = { replacements = ["utilize"] }\n',
+            'must be a table of words',
+            id='replacements type',
+        ),
+        pytest.param(
+            '[rules]\ndiscouraged-word = { replacements = { cancel = "cancel out" } }\n',
+            'holds none of the words',
+            id='replacement that is replaced again',
+        ),
+        pytest.param('[rules\n', "Expected ']'", id='broken toml'),
     ],
 )
 def test_a_config_written_wrong_names_its_file_and_mistake(project: Project, body: str, complaint: str) -> None:
@@ -123,7 +142,9 @@ def test_a_project_lists_its_own_abbreviations(project: Project) -> None:
 
 def test_a_delegated_rule_table_keeps_options_subedit_cannot_check(project: Project) -> None:
     target = configured(project, '[rules]\n"subedit.EmDash" = { severity = "warning", level = 2 }\n')
-    assert source().resolve(str(target)).settings_for('subedit.EmDash').severity is Severity.WARNING
+    settings = source().resolve(str(target)).settings_for('subedit.EmDash')
+    assert settings.severity is Severity.WARNING
+    assert settings.options == {'level': 2}
 
 
 PYPROJECT = 'pyproject.toml'

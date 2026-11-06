@@ -2,21 +2,13 @@ import dataclasses
 import re
 import typing
 
-from ..models.diagnostic import (
-    ChoiceOption,
-    CountOption,
-    Diagnostic,
-    Fix,
-    FixKind,
-    ReplacementsOption,
-    RuleMetadata,
-    Severity,
-)
+from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.prose import is_protected, is_wide, protected_spans, words_pattern
 from ..models.prose_unit import ProseLine, ProseUnit
+from ..models.rule_option import ChoiceOption, CountOption, ReplacementsOption
 from ..models.title_case import title_case
 from ..ports.rule import Rule, RuleContext
-from .markdown import EXCEPTIONS, HeadingTitleCaseRule, title_case_style
+from .markdown import title_case_settings
 
 
 _COLON = re.compile(r'[:：]')
@@ -62,7 +54,8 @@ _PARENTHESES = re.compile(r'[(（](?P<inside>[^()（）]*)[)）]')
 # No space goes between a parenthesis and the punctuation or bracket beside it.
 _HUGS_A_PARENTHESIS = frozenset('.,;:!?，。、；：！？「」『』"\'[]{}<>/')
 # Half-width parentheses, spaced from the words outside, are the house style, and full-width ones the CJK standard.
-_PARENTHESIS_STYLE = ChoiceOption('style', 'half-width', choices=('half-width', 'full-width'))
+_HALF_WIDTH, _FULL_WIDTH = 'half-width', 'full-width'
+_PARENTHESIS_STYLE = ChoiceOption('style', _HALF_WIDTH, choices=(_HALF_WIDTH, _FULL_WIDTH))
 # Words the project writes otherwise, each set to the one it prefers.
 _REPLACEMENTS = ReplacementsOption('replacements', {'包括': '包含'})
 # 而不是 already sets B before what it is not, and 是不是 asks a question.
@@ -92,7 +85,7 @@ class MidSentenceColonRule(Rule[ProseUnit]):
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.is_heading or unit.is_quoted or unit.is_fragment:
+        if unit.is_heading or not unit.is_own_prose:
             return
         limits = _LabelLimits.of(context)
         for line in unit.prose_lines():
@@ -127,9 +120,9 @@ class ParenthesisStyleRule(Rule[ProseUnit]):
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.is_quoted or unit.is_fragment:
+        if not unit.is_own_prose:
             return
-        full_width_style = context.settings(self.metadata.rule_id).value(_PARENTHESIS_STYLE) == 'full-width'
+        full_width_style = context.settings(self.metadata.rule_id).value(_PARENTHESIS_STYLE) == _FULL_WIDTH
         for line in unit.prose_lines():
             spans = protected_spans(line.text)
             for parentheses in _PARENTHESES.finditer(line.text):
@@ -143,18 +136,15 @@ class ParenthesisStyleRule(Rule[ProseUnit]):
                     continue
                 if full_width_style and _beside_cjk(line.text, start, end):
                     start, end = _spaces_around(line.text, start, end)
-                    styled = f'（{inside.strip()}）'
+                    width, styled = _FULL_WIDTH, f'（{inside.strip()}）'
                 else:
-                    styled = _half_width(line.text, start, end, inside)
+                    width, styled = _HALF_WIDTH, _half_width(line.text, start, end, inside)
                 if styled == line.text[start:end]:
                     continue
                 yield Diagnostic(
                     rule_id=self.metadata.rule_id,
                     range=line.span(start, end),
-                    message=(
-                        f'Parentheses here are {"full-width" if styled.startswith("（") else "half-width"} '
-                        f'in this project, so this reads as "{styled.strip()}".'
-                    ),
+                    message=(f'Parentheses here are {width} in this project, so this reads as "{styled.strip()}".'),
                     fix=Fix.targeted(line.edit(start, end, styled)),
                 )
 
@@ -169,7 +159,7 @@ class DiscouragedWordRule(Rule[ProseUnit]):
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.is_quoted or unit.is_fragment:
+        if not unit.is_own_prose:
             return
         replacements = context.settings(self.metadata.rule_id).value(_REPLACEMENTS)
         if not replacements:
@@ -199,7 +189,7 @@ class ContrastFramingRule(Rule[ProseUnit]):
     surface = ProseUnit
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        if unit.is_quoted or unit.is_fragment:
+        if not unit.is_own_prose:
             return
         for line in unit.prose_lines():
             for found in _CONTRAST.finditer(line.text):
@@ -224,8 +214,7 @@ class ListLabelTitleCaseRule(Rule[ProseUnit]):
 
     def check(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # Title Case and its exceptions are set once, on the heading rule, and labels follow them.
-        exceptions = context.settings(HeadingTitleCaseRule.metadata.rule_id).value(EXCEPTIONS)
-        style = title_case_style(context)
+        exceptions, style = title_case_settings(context)
         for line, label in _list_labels(unit, context):
             words = label.group('label')
             cased = title_case(words, exceptions, style)

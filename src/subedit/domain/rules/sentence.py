@@ -1,9 +1,10 @@
 import typing
 
 from ..models.comment import CommentGroup, CommentPlacement
-from ..models.diagnostic import CountOption, Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.prose import Prose
 from ..models.reflow import BreakPolicy, reflow_sentence
+from ..models.rule_option import CountOption
 from ..ports.rule import Rule, RuleContext
 
 

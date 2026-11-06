@@ -3,7 +3,7 @@ from factories import document, found, lint, markdown, rule_ids
 from factories import fixed as fix_document
 from factories import rule_set as enabling
 
-from subedit.domain import Document, RuleSet, RuleSettings, Severity
+from subedit.domain import Diagnostic, Document, RuleSet, RuleSettings, Severity
 from subedit.domain.models.title_case import title_case
 from subedit.infrastructure import MARKDOWN_RULES, WORDING_RULES
 
@@ -23,6 +23,19 @@ def fixed(subject: Document, rules: RuleSet | None = None) -> str:
     return fix_document(subject, rules or rule_set(), RULES)
 
 
+def findings(rule_id: str, subject: Document, rules: RuleSet | None = None) -> list[Diagnostic]:
+    return [item for item in lint(subject, rules or rule_set(), RULES).diagnostics if item.rule_id == rule_id]
+
+
+def severities(rule_id: str, subject: Document, rules: RuleSet | None = None) -> list[Severity]:
+    return [item.severity for item in findings(rule_id, subject, rules)]
+
+
+# A list needs a heading and a lead sentence above it, or other rules report it.
+LIST_LEAD = '# Title\n\nLead.\n\n'
+CHICAGO = rule_set(**{'heading-title-case': RuleSettings(options={'style': 'chicago'})})
+
+
 @pytest.mark.parametrize(
     'source',
     [
@@ -38,7 +51,7 @@ def test_a_colon_joining_clauses_in_markdown_is_flagged(source: str) -> None:
 @pytest.mark.parametrize(
     'source',
     [
-        '# Title\n\nLead.\n\n- **Bullet Label**: a description\n- **Label:** a description\n- 標籤：說明\n',
+        f'{LIST_LEAD}- **Bullet Label**: a description\n- **Label:** a description\n- 標籤：說明\n',
         '## Task: Do Something\n',
         'The order is fixed:\n\n- detect\n- pick\n',
         'A `TODO:` prefix and https://example.com are not colons in prose.\n',
@@ -118,11 +131,6 @@ def test_a_project_may_pick_full_width_parentheses_beside_cjk(source: str, expec
     assert fixed(markdown(source), FULL_WIDTH) == expected
 
 
-def test_a_table_header_is_left_to_title_case_alone() -> None:
-    source = 'Lead.\n\n| Note: Value | 包括 | Size(中文) |\n| --- | --- | --- |\n| a | b | c |\n'
-    assert ids(markdown(source)) == []
-
-
 def test_full_width_parentheses_keep_a_hard_break_after_them() -> None:
     source = '這是說明 (注意)  \n下一行文字。\n'
     assert fixed(markdown(source), FULL_WIDTH) == '這是說明（注意）  \n下一行文字。\n'
@@ -133,12 +141,17 @@ def test_a_discouraged_word_is_replaced_with_the_preferred_one() -> None:
     assert fixed(document('# 三種方式包括這些。\nx = 1\n')) == '# 三種方式包含這些。\nx = 1\n'
 
 
-def test_a_project_lists_its_own_discouraged_words() -> None:
-    rules = rule_set(**{'discouraged-word': RuleSettings(options={'replacements': {'utilize': 'use'}})})
-    assert fixed(markdown('We utilize it, as underutilized code shows.\n'), rules) == (
+UTILIZE = rule_set(**{'discouraged-word': RuleSettings(options={'replacements': {'utilize': 'use'}})})
+
+
+def test_a_discouraged_word_in_latin_letters_matches_only_as_a_whole_word() -> None:
+    assert fixed(markdown('We utilize it, as underutilized code shows.\n'), UTILIZE) == (
         'We use it, as underutilized code shows.\n'
     )
-    assert fixed(markdown('三種方式包括這些。\n'), rules) == '三種方式包括這些。\n'
+
+
+def test_a_project_list_of_discouraged_words_replaces_the_default_one() -> None:
+    assert fixed(markdown('三種方式包括這些。\n'), UTILIZE) == '三種方式包括這些。\n'
 
 
 @pytest.mark.parametrize(
@@ -165,11 +178,11 @@ def test_contrast_framing_is_advice_for_a_rewrite() -> None:
     ('source', 'expected'),
     [
         (
-            '# Title\n\nLead.\n\n- bullet label: a description\n',
-            '# Title\n\nLead.\n\n- **Bullet Label**: a description\n',
+            f'{LIST_LEAD}- bullet label: a description\n',
+            f'{LIST_LEAD}- **Bullet Label**: a description\n',
         ),
-        ('# Title\n\nLead.\n\n- **bullet label:** text\n', '# Title\n\nLead.\n\n- **Bullet Label**: text\n'),
-        ('# Title\n\nLead.\n\n- **Fine Label**: text\n', '# Title\n\nLead.\n\n- **Fine Label**: text\n'),
+        (f'{LIST_LEAD}- **bullet label:** text\n', f'{LIST_LEAD}- **Bullet Label**: text\n'),
+        (f'{LIST_LEAD}- **Fine Label**: text\n', f'{LIST_LEAD}- **Fine Label**: text\n'),
     ],
 )
 def test_a_markdown_label_is_bold_and_in_title_case(source: str, expected: str) -> None:
@@ -178,9 +191,7 @@ def test_a_markdown_label_is_bold_and_in_title_case(source: str, expected: str) 
 
 def test_a_label_may_skip_bold_while_keeping_title_case() -> None:
     rules = enabling(rule_ids(RULES) - {'list-label-not-bold'})
-    assert fixed(markdown('# Title\n\nLead.\n\n- cache size: the limit\n'), rules) == (
-        '# Title\n\nLead.\n\n- Cache Size: the limit\n'
-    )
+    assert fixed(markdown(f'{LIST_LEAD}- cache size: the limit\n'), rules) == (f'{LIST_LEAD}- Cache Size: the limit\n')
 
 
 def test_a_line_comment_label_takes_title_case_but_no_bold() -> None:
@@ -211,9 +222,8 @@ def test_a_heading_follows_the_title_case_standard_the_project_names(style: str,
 
 
 def test_a_list_label_follows_the_heading_standard() -> None:
-    rules = rule_set(**{'heading-title-case': RuleSettings(options={'style': 'chicago'})})
-    source = '# Title\n\nLead.\n\n- working with lists: a description\n'
-    assert fixed(markdown(source), rules) == '# Title\n\nLead.\n\n- **Working with Lists**: a description\n'
+    source = f'{LIST_LEAD}- working with lists: a description\n'
+    assert fixed(markdown(source), CHICAGO) == f'{LIST_LEAD}- **Working with Lists**: a description\n'
 
 
 @pytest.mark.parametrize('heading', ['## Set Up the Project\n', '## Set up the Project\n'])
@@ -248,8 +258,7 @@ def test_an_ordinal_before_a_heading_is_no_first_word(heading: str, expected: st
 
 
 def test_a_capitalized_word_that_may_be_a_preposition_is_a_warning() -> None:
-    report = lint(markdown('## Getting Started In Python\n'), rule_set(), RULES)
-    (finding,) = [item for item in report.diagnostics if item.rule_id == 'heading-title-case']
+    (finding,) = findings('heading-title-case', markdown('## Getting Started In Python\n'))
     assert finding.severity is Severity.WARNING
     assert finding.message.startswith('In stays lowercase')
 
@@ -260,13 +269,17 @@ def test_a_table_header_takes_title_case_and_its_body_is_left_alone() -> None:
     assert fixed(markdown(source)) == expected
 
 
+def test_a_table_header_is_left_to_title_case_alone() -> None:
+    source = 'Lead.\n\n| Note: Value | 包括 | Size(中文) |\n| --- | --- | --- |\n| a | b | c |\n'
+    assert ids(markdown(source)) == []
+
+
 def test_a_table_header_follows_the_heading_standard() -> None:
-    rules = rule_set(**{'heading-title-case': RuleSettings(options={'style': 'chicago'})})
     source = 'Lead.\n\n| working with lists | b |\n| --- | --- |\n| 1 | 2 |\n'
-    assert fixed(markdown(source), rules).startswith('Lead.\n\n| Working with Lists | b |')
+    assert fixed(markdown(source), CHICAGO).startswith('Lead.\n\n| Working with Lists | b |')
 
 
-def test_a_name_listed_under_keep_stays_lowercase() -> None:
+def test_a_name_listed_under_exceptions_keeps_its_case() -> None:
     rules = rule_set(**{'heading-title-case': RuleSettings(options={'exceptions': ['uv', 'CLI']})})
     assert fixed(markdown('## install uv and the cli\n'), rules) == '## Install uv and the CLI\n'
 
@@ -291,17 +304,12 @@ def test_a_heading_straight_into_a_list_needs_a_lead_sentence() -> None:
     assert 'missing-lead-sentence' not in ids(markdown('## Transport\n\nThere are two.\n\n- stdio\n- SSE\n'))
 
 
-def noun_phrase_severities(source: str, rules: RuleSet | None = None) -> list[Severity]:
-    report = lint(markdown(source), rules or rule_set(), RULES)
-    return [item.severity for item in report.diagnostics if item.rule_id == 'heading-not-noun-phrase']
-
-
 @pytest.mark.parametrize(
     'heading',
     ['## How to Install\n', '## When to Apply\n', '## Whose Config Wins\n', '## Is It Fast?\n', '## 設定在哪？\n'],
 )
 def test_a_question_heading_is_an_error(heading: str) -> None:
-    assert noun_phrase_severities(heading) == [Severity.ERROR]
+    assert severities('heading-not-noun-phrase', markdown(heading)) == [Severity.ERROR]
 
 
 @pytest.mark.parametrize(
@@ -316,7 +324,7 @@ def test_a_question_heading_is_an_error(heading: str) -> None:
     ],
 )
 def test_a_verb_followed_by_its_object_is_an_instruction_and_a_warning(heading: str) -> None:
-    assert noun_phrase_severities(heading) == [Severity.WARNING]
+    assert severities('heading-not-noun-phrase', markdown(heading)) == [Severity.WARNING]
 
 
 @pytest.mark.parametrize(
@@ -337,7 +345,7 @@ def test_a_verb_followed_by_its_object_is_an_instruction_and_a_warning(heading: 
     ],
 )
 def test_a_noun_heading_is_silent(heading: str) -> None:
-    assert noun_phrase_severities(heading) == []
+    assert severities('heading-not-noun-phrase', markdown(heading)) == []
 
 
 def test_heading_rules_read_only_the_levels_a_project_lists() -> None:
@@ -356,18 +364,13 @@ def test_heading_rules_read_only_the_levels_a_project_lists() -> None:
     ],
 )
 def test_a_label_may_hold_code_or_a_parenthetical(item: str) -> None:
-    assert 'mid-sentence-colon' not in ids(markdown(f'# Title\n\nLead.\n\n{item}'))
+    assert 'mid-sentence-colon' not in ids(markdown(f'{LIST_LEAD}{item}'))
 
 
 def test_a_clause_before_a_colon_is_no_label() -> None:
-    found = ids(markdown('# Title\n\nLead.\n\n- The write is idempotent: dates with an entry are skipped.\n'))
+    found = ids(markdown(f'{LIST_LEAD}- The write is idempotent: dates with an entry are skipped.\n'))
     assert 'mid-sentence-colon' in found
     assert 'list-label-title-case' not in found
-
-
-def colon_severities(source: str, rules: RuleSet | None = None) -> list[Severity]:
-    report = lint(markdown(source), rules or rule_set(), RULES)
-    return [item.severity for item in report.diagnostics if item.rule_id == 'mid-sentence-colon']
 
 
 @pytest.mark.parametrize(
@@ -381,44 +384,45 @@ def colon_severities(source: str, rules: RuleSet | None = None) -> list[Severity
     ids=['clause', 'auxiliary', 'long', 'long bold'],
 )
 def test_words_in_a_labels_place_that_may_not_be_one_are_a_warning(item: str) -> None:
-    assert colon_severities(f'# Title\n\nLead.\n\n{item}\n') == [Severity.WARNING]
+    assert severities('mid-sentence-colon', markdown(f'{LIST_LEAD}{item}\n')) == [Severity.WARNING]
 
 
 @pytest.mark.parametrize(
     'source',
     [
         'The contract is fixed: implementations return headers.\n',
-        '# Title\n\nLead.\n\n- **Label**: one clause ends here: and another starts.\n',
+        f'{LIST_LEAD}- **Label**: one clause ends here: and another starts.\n',
     ],
     ids=['paragraph', 'after a label'],
 )
 def test_a_colon_away_from_any_label_stays_an_error(source: str) -> None:
-    assert colon_severities(source) == [Severity.ERROR]
+    assert severities('mid-sentence-colon', markdown(source)) == [Severity.ERROR]
 
 
 def test_a_project_can_set_the_label_guess_back_to_an_error() -> None:
     rules = rule_set(**{'mid-sentence-colon': RuleSettings(severity=Severity.ERROR)})
-    assert colon_severities('# Title\n\nLead.\n\n- Can be empty: the field is optional.\n', rules) == [Severity.ERROR]
+    source = markdown(f'{LIST_LEAD}- Can be empty: the field is optional.\n')
+    assert severities('mid-sentence-colon', source, rules) == [Severity.ERROR]
 
 
 def test_a_longer_label_limit_reaches_the_label_style_too() -> None:
-    source = markdown('# Title\n\nLead.\n\n- every test before a deploy runs: the CI job.\n')
+    source = markdown(f'{LIST_LEAD}- every test before a deploy runs: the CI job.\n')
     rules = rule_set(**{'mid-sentence-colon': RuleSettings(options={'max-label-words': 6})})
-    assert colon_severities('# Title\n\nLead.\n\n- every test before a deploy runs: the CI job.\n', rules) == []
+    assert severities('mid-sentence-colon', source, rules) == []
     assert '- **Every Test Before a Deploy Runs**: the CI job.' in fixed(source, rules)
 
 
 def test_a_label_keeps_its_parenthetical_when_styled() -> None:
-    source = '# Title\n\nLead.\n\n- bucket a (gateway): mounts each API\n'
-    assert fixed(markdown(source)) == '# Title\n\nLead.\n\n- **Bucket A** (gateway): mounts each API\n'
+    source = f'{LIST_LEAD}- bucket a (gateway): mounts each API\n'
+    assert fixed(markdown(source)) == f'{LIST_LEAD}- **Bucket A** (gateway): mounts each API\n'
 
 
 @pytest.mark.parametrize(
     'source',
     [
         '[![License: MIT](https://img.shields.io/badge/a.svg)](LICENSE)\n',
-        '# Title\n\nLead.\n\n- **graph.png**: the model in Studio\n',
-        '# Title\n\nLead.\n\n- **Field-level disagreement on a shared identity** (two sources): ask\n',
+        f'{LIST_LEAD}- **graph.png**: the model in Studio\n',
+        f'{LIST_LEAD}- **Field-level disagreement on a shared identity** (two sources): ask\n',
         '**Good example:**\n\n```\ncode\n```\n',
     ],
 )
@@ -432,10 +436,7 @@ def test_a_name_or_a_lone_lowercase_word_keeps_its_case(text: str) -> None:
 
 
 def test_a_lone_lowercase_label_gets_bold_but_keeps_its_case() -> None:
-    assert (
-        fixed(markdown('# Title\n\nLead.\n\n- skills: the prompts\n'))
-        == '# Title\n\nLead.\n\n- **skills**: the prompts\n'
-    )
+    assert fixed(markdown(f'{LIST_LEAD}- skills: the prompts\n')) == f'{LIST_LEAD}- **skills**: the prompts\n'
 
 
 def test_a_bare_www_address_is_stepped_over_like_any_url() -> None:

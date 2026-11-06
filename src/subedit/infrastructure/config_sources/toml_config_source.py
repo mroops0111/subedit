@@ -1,6 +1,7 @@
 import fnmatch
 import pathlib
 import tomllib
+import typing
 
 from ...domain.models.diagnostic import RuleMetadata
 from ...domain.models.rule_set import DEFAULT_LINE_WIDTH, RuleSet, RuleSettings
@@ -131,6 +132,14 @@ class TomlConfigSource:
                 if not option.accepts(value):
                     raise ConfigError(f'rules.{rule_id}.{name}: must be {option.expected}')
 
+    # Each option of a native rule converts its own value, and a delegated tool's options pass through as read.
+    def _converted(self, rule_id: str, options: typing.Mapping[str, object]) -> dict[str, object]:
+        metadata = self._rules.get(rule_id)
+        if metadata is None:
+            return dict(options)
+        declared = {option.name: option for option in metadata.options}
+        return {name: declared[name].convert(value) for name, value in options.items()}
+
     def _to_rule_set(self, config_file: ConfigFile, path: str) -> RuleSet:
         enabled_ids = set(self._available_rule_ids)
         disabled_external_ids: set[str] = set()
@@ -144,7 +153,7 @@ class TomlConfigSource:
                 else:
                     disabled_external_ids.add(rule_id)
             elif isinstance(rule_entry, RuleTable):
-                options = {name: _normalized(value) for name, value in rule_entry.options.items()}
+                options = self._converted(rule_id, rule_entry.options)
                 settings[rule_id] = RuleSettings(severity=rule_entry.resolved_severity, options=options)
             else:
                 settings[rule_id] = RuleSettings(severity=RuleTable(severity=rule_entry).resolved_severity)
@@ -169,8 +178,3 @@ def _load(config_path: pathlib.Path) -> dict[str, object] | None:
         return tomllib.loads(text)
     except tomllib.TOMLDecodeError as error:
         raise ConfigError(f'{config_path}: {error}') from None
-
-
-# TOML reads an array as a list, while an option's default is a tuple, so a rule always meets the same type.
-def _normalized(value: object) -> object:
-    return tuple(value) if isinstance(value, list) else value

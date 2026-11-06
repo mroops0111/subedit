@@ -15,21 +15,7 @@ from .comment_layout import (
     LinePrefixLayout,
     QuotedDocLayout,
 )
-from .diagnostic import (
-    SEVERITY_BY_NAME,
-    ChoiceOption,
-    CountOption,
-    Diagnostic,
-    Fix,
-    FixKind,
-    HeadingLevelsOption,
-    ReplacementsOption,
-    Report,
-    RuleMetadata,
-    RuleOption,
-    Severity,
-    WordsOption,
-)
+from .diagnostic import SEVERITY_BY_NAME, Diagnostic, Fix, FixKind, Report, RuleMetadata, Severity
 from .document import Document
 from .embedded import EmbeddedDocument
 from .file_type import FileType
@@ -38,6 +24,7 @@ from .position import Encoding, Position, PositionMap, SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence
 from .prose_map import ProseMap
 from .prose_unit import ProseLine, ProseUnit
+from .rule_option import ChoiceOption, CountOption, HeadingLevelsOption, ReplacementsOption, RuleOption, WordsOption
 from .rule_set import RuleSet, RuleSettings
 from .text import TextEdit, apply_edits
 

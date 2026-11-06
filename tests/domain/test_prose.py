@@ -59,7 +59,7 @@ def test_no_ends_a_sentence_unless_a_number_follows() -> None:
         'See Fig. 3 for the layout.',
     ],
 )
-def test_an_abbreviation_unicode_cldr_or_prose_lists_ends_no_sentence(text: str) -> None:
+def test_a_known_abbreviation_ends_no_sentence(text: str) -> None:
     assert len(Prose(text).sentences()) == 1
 
 
@@ -247,12 +247,15 @@ def test_only_a_comma_outside_brackets_and_code_breaks_a_sentence(sentence: str,
     assert reflow_sentence(sentence, width=len(sentence) - 1) == expected
 
 
+# A clause, then a list that a break before its last item would split.
+GATEWAY = (
+    'Goes through the full Gateway assembly, so the auth resolver, base URL, '
+    'and URI-template-driven kwarg passing are all exercised together.'
+)
+
+
 def test_a_break_lands_between_clauses_rather_than_inside_a_list() -> None:
-    sentence = (
-        'Goes through the full Gateway assembly, so the auth resolver, base URL, '
-        'and URI-template-driven kwarg passing are all exercised together.'
-    )
-    assert reflow_sentence(sentence, width=100, policy=BreakPolicy(list_item_words=ITEM_WORDS)) == (
+    assert reflow_sentence(GATEWAY, width=100, policy=BreakPolicy(list_item_words=ITEM_WORDS)) == (
         'Goes through the full Gateway assembly,',
         'so the auth resolver, base URL, and URI-template-driven kwarg passing are all exercised together.',
     )
@@ -332,17 +335,19 @@ def test_a_word_that_only_starts_like_an_opener_opens_no_list() -> None:
     assert break_cost(lines, ITEM_WORDS) == 1
 
 
-def test_that_is_opens_a_list_only_when_a_comma_sets_it_off() -> None:
-    assert break_cost(('Holds two stores,', 'that is, the cache and the log.'), ITEM_WORDS) == 0
-    assert break_cost(('Holds cache, index,', 'that is it, and the log.'), ITEM_WORDS) == 1
+@pytest.mark.parametrize(
+    ('lines', 'cost'),
+    [
+        pytest.param(('Holds two stores,', 'that is, the cache and the log.'), 0, id='set off by a comma'),
+        pytest.param(('Holds cache, index,', 'that is it, and the log.'), 1, id='opening a clause'),
+    ],
+)
+def test_that_is_opens_a_list_only_when_a_comma_sets_it_off(lines: tuple[str, ...], cost: int) -> None:
+    assert break_cost(lines, ITEM_WORDS) == cost
 
 
 def test_a_layout_left_without_lists_takes_the_longest_opening_line() -> None:
-    sentence = (
-        'Goes through the full Gateway assembly, so the auth resolver, base URL, '
-        'and URI-template-driven kwarg passing are all exercised together.'
-    )
     assert (
-        reflow_sentence(sentence, width=100)[0]
+        reflow_sentence(GATEWAY, width=100)[0]
         == 'Goes through the full Gateway assembly, so the auth resolver, base URL,'
     )

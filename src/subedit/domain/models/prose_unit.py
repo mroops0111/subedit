@@ -73,3 +73,8 @@ class ProseUnit(abc.ABC):
     def is_fragment(self) -> bool:
         """Whether the text is a fragment rather than prose, such as a table header cell, which wording rules skip."""
         return False
+
+    @property
+    def is_own_prose(self) -> bool:
+        """Whether the text is the author's own sentences, the only text wording rules read."""
+        return not self.is_quoted and not self.is_fragment

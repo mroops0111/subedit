@@ -2,7 +2,8 @@ import re
 import typing
 
 from ..models.comment import CommentForm, CommentGroup, CommentPlacement
-from ..models.diagnostic import CountOption, Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.rule_option import CountOption
 from ..ports.language_conventions import LanguageConventions
 from ..ports.rule import Rule, RuleContext
 

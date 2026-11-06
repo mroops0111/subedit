@@ -1,7 +1,8 @@
 import dataclasses
 import typing
 
-from .diagnostic import OptionT, RuleMetadata, RuleOption, Severity
+from .diagnostic import RuleMetadata, Severity
+from .rule_option import OptionT, RuleOption
 
 
 # Black and ruff format Python to this width unless a project says otherwise.

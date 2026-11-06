@@ -176,12 +176,13 @@ def test_a_break_after_an_aside_the_list_check_mistakes_for_an_item_keeps_its_la
     assert all(item.severity is Severity.WARNING for item in lint_document(document(source), every_rule).diagnostics)
 
 
-NO_AUTH = 'No auth, a static bearer or api key, and an oauth2 service token all call the API as one identity.'
-
-
 def test_a_shorter_item_limit_reads_fewer_pieces_as_list_items() -> None:
+    source = comment(
+        'No auth, a static bearer or api key, and an oauth2 service token all call the API as one identity.'
+    )
     settings = {'mid-list-break': RuleSettings(options={'max-item-words': 1})}
-    assert ids(comment(NO_AUTH), width=80, **settings) == []
+    assert ids(source, width=80) == ['mid-list-break']
+    assert ids(source, width=80, **settings) == []
 
 
 def test_a_project_that_switches_the_list_rule_off_leaves_lists_out_of_reflow() -> None:
