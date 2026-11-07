@@ -37,18 +37,24 @@ _FORMATTERS = {
     'json': reporters.as_json,
 }
 _PERCENTILES = (0.5, 0.75, 0.9, 0.95, 0.99)
+# A path of - reads one draft from stdin, as ruff, Prettier, and ESLint take it.
+_STDIN = pathlib.Path('-')
+_STDIN_FILENAME = typer.Option(
+    None, '--stdin-filename', help='The file a draft read from stdin stands for, which picks its surface and config.'
+)
 
 ConfigT = typing.TypeVar('ConfigT')
 
 
 @app.command()
 def check(
-    paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to check.'),
+    paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to check, or - for a draft on stdin.'),
     output: str = typer.Option('full', '--output', help='full, actionable, or json.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
+    stdin_filename: pathlib.Path | None = _STDIN_FILENAME,
 ) -> None:
     """Report findings, and exit non-zero when any is an error."""
-    documents = _load(tuple(paths))
+    documents = _documents(tuple(paths), stdin_filename)
     _require(documents)
     formatter = _FORMATTERS.get(output)
     if formatter is None:
@@ -68,13 +74,20 @@ def check(
 
 @app.command()
 def fix(
-    paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to fix.'),
+    paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to fix, or - for a draft on stdin.'),
     write: bool = typer.Option(False, '--write', help='Write changes instead of printing a diff.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
+    stdin_filename: pathlib.Path | None = _STDIN_FILENAME,
 ) -> None:
-    """Apply mechanical fixes, printing a diff unless told to write, and report what needs an author."""
-    documents = _load(tuple(paths))
+    """Apply mechanical fixes, printing a diff unless told to write, and report what needs an author.
+
+    A draft read from stdin comes back fixed on stdout, with the findings on stderr, so a pipe keeps only the text.
+    """
+    documents = _documents(tuple(paths), stdin_filename)
     _require(documents)
+    from_stdin = stdin_filename is not None
+    if from_stdin and write:
+        _usage_error('--write has no file to write when the draft comes from stdin.')
 
     fixer = Fixer(_build_linter(), _external_linters(delegate))
     changed_file_count = 0
@@ -82,18 +95,21 @@ def fix(
     for document in documents:
         fix_result = fixer.run(document, _rules_for(document))
         unresolved_finding_count += len(fix_result.unresolved_findings)
+        if from_stdin:
+            typer.echo(fix_result.document.text, nl=False)
         if fix_result.has_changes:
             changed_file_count += 1
             if write:
                 pathlib.Path(_file_path(document)).write_text(fix_result.document.text, encoding='utf-8')
-            else:
+            elif not from_stdin:
                 typer.echo(_diff(document, fix_result.document))
         if fix_result.unresolved_findings:
-            typer.echo(reporters.brief(fix_result.document, fix_result.report))
+            typer.echo(reporters.brief(fix_result.document, fix_result.report), err=from_stdin)
         if fix_result.report.advisory:
-            typer.echo(reporters.advice(fix_result.document, fix_result.report))
+            typer.echo(reporters.advice(fix_result.document, fix_result.report), err=from_stdin)
 
-    action_word = 'rewrote' if write else 'would rewrite'
+    # A draft from stdin comes back rewritten on stdout, as a file does with --write.
+    action_word = 'rewrote' if write or from_stdin else 'would rewrite'
     typer.echo(
         f'{action_word} {changed_file_count} of {len(documents)} {"file" if len(documents) == 1 else "files"}, '
         f'{unresolved_finding_count} {"finding needs" if unresolved_finding_count == 1 else "findings need"} an author.',
@@ -138,6 +154,28 @@ def _config(read: typing.Callable[[str], ConfigT], path: str) -> ConfigT:
     except ConfigError as error:
         typer.echo(f'subedit: {error}', err=True)
         raise typer.Exit(2) from None
+
+
+def _documents(paths: tuple[pathlib.Path, ...], stdin_filename: pathlib.Path | None) -> tuple[Document, ...]:
+    if _STDIN not in paths:
+        if stdin_filename is not None:
+            _usage_error('--stdin-filename names a draft read from stdin, so it needs - as the only path.')
+        return _load(paths)
+    if len(paths) > 1:
+        _usage_error('- reads one draft from stdin, so it stands alone, with no other paths.')
+    if stdin_filename is None:
+        _usage_error('- needs --stdin-filename to name the file the draft stands for, such as issue.md.')
+    language_id = language_id_for(stdin_filename)
+    if language_id is None:
+        _usage_error(
+            f'subedit reads no {stdin_filename.suffix or "extensionless"} files, so name a draft such as issue.md.'
+        )
+    return (Document(uri=stdin_filename.resolve().as_uri(), text=sys.stdin.read(), language_id=language_id),)
+
+
+def _usage_error(message: str) -> typing.NoReturn:
+    typer.echo(f'subedit: {message}', err=True)
+    raise typer.Exit(2)
 
 
 def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
