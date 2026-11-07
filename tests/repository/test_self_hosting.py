@@ -1,10 +1,11 @@
 import pathlib
+import typing
 
 import pytest
 from factories import REPOSITORY_ROOT
 
 from subedit.application import Linter, RuleEngine
-from subedit.domain import Document, RuleSet
+from subedit.domain import Document, RuleOption, RuleSet
 from subedit.infrastructure import ALL_RULES, DEFAULT_CONFIG_SOURCE, DEFAULT_PARSER, PYTHON
 
 
@@ -92,9 +93,11 @@ def test_the_rule_reference_matches_each_rule() -> None:
     for rule in ALL_RULES:
         metadata = rule.metadata
         assert metadata.rule_id in rows, f'{metadata.rule_id} is absent from docs/rules.md'
-        _, _, fix_kind, level, _ = rows[metadata.rule_id]
+        _, _, fix_kind, level, options = rows[metadata.rule_id]
         assert fix_kind.lower().startswith(metadata.fix_kind.value), f'{metadata.rule_id} fix kind is {fix_kind}'
         assert level == f'`{metadata.default_severity.name.lower()}`', f'{metadata.rule_id} level is {level}'
+        declared = ', '.join(_option_cell(option) for option in metadata.options) or 'None'
+        assert options == declared, f'{metadata.rule_id} options are {options}'
 
 
 def test_the_rule_reference_lists_every_vale_rule() -> None:
@@ -127,3 +130,17 @@ def test_the_excluded_fixture_is_actually_excluded() -> None:
     assert not DEFAULT_CONFIG_SOURCE.is_excluded(
         REPOSITORY_ROOT / 'src' / 'subedit' / 'domain' / 'prose.py', REPOSITORY_ROOT, patterns
     )
+
+
+def _option_cell(option: RuleOption[typing.Any]) -> str:
+    if isinstance(option.default, tuple):
+        default = f'`{list(option.default)}`'
+    # A table of words may hold CJK ones, which the reference counts rather than prints, since it stays English.
+    elif isinstance(option.default, dict):
+        count = len(option.default)
+        default = f'{count} pair' if count == 1 else f'{count} pairs'
+    elif isinstance(option.default, str):
+        default = f'`{option.default}`'
+    else:
+        default = option.default
+    return f'`{option.name}` ({default})'

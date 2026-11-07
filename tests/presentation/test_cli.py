@@ -27,7 +27,7 @@ def test_stats_reports_a_measured_corpus(project: Project, capsys: pytest.Captur
     output = capsys.readouterr().out
     assert '1 documents, 2 comment blocks' in output
     assert 'doc/public' in output
-    assert 'line/inline-body' in output
+    assert 'plain/inline-body' in output
 
 
 def test_stats_exits_non_zero_when_nothing_is_readable(tmp_path: pathlib.Path) -> None:
@@ -61,6 +61,18 @@ def test_check_rejects_an_unknown_output_format(project: Project) -> None:
     with pytest.raises(SystemExit) as exit_info:
         app(['check', str(target), '--output', 'nonsense'])
     assert exit_info.value.code == 2
+
+
+@pytest.mark.parametrize('command', ['check', 'fix', 'stats'])
+def test_a_config_written_wrong_stops_every_command(
+    project: Project, capsys: pytest.CaptureFixture[str], command: str
+) -> None:
+    project.write('subedit.toml', '[rules]\nline-too-short = { minimum_characters = 30 }\n')
+    target = project.write('a.py', '# note\n')
+    with pytest.raises(SystemExit) as exit_info:
+        app([command, str(target)])
+    assert exit_info.value.code == 2
+    assert 'minimum_characters: is not an option of line-too-short' in capsys.readouterr().err
 
 
 def test_fix_prints_a_diff_without_write(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
@@ -147,23 +159,6 @@ def test_the_actionable_format_says_so_when_nothing_is_wrong(
     assert 'No findings' in capsys.readouterr().out
 
 
-class _PreparedLinter(ExternalLinter):
-    name = 'probe'
-
-    def __init__(self, ready_after_prepare: bool) -> None:
-        self._ready_after_prepare = ready_after_prepare
-        self.prepared = False
-
-    def prepare(self) -> None:
-        self.prepared = True
-
-    def is_available(self) -> bool:
-        return self.prepared and self._ready_after_prepare
-
-    def run(self, document: Document) -> tuple[Diagnostic, ...]:
-        return ()
-
-
 @pytest.mark.parametrize('ready_after_prepare', [True, False])
 def test_check_prepares_delegated_tools_and_says_when_one_is_missing(
     project: Project,
@@ -204,3 +199,20 @@ def test_a_diff_keeps_a_blank_last_context_line(project: Project, capsys: pytest
         app(['fix', '--no-delegate', str(target)])
     hunk = capsys.readouterr().out.split('@@')[-1]
     assert hunk.endswith('\n \n'), 'patch counts a blank context line, so dropping it makes the hunk short'
+
+
+class _PreparedLinter(ExternalLinter):
+    name = 'probe'
+
+    def __init__(self, ready_after_prepare: bool) -> None:
+        self._ready_after_prepare = ready_after_prepare
+        self.prepared = False
+
+    def prepare(self) -> None:
+        self.prepared = True
+
+    def is_available(self) -> bool:
+        return self.prepared and self._ready_after_prepare
+
+    def run(self, document: Document) -> tuple[Diagnostic, ...]:
+        return ()

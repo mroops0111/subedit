@@ -21,7 +21,7 @@ from subedit.domain import (
 from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER
 
 
-LAYOUT = frozenset({'mid-clause-break', 'line-too-long', 'stub-fragment', 'unbreakable-sentence'})
+LAYOUT = frozenset({'mid-clause-break', 'line-too-long', 'line-too-short', 'unbreakable-sentence'})
 
 
 def fixer(rules=ALL_RULES, max_rounds: int = 10) -> Fixer:
@@ -235,4 +235,4 @@ def test_a_sentence_whose_split_strands_a_stub_keeps_the_author_layout() -> None
     outcome = run(source, width=80)
     assert outcome.document.text == source, 'a fix must not lay out a stub its own check rejects'
     # Past the stub, the rest of the sentence has no clause comma left to break at either.
-    assert [item.rule_id for item in outcome.report.needing_author] == ['stub-fragment', 'unbreakable-sentence']
+    assert [item.rule_id for item in outcome.report.needing_author] == ['line-too-short', 'unbreakable-sentence']

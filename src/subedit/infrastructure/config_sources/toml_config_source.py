@@ -1,9 +1,11 @@
 import fnmatch
 import pathlib
 import tomllib
+import typing
 
+from ...domain.models.diagnostic import RuleMetadata
 from ...domain.models.rule_set import DEFAULT_LINE_WIDTH, RuleSet, RuleSettings
-from .config_schema import ConfigFile, RuleTable
+from .config_schema import ConfigError, ConfigFile, RuleTable
 from .formatter_width import FormatterWidths
 
 
@@ -12,15 +14,19 @@ _PYPROJECT_NAME = 'pyproject.toml'
 
 
 class TomlConfigSource:
-    """Reads subedit.toml or the tool table in pyproject.toml, found by walking up from the file checked."""
+    """Reads subedit.toml or the tool table in pyproject.toml, found by walking up from the file checked.
+
+    A config it cannot read as written raises a ConfigError naming the file, rather than leave the project on defaults.
+    """
 
     def __init__(
         self,
-        available_rule_ids: tuple[str, ...],
+        rules: tuple[RuleMetadata, ...],
         formatter_widths: FormatterWidths | None = None,
         fallback_width: int = DEFAULT_LINE_WIDTH,
     ) -> None:
-        self._available_rule_ids = available_rule_ids
+        self._rules = {metadata.rule_id: metadata for metadata in rules}
+        self._available_rule_ids = tuple(self._rules)
         self._formatter_widths = formatter_widths or FormatterWidths({})
         self._fallback_width = fallback_width
 
@@ -61,15 +67,19 @@ class TomlConfigSource:
         config_path = self._locate(pathlib.Path(path))
         if config_path is None:
             return None
-        try:
-            raw_table = tomllib.loads(config_path.read_text(encoding='utf-8'))
-        except (OSError, tomllib.TOMLDecodeError):
+        raw_table = _load(config_path)
+        if raw_table is None:
             return None
         if config_path.name == _PYPROJECT_NAME:
             raw_table = self._reshape_pyproject(raw_table)
             if raw_table is None:
                 return None
-        return ConfigFile.parse(raw_table)
+        try:
+            config_file = ConfigFile.parse(raw_table)
+            self._check_options(config_file)
+        except ConfigError as error:
+            raise ConfigError(f'{config_path}: {error}') from None
+        return config_file
 
     def _reshape_pyproject(self, raw_table: dict[str, object]) -> dict[str, object] | None:
         tools = raw_table.get('tool')
@@ -93,11 +103,42 @@ class TomlConfigSource:
     def _carries_settings(self, config_path: pathlib.Path) -> bool:
         if config_path.name != _PYPROJECT_NAME:
             return True
+        # A pyproject.toml that does not parse shows no opt in, and its mistake belongs to the project's other tools.
         try:
-            tools = tomllib.loads(config_path.read_text(encoding='utf-8')).get('tool')
-        except (OSError, tomllib.TOMLDecodeError):
+            raw_table = _load(config_path)
+        except ConfigError:
             return False
+        tools = raw_table.get('tool') if raw_table else None
         return isinstance(tools, dict) and 'subedit' in tools
+
+    def _check_options(self, config_file: ConfigFile) -> None:
+        # A rule subedit does not define belongs to a delegated tool, whose options it cannot know.
+        # A delegated tool names its rules Style.Rule, as Vale and AutoCorrect do,
+        # so a name with no dot that subedit does not define is a mistake, such as a rule's old name.
+        for rule_id, rule_entry in config_file.rules.items():
+            metadata = self._rules.get(rule_id)
+            if metadata is None and '.' not in rule_id:
+                raise ConfigError(
+                    f'rules.{rule_id}: is not a rule subedit defines, and a Vale rule is named Style.Rule'
+                )
+            if metadata is None or not isinstance(rule_entry, RuleTable):
+                continue
+            declared = {option.name: option for option in metadata.options}
+            for name, value in rule_entry.options.items():
+                option = declared.get(name)
+                if option is None:
+                    takes = f'it takes {", ".join(declared)}' if declared else 'it takes none'
+                    raise ConfigError(f'rules.{rule_id}.{name}: is not an option of {rule_id}, {takes}')
+                if not option.accepts(value):
+                    raise ConfigError(f'rules.{rule_id}.{name}: must be {option.expected}')
+
+    # Each option of a native rule converts its own value, and a delegated tool's options pass through as read.
+    def _converted(self, rule_id: str, options: typing.Mapping[str, object]) -> dict[str, object]:
+        metadata = self._rules.get(rule_id)
+        if metadata is None:
+            return dict(options)
+        declared = {option.name: option for option in metadata.options}
+        return {name: declared[name].convert(value) for name, value in options.items()}
 
     def _to_rule_set(self, config_file: ConfigFile, path: str) -> RuleSet:
         enabled_ids = set(self._available_rule_ids)
@@ -112,8 +153,9 @@ class TomlConfigSource:
                 else:
                     disabled_external_ids.add(rule_id)
             elif isinstance(rule_entry, RuleTable):
-                settings[rule_id] = RuleSettings(severity=rule_entry.resolved_severity, options=rule_entry.options)
-            elif isinstance(rule_entry, str):
+                options = self._converted(rule_id, rule_entry.options)
+                settings[rule_id] = RuleSettings(severity=rule_entry.resolved_severity, options=options)
+            else:
                 settings[rule_id] = RuleSettings(severity=RuleTable(severity=rule_entry).resolved_severity)
 
         return RuleSet(
@@ -122,4 +164,17 @@ class TomlConfigSource:
             line_width=config_file.subedit.line_width or self.default_width(path),
             disabled_external_ids=frozenset(disabled_external_ids),
             reads_embedded=config_file.subedit.code_blocks,
+            abbreviations=frozenset(config_file.subedit.abbreviations),
         )
+
+
+# A file that cannot be read is no config, but one that does not parse is a mistake the project should see.
+def _load(config_path: pathlib.Path) -> dict[str, object] | None:
+    try:
+        text = config_path.read_text(encoding='utf-8')
+    except OSError:
+        return None
+    try:
+        return tomllib.loads(text)
+    except tomllib.TOMLDecodeError as error:
+        raise ConfigError(f'{config_path}: {error}') from None

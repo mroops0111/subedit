@@ -17,6 +17,10 @@ from subedit.infrastructure import (
 )
 
 
+MIS_WRAPPED = '# cap the size so the mmap does not\n# blow past it, an unbounded value faults.\n'
+REFLOWED = '# cap the size so the mmap does not blow past it,\n# an unbounded value faults.\n'
+
+
 def blocks(source: str) -> tuple[MarkdownBlock, ...]:
     return MarkdownParser().parse(markdown(source))
 
@@ -45,7 +49,7 @@ def test_headings_and_paragraphs_are_blocks_with_their_level() -> None:
     ]
 
 
-def test_code_tables_html_and_front_matter_hold_no_blocks() -> None:
+def test_code_html_front_matter_and_table_bodies_hold_no_blocks() -> None:
     source = (
         '---\ntitle: a\n---\n\n'
         '```python\nx = 1\n```\n\n'
@@ -53,7 +57,14 @@ def test_code_tables_html_and_front_matter_hold_no_blocks() -> None:
         '| a | b |\n| --- | --- |\n| 1 | 2 |\n\n'
         '<div>\nhtml\n</div>\n'
     )
-    assert blocks(source) == ()
+    assert [block.kind for block in blocks(source)] == [MarkdownBlockKind.TABLE_HEADER] * 2
+
+
+def test_a_table_header_cell_is_a_block_over_its_text_alone() -> None:
+    source = 'Lead.\n\n| Rule name | `code` |  |\n| --- | --- | --- |\n| a body cell | b | c |\n'
+    headers = [block for block in blocks(source) if block.kind is MarkdownBlockKind.TABLE_HEADER]
+    assert [block.text for block in headers] == ['Rule name', '`code`']
+    assert all(source.encode()[block.range.start : block.range.end].decode() == block.text for block in headers)
 
 
 def test_a_list_item_records_its_depth() -> None:
@@ -149,10 +160,6 @@ def test_front_matter_code_and_tables_count_as_code_to_an_outside_checker() -> N
     inspection = Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)).inspect(markdown(source), rule_set())
     covered = [source.encode()[region.start : region.end].decode() for region in inspection.prose_map.code]
     assert covered == ['---\ntitle: a\n---\n', '```\ncode\n```\n', '| a |\n| --- |\n| 1 |\n']
-
-
-MIS_WRAPPED = '# cap the size so the mmap does not\n# blow past it, an unbounded value faults.\n'
-REFLOWED = '# cap the size so the mmap does not blow past it,\n# an unbounded value faults.\n'
 
 
 def code_blocks(width: int = 60) -> RuleSet:

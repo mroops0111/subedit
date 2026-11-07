@@ -3,16 +3,17 @@ import typing
 
 from ..models.comment import CommentForm, CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.rule_option import CountOption
 from ..ports.language_conventions import LanguageConventions
 from ..ports.rule import Rule, RuleContext
 
 
 # Set from the p95 of a measured corpus, which subedit stats reports.
 # A comment past this length has usually started restating the code below it.
-_DEFAULT_LIMITS = {
-    'line': 4,
-    'doc-internal': 13,
-    'doc-public': 20,
+_LIMITS = {
+    'plain': CountOption('max-plain-lines', 4),
+    'internal doc': CountOption('max-internal-doc-lines', 13),
+    'public doc': CountOption('max-public-doc-lines', 20),
 }
 
 
@@ -122,18 +123,19 @@ class SignatureRestatingTagRule(Rule[CommentGroup]):
         return None
 
 
-class BlockTooLongRule(Rule[CommentGroup]):
+class CommentTooLongRule(Rule[CommentGroup]):
     metadata = RuleMetadata(
-        rule_id='block-too-long',
+        rule_id='comment-too-long',
         summary='A comment block long enough to restate the code has stopped earning its place.',
         fix_kind=FixKind.REWRITE,
         default_severity=Severity.WARNING,
+        options=tuple(_LIMITS.values()),
     )
     surface = CommentGroup
 
     def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
         category = self._category(group)
-        limit = context.settings(self.metadata.rule_id).integer(category, _DEFAULT_LIMITS[category])
+        limit = context.settings(self.metadata.rule_id).value(_LIMITS[category])
         if group.line_count <= limit:
             return
         yield Diagnostic(
@@ -149,8 +151,8 @@ class BlockTooLongRule(Rule[CommentGroup]):
 
     def _category(self, group: CommentGroup) -> str:
         if group.form is not CommentForm.DOC:
-            return 'line'
-        return 'doc-public' if group.attaches_to_public_symbol else 'doc-internal'
+            return 'plain'
+        return 'public doc' if group.attaches_to_public_symbol else 'internal doc'
 
 
 class _ConventionsByLanguage:

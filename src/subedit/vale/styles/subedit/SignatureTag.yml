@@ -1,7 +1,0 @@
-extends: existence
-message: "Tag '%s' restates the signature. Types already carry it, so remove it."
-level: error
-nonword: true
-tokens:
-  - '@(param|returns|type)\b'
-  - '^\s*(Args|Returns|Raises):'

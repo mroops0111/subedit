@@ -1,15 +1,17 @@
 import pathlib
 
 from ..domain.rules import (
-    BlockTooLongRule,
-    BulletLabelStyleRule,
+    CommentTooLongRule,
     ContrastFramingRule,
+    DiscouragedWordRule,
     FileHeaderCommentRule,
     HeadingNotNounPhraseRule,
     HeadingTitleCaseRule,
     HeadingWrappedInBoldRule,
-    InclusionVerbRule,
     LineTooLongRule,
+    LineTooShortRule,
+    ListLabelNotBoldRule,
+    ListLabelTitleCaseRule,
     MidClauseBreakRule,
     MidListBreakRule,
     MidSentenceColonRule,
@@ -18,10 +20,10 @@ from ..domain.rules import (
     ParenthesisStyleRule,
     PlainCommentOnPublicRule,
     SignatureRestatingTagRule,
-    StubFragmentRule,
+    TableHeaderTitleCaseRule,
     UnbreakableSentenceRule,
 )
-from .config_sources import CONFIG_NAME, FormatterWidths, TomlConfigSource
+from .config_sources import CONFIG_NAME, ConfigError, FormatterWidths, TomlConfigSource
 from .linters import AutoCorrectLinter, ValeLinter
 from .parsers import (
     JAVASCRIPT,
@@ -49,31 +51,33 @@ GENERATED_NAMES = frozenset(name for file_type in FILE_TYPES for name in file_ty
 SUFFIX_ALIASES = {alias: canonical for file_type in FILE_TYPES for alias, canonical in file_type.aliases.items()}
 
 LAYOUT_RULES = (MidClauseBreakRule(), LineTooLongRule())
-REWRITE_RULES = (StubFragmentRule(), UnbreakableSentenceRule(), MidListBreakRule())
+REWRITE_RULES = (LineTooShortRule(), UnbreakableSentenceRule(), MidListBreakRule())
 STRUCTURAL_RULES = (
     FileHeaderCommentRule(),
     PlainCommentOnPublicRule(LANGUAGES),
     SignatureRestatingTagRule(LANGUAGES),
-    BlockTooLongRule(),
+    CommentTooLongRule(),
 )
 WORDING_RULES = (
     MidSentenceColonRule(),
     ParenthesisStyleRule(),
-    InclusionVerbRule(),
+    DiscouragedWordRule(),
     ContrastFramingRule(),
-    BulletLabelStyleRule(),
+    ListLabelTitleCaseRule(),
+    ListLabelNotBoldRule(),
 )
 MARKDOWN_RULES = (
     ParagraphLineBreakRule(),
     HeadingWrappedInBoldRule(),
     HeadingTitleCaseRule(),
+    TableHeaderTitleCaseRule(),
     MissingLeadSentenceRule(),
     HeadingNotNounPhraseRule(),
 )
 ALL_RULES = LAYOUT_RULES + REWRITE_RULES + STRUCTURAL_RULES + WORDING_RULES + MARKDOWN_RULES
 
 DEFAULT_CONFIG_SOURCE = TomlConfigSource(
-    tuple(rule.metadata.rule_id for rule in ALL_RULES),
+    tuple(rule.metadata for rule in ALL_RULES),
     FormatterWidths(
         {extension: language.width_settings for language in LANGUAGES for extension in language.extensions}
     ),
@@ -113,6 +117,7 @@ __all__ = [
     'YAML',
     'AutoCorrectLinter',
     'CompositeParser',
+    'ConfigError',
     'LanguageProfile',
     'MarkdownParser',
     'NodeRole',

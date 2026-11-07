@@ -1,7 +1,16 @@
 import pytest
 
 from subedit.domain.models import Prose
-from subedit.domain.models.reflow import break_cost, reflow_sentence
+from subedit.domain.models.reflow import BreakPolicy, break_cost, reflow_sentence
+
+
+ITEM_WORDS = 3
+
+# A clause, then a list that a break before its last item would split.
+GATEWAY = (
+    'Goes through the full Gateway assembly, so the auth resolver, base URL, '
+    'and URI-template-driven kwarg passing are all exercised together.'
+)
 
 
 def texts(prose: Prose) -> list[str]:
@@ -43,6 +52,46 @@ def test_abbreviations_do_not_end_a_sentence(text: str) -> None:
 
 def test_no_ends_a_sentence_unless_a_number_follows() -> None:
     assert texts(Prose('just say no. then move on.')) == ['just say no.', 'then move on.']
+
+
+@pytest.mark.parametrize(
+    'text',
+    [
+        'Ask Mr. Smith before the release.',
+        'Ask Prof. Lee about the Dept. budget.',
+        'Read the Ph.D. thesis first.',
+        'Runs at 5 p.m. every day.',
+        'The change landed in Sec. 4 of the spec.',
+        'See Fig. 3 for the layout.',
+    ],
+)
+def test_a_known_abbreviation_ends_no_sentence(text: str) -> None:
+    assert len(Prose(text).sentences()) == 1
+
+
+@pytest.mark.parametrize(
+    'text',
+    ['The tool is written in Go. It runs fast.', 'Then click OK. The dialog closes.', 'Restart your PC. Then log in.'],
+)
+def test_a_cldr_entry_that_is_also_a_word_ends_a_sentence_before_a_capital(text: str) -> None:
+    assert len(Prose(text).sentences()) == 2
+
+
+def test_a_reference_abbreviation_ends_its_sentence_when_no_number_follows() -> None:
+    assert texts(Prose('The layout is in the next sec. Then it ends.')) == [
+        'The layout is in the next sec.',
+        'Then it ends.',
+    ]
+
+
+def test_a_project_abbreviation_ends_no_sentence_and_keeps_its_case() -> None:
+    prose = Prose('Ask the Corp. head first. The corp. moves.')
+    assert texts(prose) == ['Ask the Corp.', 'head first.', 'The corp.', 'moves.']
+    assert [sentence.text for sentence in prose.sentences(frozenset({'Corp.'}))] == [
+        'Ask the Corp. head first.',
+        'The corp.',
+        'moves.',
+    ]
 
 
 @pytest.mark.parametrize(
@@ -205,11 +254,7 @@ def test_only_a_comma_outside_brackets_and_code_breaks_a_sentence(sentence: str,
 
 
 def test_a_break_lands_between_clauses_rather_than_inside_a_list() -> None:
-    sentence = (
-        'Goes through the full Gateway assembly, so the auth resolver, base URL, '
-        'and URI-template-driven kwarg passing are all exercised together.'
-    )
-    assert reflow_sentence(sentence, width=100) == (
+    assert reflow_sentence(GATEWAY, width=100, policy=BreakPolicy(list_item_words=ITEM_WORDS)) == (
         'Goes through the full Gateway assembly,',
         'so the auth resolver, base URL, and URI-template-driven kwarg passing are all exercised together.',
     )
@@ -218,7 +263,7 @@ def test_a_break_lands_between_clauses_rather_than_inside_a_list() -> None:
 def test_a_brief_clause_standing_alone_is_no_list_item() -> None:
     pieces = ('A pointer into a component,', 'or a name outside the grammar,', 'returns ``None``,', 'so it is inlined.')
     lines = (' '.join(pieces[:3]), pieces[3])
-    assert break_cost(lines) == 0
+    assert break_cost(lines, ITEM_WORDS) == 0
 
 
 def test_fewer_lines_outrank_a_clause_boundary() -> None:
@@ -231,12 +276,12 @@ def test_an_appositive_is_no_list_item() -> None:
         'The extension adds a field and a required name to ``owner``, a ``Person``,',
         'and types ``approver``, a ``Reviewer`` in ``Base``, by a second component, ``Admin``.',
     )
-    assert break_cost(lines) == 0
+    assert break_cost(lines, ITEM_WORDS) == 0
 
 
 def test_parallel_items_led_by_articles_still_form_a_list() -> None:
     lines = ('It feeds a cat, a dog,', 'and a bird every morning before the long walk.')
-    assert break_cost(lines) == 1
+    assert break_cost(lines, ITEM_WORDS) == 1
 
 
 @pytest.mark.parametrize(
@@ -264,7 +309,7 @@ def test_a_break_before_a_list_opener_falls_ahead_of_the_list_it_opens(opener: s
         'Holds everything that carries user content and ages out on its own,',
         f'{opener} history, parked approvals, dedupe keys and the in-chat OAuth handoff.',
     )
-    assert break_cost(lines) == 0
+    assert break_cost(lines, ITEM_WORDS) == 0
 
 
 def test_a_break_away_from_any_comma_splits_no_list() -> None:
@@ -273,7 +318,7 @@ def test_a_break_away_from_any_comma_splits_no_list() -> None:
         'each entry mirrors the extension and fully replaces',
         'the one in the spec for that operation, with no need to fork it.',
     )
-    assert break_cost(lines) == 0
+    assert break_cost(lines, ITEM_WORDS) == 0
 
 
 def test_a_break_after_a_list_opener_parts_it_from_the_first_item() -> None:
@@ -281,9 +326,27 @@ def test_a_break_after_a_list_opener_parts_it_from_the_first_item() -> None:
         'Holds everything that carries user content and ages out on its own, e.g.,',
         'history, parked approvals, dedupe keys and the in-chat OAuth handoff.',
     )
-    assert break_cost(lines) == 1
+    assert break_cost(lines, ITEM_WORDS) == 1
 
 
 def test_a_word_that_only_starts_like_an_opener_opens_no_list() -> None:
     lines = ('Holds the cache, the index,', 'likewise the queue, and the log.')
-    assert break_cost(lines) == 1
+    assert break_cost(lines, ITEM_WORDS) == 1
+
+
+@pytest.mark.parametrize(
+    ('lines', 'cost'),
+    [
+        pytest.param(('Holds two stores,', 'that is, the cache and the log.'), 0, id='set off by a comma'),
+        pytest.param(('Holds cache, index,', 'that is it, and the log.'), 1, id='opening a clause'),
+    ],
+)
+def test_that_is_opens_a_list_only_when_a_comma_sets_it_off(lines: tuple[str, ...], cost: int) -> None:
+    assert break_cost(lines, ITEM_WORDS) == cost
+
+
+def test_a_layout_left_without_lists_takes_the_longest_opening_line() -> None:
+    assert (
+        reflow_sentence(GATEWAY, width=100)[0]
+        == 'Goes through the full Gateway assembly, so the auth resolver, base URL,'
+    )

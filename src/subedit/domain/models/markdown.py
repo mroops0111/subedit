@@ -18,6 +18,7 @@ _HARD_BREAK = re.compile(r'( {2,}|\\|<br\s*/?>)$', re.IGNORECASE)
 class MarkdownBlockKind(enum.Enum):
     HEADING = 'heading'
     PARAGRAPH = 'paragraph'
+    TABLE_HEADER = 'table header'
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -35,7 +36,7 @@ class MarkdownLine:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class MarkdownBlock(ProseUnit):
-    """A heading or paragraph of a Markdown document, ranging over its text from the first character to the last."""
+    """A heading, paragraph, or table header cell of a Markdown document, ranging over its text from first to last."""
 
     surface_name: typing.ClassVar[str] = 'Markdown'
 
@@ -90,6 +91,10 @@ class MarkdownBlock(ProseUnit):
     @property
     def is_quoted(self) -> bool:
         return self.quoted
+
+    @property
+    def is_fragment(self) -> bool:
+        return self.kind is MarkdownBlockKind.TABLE_HEADER
 
     def code_ranges(self) -> tuple[SourceRange, ...]:
         return ()

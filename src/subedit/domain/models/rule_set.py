@@ -2,6 +2,7 @@ import dataclasses
 import typing
 
 from .diagnostic import RuleMetadata, Severity
+from .rule_option import OptionT, RuleOption
 
 
 # Black and ruff format Python to this width unless a project says otherwise.
@@ -15,15 +16,9 @@ class RuleSettings:
     severity: Severity | None = None
     options: typing.Mapping[str, object] = dataclasses.field(default_factory=dict)
 
-    def integer(self, name: str, fallback: int) -> int:
-        option = self.options.get(name, fallback)
-        return option if isinstance(option, int) and not isinstance(option, bool) else fallback
-
-    def strings(self, name: str) -> tuple[str, ...]:
-        option = self.options.get(name, ())
-        if not isinstance(option, list | tuple):
-            return ()
-        return tuple(item for item in option if isinstance(item, str))
+    def value(self, option: RuleOption[OptionT]) -> OptionT:
+        """The project's value for an option, which the config source has checked against its default's type."""
+        return typing.cast(OptionT, self.options.get(option.name, option.default))
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -38,6 +33,8 @@ class RuleSet:
     # A document embedded in another, such as a Markdown code block, is often an example,
     # so a project opts in to having it read.
     reads_embedded: bool = False
+    # Abbreviations the project adds to the built-in ones, each with its period, such as Dept.
+    abbreviations: frozenset[str] = frozenset()
 
     def is_enabled(self, rule_id: str) -> bool:
         return rule_id in self.enabled_rule_ids

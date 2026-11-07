@@ -5,7 +5,14 @@ import sys
 
 from ..application import Fixer, Linter, RuleEngine
 from ..domain.models.document import Document
-from ..infrastructure import ALL_RULES, DEFAULT_CONFIG_SOURCE, DEFAULT_PARSER, EXTERNAL_LINTERS, language_id_for
+from ..infrastructure import (
+    ALL_RULES,
+    DEFAULT_CONFIG_SOURCE,
+    DEFAULT_PARSER,
+    EXTERNAL_LINTERS,
+    ConfigError,
+    language_id_for,
+)
 from . import report as reporters
 from .harnesses import ALL_HARNESSES, BLOCK_EXIT, Payload, resolve
 
@@ -48,11 +55,17 @@ def run(payload: Payload, *, write: bool = True) -> HookResult:
         except (OSError, UnicodeDecodeError):
             continue
         language_id = language_id_for(source_path)
-        # A plugin installed once reaches every project, so only one that configures subedit opts in.
-        if language_id is None or not DEFAULT_CONFIG_SOURCE.is_adopted(str(source_path)):
+        try:
+            # A plugin installed once reaches every project, so only one that configures subedit opts in.
+            if language_id is None or not DEFAULT_CONFIG_SOURCE.is_adopted(str(source_path)):
+                continue
+            rule_set = DEFAULT_CONFIG_SOURCE.resolve(str(source_path))
+        except ConfigError as error:
+            # The project asked for subedit, so a config it cannot read goes back to the agent to fix.
+            author_messages.append(f'subedit: {error}')
             continue
         document = Document(uri=source_path.resolve().as_uri(), text=source_text, language_id=language_id)
-        fix_result = fixer.run(document, DEFAULT_CONFIG_SOURCE.resolve(str(source_path)))
+        fix_result = fixer.run(document, rule_set)
         if fix_result.has_changes and write:
             source_path.write_text(fix_result.document.text, encoding='utf-8')
             repaired_paths.append(str(source_path))

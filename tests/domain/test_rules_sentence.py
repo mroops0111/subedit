@@ -6,7 +6,12 @@ from factories import lint as lint_document
 from subedit.domain import FixKind, Report, RuleSettings, Severity
 
 
-REWRITE_IDS = frozenset({'stub-fragment', 'unbreakable-sentence', 'mid-list-break'})
+REWRITE_IDS = frozenset({'line-too-short', 'unbreakable-sentence', 'mid-list-break'})
+
+LIST_SENTENCE = (
+    'Write only what to draw, which is inline `data.values` rows taken from tool results, `mark`, '
+    '`encoding`, and optionally `transform` or `layer`.'
+)
 
 
 def lint(
@@ -32,16 +37,16 @@ def test_a_sentence_that_fits_is_never_flagged() -> None:
 
 
 def test_a_forced_break_leaving_a_stub_is_reported() -> None:
-    assert 'stub-fragment' in ids(comment('cap the size to the shared runner ceiling limit that we set here, ok.'))
+    assert 'line-too-short' in ids(comment('cap the size to the shared runner ceiling limit that we set here, ok.'))
 
 
 def test_a_balanced_split_is_not_a_stub() -> None:
-    assert 'stub-fragment' not in ids(comment('cap the size to the runner limit, an unbounded value faults it.'))
+    assert 'line-too-short' not in ids(comment('cap the size to the runner limit, an unbounded value faults it.'))
 
 
 def test_the_stub_floor_is_configurable() -> None:
     source = comment('cap the size to the runner limit, an unbounded value faults it.')
-    assert 'stub-fragment' in ids(source, **{'stub-fragment': RuleSettings(options={'minimum_characters': 40})})
+    assert 'line-too-short' in ids(source, **{'line-too-short': RuleSettings(options={'min-line-characters': 40})})
 
 
 def test_a_long_sentence_with_no_comma_is_unbreakable() -> None:
@@ -74,7 +79,7 @@ def test_the_message_states_the_concrete_fix() -> None:
 
 def test_the_stub_message_quotes_the_offending_fragment() -> None:
     report = lint(comment('cap the size to the shared runner ceiling limit that we set here, ok.'))
-    stub = next(item for item in report.needing_author if item.rule_id == 'stub-fragment')
+    stub = next(item for item in report.needing_author if item.rule_id == 'line-too-short')
     assert '"ok."' in stub.message
 
 
@@ -126,12 +131,6 @@ def test_a_summary_the_author_wrapped_still_needs_shortening() -> None:
     assert ids(source, width=80) == ['unbreakable-sentence'], 'a wrapped summary is as far from one line as a long one'
 
 
-LIST_SENTENCE = (
-    'Write only what to draw, which is inline `data.values` rows taken from tool results, `mark`, '
-    '`encoding`, and optionally `transform` or `layer`.'
-)
-
-
 def docstring(*lines: str) -> str:
     body = ''.join(f'        {line}\n' for line in lines)
     return f'class Chart:\n    def draw(self) -> None:\n        """Draw a chart.\n\n{body}        """\n'
@@ -174,3 +173,23 @@ def test_a_break_after_an_aside_the_list_check_mistakes_for_an_item_keeps_its_la
     every_rule = rule_set(width=100)
     assert fix_document(document(source), every_rule) == source
     assert all(item.severity is Severity.WARNING for item in lint_document(document(source), every_rule).diagnostics)
+
+
+def test_a_shorter_item_limit_reads_fewer_pieces_as_list_items() -> None:
+    source = comment(
+        'No auth, a static bearer or api key, and an oauth2 service token all call the API as one identity.'
+    )
+    settings = {'mid-list-break': RuleSettings(options={'max-item-words': 1})}
+    assert ids(source, width=80) == ['mid-list-break']
+    assert ids(source, width=80, **settings) == []
+
+
+def test_a_project_that_switches_the_list_rule_off_leaves_lists_out_of_reflow() -> None:
+    source = comment(
+        'Goes through the full Gateway assembly, so the auth resolver, base URL, '
+        'and URI-template-driven kwarg passing are all exercised together.'
+    )
+    with_lists = fix_document(document(source), rule_set(width=106))
+    without_lists = fix_document(document(source), rule_set(frozenset({'mid-clause-break'}), width=106))
+    assert '# Goes through the full Gateway assembly,\n' in with_lists
+    assert '# Goes through the full Gateway assembly, so the auth resolver, base URL,\n' in without_lists

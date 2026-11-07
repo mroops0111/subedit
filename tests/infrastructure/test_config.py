@@ -1,17 +1,20 @@
 import pathlib
+import re
 
 import pytest
 from factories import Project
 
 from subedit.domain import Severity
-from subedit.infrastructure import CONFIG_NAME, DEFAULT_CONFIG_SOURCE, TomlConfigSource
+from subedit.infrastructure import ALL_RULES, CONFIG_NAME, DEFAULT_CONFIG_SOURCE, ConfigError, TomlConfigSource
 
 
-AVAILABLE = ('mid-clause-break', 'line-too-long', 'stub-fragment')
+AVAILABLE = ('mid-clause-break', 'line-too-long', 'line-too-short', 'heading-title-case', 'discouraged-word')
+
+PYPROJECT = 'pyproject.toml'
 
 
 def source() -> TomlConfigSource:
-    return TomlConfigSource(AVAILABLE)
+    return TomlConfigSource(tuple(rule.metadata for rule in ALL_RULES if rule.metadata.rule_id in AVAILABLE))
 
 
 def configured(project: Project, body: str, config: str = CONFIG_NAME) -> pathlib.Path:
@@ -47,15 +50,10 @@ def test_a_severity_string_is_honoured(project: Project) -> None:
 
 
 def test_a_table_carries_severity_and_options(project: Project) -> None:
-    target = configured(project, '[rules]\nstub-fragment = { severity = "warning", minimum_characters = 30 }\n')
-    settings = source().resolve(str(target)).settings_for('stub-fragment')
+    target = configured(project, '[rules]\nline-too-short = { severity = "warning", min-line-characters = 30 }\n')
+    settings = source().resolve(str(target)).settings_for('line-too-short')
     assert settings.severity is Severity.WARNING
-    assert settings.integer('minimum_characters', 24) == 30
-
-
-def test_an_unknown_rule_leaves_the_native_rules_alone(project: Project) -> None:
-    target = configured(project, '[rules]\nnot-a-rule = "off"\n')
-    assert source().resolve(str(target)).enabled_rule_ids == frozenset(AVAILABLE)
+    assert settings.options == {'min-line-characters': 30}
 
 
 def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None:
@@ -66,12 +64,89 @@ def test_a_delegated_rule_can_be_tuned_or_switched_off(project: Project) -> None
     assert rules.allows_external('subedit.Semicolon')
 
 
-def test_a_nonsense_width_falls_back_to_the_default(project: Project) -> None:
-    target = configured(project, '[subedit]\nline-width = "wide"\n')
-    assert source().resolve(str(target)).line_width == 120
+@pytest.mark.parametrize(
+    ('body', 'complaint'),
+    [
+        pytest.param('[subedit]\nline-width = "wide"\n', 'subedit.line-width', id='width'),
+        pytest.param(
+            '[subedit]\nlinewidth = 88\n', 'subedit.linewidth: is not a setting subedit knows', id='misspelled key'
+        ),
+        pytest.param('[subedt]\n', 'subedt: is not a setting subedit knows', id='misspelled section'),
+        pytest.param(
+            '[rules]\nmid-clause-break = false\n', "rules.mid-clause-break: Input should be 'off'", id='boolean'
+        ),
+        pytest.param(
+            '[rules]\nmid-clause-break = { severity = "loud" }\n', 'rules.mid-clause-break.severity', id='severity'
+        ),
+        pytest.param(
+            '[rules]\nline-too-short = { minimum_characters = 30 }\n',
+            'minimum_characters: is not an option of line-too-short, it takes min-line-characters',
+            id='snake case option',
+        ),
+        pytest.param(
+            '[rules]\nmid-clause-break = { width = 3 }\n',
+            'is not an option of mid-clause-break, it takes none',
+            id='option of a rule with none',
+        ),
+        pytest.param(
+            '[rules]\nline-too-short = { min-line-characters = "30" }\n',
+            'must be a whole number of zero or more',
+            id='option type',
+        ),
+        pytest.param(
+            '[rules]\nheading-title-case = { exceptions = "npm" }\n', 'must be a list of strings', id='list option type'
+        ),
+        pytest.param(
+            '[rules]\nheading-title-case = { style = "ap" }\n', 'must be one of apa, chicago', id='choice option value'
+        ),
+        pytest.param(
+            '[rules]\nheading-title-case = { levels = [0, 2] }\n',
+            'must be a list of heading levels from 1 to 6',
+            id='heading level',
+        ),
+        pytest.param(
+            '[subedit]\nabbreviations = ["Dept"]\n',
+            "'Dept' must be one word ending in its period",
+            id='abbreviation without its period',
+        ),
+        pytest.param(
+            '[rules]\nstub-fragment = "off"\n', 'rules.stub-fragment: is not a rule subedit defines', id='old rule name'
+        ),
+        pytest.param(
+            '[rules]\ndiscouraged-word = { replacements = ["utilize"] }\n',
+            'must be a table of words',
+            id='replacements type',
+        ),
+        pytest.param(
+            '[rules]\ndiscouraged-word = { replacements = { cancel = "cancel out" } }\n',
+            'holds none of the words',
+            id='replacement that is replaced again',
+        ),
+        pytest.param('[rules\n', "Expected ']'", id='broken toml'),
+    ],
+)
+def test_a_config_written_wrong_names_its_file_and_mistake(project: Project, body: str, complaint: str) -> None:
+    target = configured(project, body)
+    with pytest.raises(ConfigError, match=re.escape(complaint)) as raised:
+        source().resolve(str(target))
+    assert CONFIG_NAME in str(raised.value)
 
 
-PYPROJECT = 'pyproject.toml'
+def test_a_list_option_reaches_its_rule_as_a_tuple(project: Project) -> None:
+    target = configured(project, '[rules]\nheading-title-case = { exceptions = ["npm"] }\n')
+    assert source().resolve(str(target)).settings_for('heading-title-case').options == {'exceptions': ('npm',)}
+
+
+def test_a_project_lists_its_own_abbreviations(project: Project) -> None:
+    target = configured(project, '[subedit]\nabbreviations = ["Dept.", "Est."]\n')
+    assert source().resolve(str(target)).abbreviations == frozenset({'Dept.', 'Est.'})
+
+
+def test_a_delegated_rule_table_keeps_options_subedit_cannot_check(project: Project) -> None:
+    target = configured(project, '[rules]\n"subedit.EmDash" = { severity = "warning", level = 2 }\n')
+    settings = source().resolve(str(target)).settings_for('subedit.EmDash')
+    assert settings.severity is Severity.WARNING
+    assert settings.options == {'level': 2}
 
 
 def test_settings_are_read_from_pyproject(project: Project) -> None:
@@ -95,6 +170,12 @@ def test_excludes_are_read_from_pyproject(project: Project) -> None:
 def test_a_pyproject_without_our_table_is_ignored(project: Project) -> None:
     target = configured(project, '[project]\nname = "x"\n\n[tool.ruff]\nline-length = 88\n', PYPROJECT)
     assert source().resolve(str(target)).line_width == 120
+
+
+def test_a_pyproject_that_does_not_parse_and_never_opted_in_is_ignored(project: Project) -> None:
+    target = configured(project, '[project\nname = "x"\n', PYPROJECT)
+    assert source().resolve(str(target)).enabled_rule_ids == frozenset(AVAILABLE)
+    assert not source().is_adopted(str(target))
 
 
 def test_a_dedicated_file_wins_over_pyproject(project: Project) -> None:

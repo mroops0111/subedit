@@ -3,27 +3,15 @@ import re
 import typing
 import unicodedata
 
+from .abbreviations import ends_no_sentence
+
 
 # A numbered, bulleted, or lettered list item's marker, with the space after it.
 LIST_MARKER = re.compile(r'(?:[0-9]+[.)]|[-*+]|[a-zA-Z][.)])\s+')
 
-# Abbreviations whose period does not end a sentence, written without that period.
-_ABBREVIATIONS = frozenset(
-    {
-        'e.g',
-        'i.e',
-        'etc',
-        'vs',
-        'cf',
-        'al',
-        'approx',
-        'fig',
-        'ca',
-        'resp',
-    }
-)
-
 _SENTENCE_END = re.compile(r'[.!?]')
+# How far past a period an abbreviation looks for the word after it, so splitting never copies the rest of the text.
+_LOOKAHEAD = 33
 # A colon ends a lead-in as a period ends a sentence, so the line after either opens something new.
 _ENDS_A_SENTENCE = re.compile(r'[.!?:]["\')\]]*\s*$')
 _TRAILING_WORD = re.compile(r'([A-Za-z][A-Za-z.]*)$')
@@ -54,8 +42,6 @@ _LITERAL_DELIMITER = '\\b'
 _CLOSING_MARKS = '"\')]}'
 _OPENING_MARKS = '"\'([{'
 _APOSTROPHES = ("'", '\u2019')
-# Only before a number, since "No. 5" abbreviates while a trailing no ends its sentence.
-_NUMBER_ABBREVIATION = 'no'
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -220,7 +206,8 @@ class Prose:
             if line.strip()
         )
 
-    def sentences(self) -> tuple[Sentence, ...]:
+    def sentences(self, abbreviations: frozenset[str] = frozenset()) -> tuple[Sentence, ...]:
+        """The sentences of the prose, where abbreviations holds the project's own, each written with its period."""
         text = self.flattened
         if not text:
             return ()
@@ -233,7 +220,7 @@ class Prose:
                 end += 1
             if is_protected(sentence_end.start(), sheltered):
                 continue
-            if not self._terminates_a_sentence(text, sentence_end.start()):
+            if not self._terminates_a_sentence(text, sentence_end.start(), abbreviations):
                 continue
             found_sentences.append(Sentence(text[start:end].strip(), start))
             start = end
@@ -249,7 +236,7 @@ class Prose:
         spans.extend(enclosed_spans(text))
         return tuple(spans)
 
-    def _terminates_a_sentence(self, text: str, offset: int) -> bool:
+    def _terminates_a_sentence(self, text: str, offset: int, abbreviations: frozenset[str]) -> bool:
         if text[offset] != '.':
             return self._followed_by_break(text, offset)
         if offset + 1 < len(text) and text[offset + 1].isdigit():
@@ -258,10 +245,9 @@ class Prose:
         # The s of a possessive is no initial, so a sentence closing on a word like API's still ends there.
         if trailing_word and text[: trailing_word.start()].endswith(_APOSTROPHES):
             return self._followed_by_break(text, offset)
-        word = trailing_word.group(1).lower().rstrip('.') if trailing_word else ''
-        if word in _ABBREVIATIONS:
-            return False
-        if word == _NUMBER_ABBREVIATION and text[offset + 1 :].lstrip()[:1].isdigit():
+        if trailing_word and ends_no_sentence(
+            trailing_word.group(1) + '.', text[offset + 1 : offset + _LOOKAHEAD], abbreviations
+        ):
             return False
         if (
             trailing_word
@@ -320,3 +306,21 @@ def is_protected(offset: int, spans: tuple[tuple[int, int], ...]) -> bool:
 def is_wide(character: str) -> bool:
     """Whether a character is set full width, as Chinese, Japanese, and Korean text and its punctuation are."""
     return bool(character) and unicodedata.east_asian_width(character) in {'W', 'F'}
+
+
+def words_pattern(words: typing.Iterable[str]) -> re.Pattern[str]:
+    """A pattern matching any of the words, the longest first where two overlap, so a phrase matches whole.
+
+    A word of Latin letters matches whole, so cancel never matches inside cancellation.
+    CJK text runs with no spaces between its words, so a CJK word matches wherever it stands.
+    """
+    return re.compile('|'.join(map(_word_pattern, sorted(words, key=len, reverse=True))))
+
+
+def _word_pattern(word: str) -> str:
+    pattern = re.escape(word)
+    if word[:1].isascii() and word[:1].isalnum():
+        pattern = rf'(?<!\w){pattern}'
+    if word[-1:].isascii() and word[-1:].isalnum():
+        pattern = rf'{pattern}(?!\w)'
+    return pattern

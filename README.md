@@ -172,7 +172,7 @@ Reflow works on sentences rather than lines, so the result reads the way the aut
 
 - **One Line When It Fits**: a sentence that fits takes one line, and a wrapped one that would fit is joined.
 - **Clause Commas Only**: a longer sentence breaks only at a comma that ends a clause, never inside brackets or a code span, and preferably not inside a list.
-- **No Stubs**: no break leaves a line shorter than the `stub-fragment` floor, 24 characters by default.
+- **No Short Lines**: no break leaves a line shorter than the `line-too-short` floor, 24 characters by default.
 - **Verbatim Blocks**: code examples, docstring sections, and JSDoc tags are left as written.
 - **Markdown Paragraphs**: Markdown has no column limit, so a paragraph takes one source line, and a hand-wrapped one is joined.
 
@@ -246,12 +246,12 @@ Registering the hook with both agents is fine, since each payload identifies its
 
 ### Configuration
 
-Settings come from `subedit.toml`, or from `[tool.subedit]` in `pyproject.toml`, whichever sits closest above the file being checked. Without either, `check` and `fix` run with the defaults.
+Settings come from `subedit.toml`, or from `[tool.subedit]` in `pyproject.toml`, whichever sits closest above the file being checked. Without either, `check` and `fix` run with the defaults. A config with a misspelled key, level, or option stops subedit with an error that names the file and the key, so a typo never leaves a project on defaults it did not choose.
 
 A rule takes one of two forms, depending on whether it has options to set.
 
 - **Level Only**: a string, `"error"`, `"warning"`, or `"off"`. Every rule takes this form, including the delegated Vale and AutoCorrect rules.
-- **Level and Options**: a `[rules.<name>]` table, holding `severity` and the rule's options. Leave out `severity` to keep the default level. Only `block-too-long` and `stub-fragment` have options, listed in [Rules](#rules).
+- **Level and Options**: a `[rules.<name>]` table, holding `severity` and the rule's options. Leave out `severity` to keep the default level. The [rule reference](docs/rules.md) lists each rule's options with their defaults.
 
 ```toml
 [subedit]
@@ -263,18 +263,23 @@ mid-clause-break = "warning"
 file-header-comment = "off"
 "subedit.DateRef" = "off"
 
-[rules.block-too-long]
+[rules.comment-too-long]
 severity = "error"
-line = 3
+max-plain-lines = 3
 
-[rules.stub-fragment]
-minimum_characters = 30
+[rules.line-too-short]
+min-line-characters = 30
+
+[rules.heading-title-case]
+exceptions = ["npm"]
 ```
+
+A name Title Case must leave as written, such as `npm`, goes under `exceptions`, which headings, table headers, and list labels all follow.
 
 In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, and `[tool.subedit.rules.<name>]`.
 
 <details>
-<summary><b>Settings</b>: the width, excluded paths, and code blocks</summary>
+<summary><b>Settings</b>: the width, excluded paths, code blocks, and abbreviations</summary>
 
 <br>
 
@@ -283,6 +288,7 @@ In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.ru
 | `line-width` | Integer | The formatter's width, else 120 | The column every comment line must fit, counting indent and delimiter |
 | `exclude` | List of globs | `[]` | Paths a directory walk skips, relative to the config file |
 | `code-blocks` | Boolean | `false` | Whether the comments in a Markdown code block are read, in a language subedit supports |
+| `abbreviations` | List of strings | `[]` | Abbreviations whose period ends no sentence, each written with its period and its case, such as `"Dept."` |
 
 Left unset, `line-width` follows the formatter that would format the file, read from its own config.
 
@@ -295,7 +301,7 @@ Left unset, `line-width` follows the formatter that would format the file, read 
 
 ### Rules
 
-`subedit` ships 19 native rules, a bundled Vale style of 6 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
+`subedit` ships 21 native rules, a bundled Vale style of 5 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
 
 Comments and Markdown share one house style, and differ where their forms differ. A comment has a column limit and sits beside the code it explains, while Markdown has no limit and is built from paragraphs and headings.
 
@@ -323,7 +329,7 @@ A surface is a kind of file where prose lives. Every surface goes through the sa
 | Code comments and docstrings | Available | Layout, because a comment must fit a column limit |
 | Markdown | Available | One line per paragraph and the shape of headings, because Markdown has no column limit |
 
-Markdown is read from `.md` and `.markdown` files, leaving front matter, code, tables, and HTML blocks alone. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. Each block is checked as a file of that language would be, by Vale and AutoCorrect as well, except for the rules on a whole file. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
+Markdown is read from `.md` and `.markdown` files, leaving front matter, code, and HTML blocks alone, and reading only the header of a table. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. Each block is checked as a file of that language would be, by Vale and AutoCorrect as well, except for the rules on a whole file. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
 
 #### Languages
 
@@ -353,4 +359,4 @@ Each language is a profile that knows its comment forms, its doc comment, and wh
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The English abbreviations that end no sentence come from the [Unicode CLDR](https://cldr.unicode.org/) under the Unicode License v3, whose notice ships with the [data file](src/subedit/domain/models/cldr_sentence_suppressions.txt).

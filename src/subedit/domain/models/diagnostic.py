@@ -1,7 +1,9 @@
 import dataclasses
 import enum
+import typing
 
 from .position import SourceRange
+from .rule_option import RuleOption
 from .text import TextEdit
 
 
@@ -61,6 +63,7 @@ class RuleMetadata:
     fix_kind: FixKind
     default_severity: Severity = Severity.ERROR
     source: str = 'subedit'
+    options: tuple[RuleOption[typing.Any], ...] = ()
 
     def __post_init__(self) -> None:
         if not self.rule_id:

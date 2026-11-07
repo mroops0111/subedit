@@ -24,6 +24,7 @@ from .position import Encoding, Position, PositionMap, SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence
 from .prose_map import ProseMap
 from .prose_unit import ProseLine, ProseUnit
+from .rule_option import ChoiceOption, CountOption, HeadingLevelsOption, ReplacementsOption, RuleOption, WordsOption
 from .rule_set import RuleSet, RuleSettings
 from .text import TextEdit, apply_edits
 
@@ -33,11 +34,13 @@ __all__ = [
     'PLAIN_MARKUP',
     'QUOTED_DOC_LAYOUT',
     'SEVERITY_BY_NAME',
+    'ChoiceOption',
     'CommentForm',
     'CommentGroup',
     'CommentLayout',
     'CommentLine',
     'CommentPlacement',
+    'CountOption',
     'Diagnostic',
     'Document',
     'EmbeddedDocument',
@@ -46,6 +49,7 @@ __all__ = [
     'Fix',
     'FixKind',
     'FramedDocLayout',
+    'HeadingLevelsOption',
     'LinePrefixLayout',
     'MarkdownBlock',
     'MarkdownBlockKind',
@@ -58,8 +62,10 @@ __all__ = [
     'ProseMarkup',
     'ProseUnit',
     'QuotedDocLayout',
+    'ReplacementsOption',
     'Report',
     'RuleMetadata',
+    'RuleOption',
     'RuleSet',
     'RuleSettings',
     'Sentence',
@@ -69,5 +75,6 @@ __all__ = [
     'SymbolRef',
     'TextEdit',
     'Visibility',
+    'WordsOption',
     'apply_edits',
 ]
