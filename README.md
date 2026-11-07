@@ -120,12 +120,20 @@ Every command takes files or directories, and a directory walk skips dotted and 
 | `subedit check src/ --output=json` | Reports every finding as JSON, for other tools |
 | `subedit fix src/` | Shows the autofixes as a diff |
 | `subedit fix src/ --write` | Applies the autofixes in place |
+| `subedit fix --staged --write` | Applies the autofixes to the files git has staged |
+| `subedit check - --stdin-filename issue.md` | Checks a draft read from stdin, as the file it names |
+| `subedit fix - --stdin-filename issue.md` | Prints a draft from stdin with its autofixes, and its findings on stderr |
 | `subedit stats src/` | Measures each surface's lengths and widths, to set thresholds from data |
 | `subedit rules` | Lists every native rule with the surfaces it reads, its fix kind, and its default level |
 | `subedit install-git-hooks` | Installs git hooks that lay out the staged files and the commit message |
-| `subedit fix --staged --write` | Applies the autofixes to the files git has staged |
 
 To adopt `subedit`, add an empty `subedit.toml` at the project root, run `fix --write` once, and read what `check` still reports. `check` exits 1 on any `error` finding, and `fix` exits 1 while an `error` rewrite remains, so both drop into CI, and [Git Hooks](#git-hooks) runs them on each commit. `--no-delegate` skips Vale and AutoCorrect.
+
+A draft that never lands in a file, such as an issue body or a Notion page, reaches subedit on stdin. `--stdin-filename` names the file it stands for, which picks its surface and the config found from it, so `gh issue create --body-file` can take the fixed text straight from `subedit fix -`. A commit message named as `.git/COMMIT_EDITMSG` is read as one:
+
+```sh
+git log -1 --format=%B | subedit fix - --stdin-filename .git/COMMIT_EDITMSG
+```
 
 <details>
 <summary><b>CI Workflow</b>: a GitHub Actions job</summary>
