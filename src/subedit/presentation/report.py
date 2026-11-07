@@ -46,7 +46,7 @@ def actionable(document: Document, report: Report) -> str:
         return (
             f'Nothing needs rewriting in {_path(document)}. '
             f'{mechanical_count} finding{"s" if mechanical_count != 1 else ""} can be repaired mechanically, '
-            'so run fix --write rather than editing by hand.'
+            'so run fix rather than editing by hand.'
         )
     return f'No findings in {_path(document)}.'
 
