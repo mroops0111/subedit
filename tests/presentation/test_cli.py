@@ -1,3 +1,4 @@
+import io
 import pathlib
 
 import pytest
@@ -6,6 +7,10 @@ from factories import Project
 from subedit.domain import Diagnostic, Document, ExternalLinter
 from subedit.presentation import cli
 from subedit.presentation.cli import app
+
+
+# A Markdown paragraph broken across two source lines, which fix joins into one.
+BROKEN_PARAGRAPH = 'Cap the size so the mmap does not\nblow past it, an unbounded value faults.\n'
 
 
 def test_version_prints_the_package_version(capsys: pytest.CaptureFixture[str]) -> None:
@@ -199,6 +204,52 @@ def test_a_diff_keeps_a_blank_last_context_line(project: Project, capsys: pytest
         app(['fix', '--no-delegate', str(target)])
     hunk = capsys.readouterr().out.split('@@')[-1]
     assert hunk.endswith('\n \n'), 'patch counts a blank context line, so dropping it makes the hunk short'
+
+
+def run_on_stdin(monkeypatch: pytest.MonkeyPatch, text: str, *arguments: str) -> int | str | None:
+    monkeypatch.setattr('sys.stdin', io.StringIO(text))
+    with pytest.raises(SystemExit) as exit_info:
+        app(list(arguments))
+    return exit_info.value.code
+
+
+def test_check_reads_a_draft_from_stdin_as_the_file_it_names(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The config beside the named file, not the working directory's, sets the severity.
+    project.write('subedit.toml', '[rules]\nparagraph-line-break = "warning"\n')
+    draft = project.root / 'drafts' / 'issue.md'
+    code = run_on_stdin(monkeypatch, BROKEN_PARAGRAPH, 'check', '-', '--stdin-filename', str(draft), '--no-delegate')
+    assert code == 0
+    assert 'drafts/issue.md:1:1  warning  paragraph-line-break' in capsys.readouterr().out
+
+
+def test_fix_returns_a_draft_from_stdin_fixed_on_stdout_alone(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    draft = project.root / 'issue.md'
+    code = run_on_stdin(monkeypatch, BROKEN_PARAGRAPH, 'fix', '-', '--stdin-filename', str(draft), '--no-delegate')
+    captured = capsys.readouterr()
+    assert code == 0
+    assert captured.out == 'Cap the size so the mmap does not blow past it, an unbounded value faults.\n'
+    assert 'rewrote 1 of 1 file' in captured.err
+
+
+@pytest.mark.parametrize(
+    'arguments',
+    [
+        pytest.param(('check', '-'), id='no filename'),
+        pytest.param(('check', '-', 'other.md', '--stdin-filename', 'issue.md'), id='other paths'),
+        pytest.param(('check', 'other.md', '--stdin-filename', 'issue.md'), id='filename without stdin'),
+        pytest.param(('check', '-', '--stdin-filename', 'notes.txt'), id='unread extension'),
+        pytest.param(('fix', '-', '--write', '--stdin-filename', 'issue.md'), id='write'),
+    ],
+)
+def test_a_draft_on_stdin_needs_one_path_and_a_file_it_stands_for(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], arguments: tuple[str, ...]
+) -> None:
+    assert run_on_stdin(monkeypatch, 'Text.\n', *arguments) == 2
+    assert capsys.readouterr().err.startswith('subedit: ')
 
 
 class _PreparedLinter(ExternalLinter):

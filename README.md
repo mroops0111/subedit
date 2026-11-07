@@ -103,10 +103,14 @@ Every command takes files or directories, and a directory walk skips dotted and 
 | `subedit check src/ --output=json` | Reports every finding as JSON, for other tools |
 | `subedit fix src/` | Shows the autofixes as a diff |
 | `subedit fix src/ --write` | Applies the autofixes in place |
+| `subedit check - --stdin-filename issue.md` | Checks a draft read from stdin, as the file it names |
+| `subedit fix - --stdin-filename issue.md` | Prints a draft from stdin with its autofixes, and its findings on stderr |
 | `subedit stats src/` | Measures comment lengths and widths, to set thresholds from data |
 | `subedit rules` | Lists every native rule with its fix kind and default level |
 
 To adopt `subedit`, add an empty `subedit.toml` at the project root, run `fix --write` once, and read what `check` still reports. `check` exits 1 on any `error` finding, and `fix` exits 1 while an `error` rewrite remains, so both drop into CI or a pre-commit hook. `--no-delegate` skips Vale and AutoCorrect.
+
+A draft that never lands in a file, such as an issue body or a Notion page, reaches subedit on stdin. `--stdin-filename` names the file it stands for, which picks its surface and the config found from it, so `gh issue create --body-file` can take the fixed text straight from `subedit fix -`.
 
 <details>
 <summary><b>CI Workflow</b>: a GitHub Actions job</summary>
