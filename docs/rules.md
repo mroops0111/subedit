@@ -2,7 +2,7 @@
 
 `subedit` ships 25 native rules, a bundled Vale style of 5 rules, and AutoCorrect. The [README](../README.md#rules) compares what comments and Markdown share and where they differ, and this page lists every rule by group.
 
-Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, as in `"subedit.DateRef" = "off"`. An error fails `check` and stops an agent, while a warning is shown as advice. The fix kind states who resolves a finding, as [Fix Kinds](../README.md#fix-kinds) describes.
+Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, as in `"subedit.DateRef" = "off"`. A rule that reads several surfaces can be set for one of them alone under `[surfaces.<name>.rules]`, as the [README](../README.md#configuration) shows. An error fails `check` and stops an agent, while a warning is shown as advice. The fix kind states who resolves a finding, as [Fix Kinds](../README.md#fix-kinds) describes.
 
 ## Style
 

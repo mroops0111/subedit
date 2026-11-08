@@ -54,7 +54,7 @@ class Subtitle(ProseUnit):
 class SubtitleParser(SourceParser[Subtitle]):
     @property
     def file_types(self) -> tuple[FileType, ...]:
-        return (FileType('subtitle', frozenset({'.srt'}), '.srt'),)
+        return (FileType('subtitle', frozenset({'.srt'}), '.srt', 'subtitles'),)
 
     def read(self, document: Document) -> ParsedDocument[Subtitle]:
         cues: list[Subtitle] = []

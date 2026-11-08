@@ -19,11 +19,14 @@ class ReportAggregator:
         """Check a document with every rule and checker, and each document embedded in it the same way, mapped back."""
         return self._run(document, rule_set, fragment=False)
 
-    def _run(self, document: Document, rule_set: RuleSet, *, fragment: bool) -> Report:
+    # Each document, an embedded one too, is checked under its own surface's rules,
+    # so a Python block in Markdown follows what the project sets for comments.
+    def _run(self, document: Document, project_rules: RuleSet, *, fragment: bool) -> Report:
+        rule_set = project_rules.for_language(document.language_id)
         inspection = self._linter.inspect(document, rule_set, fragment=fragment)
         report = inspection.report.merged_with(self._external_report(document, inspection.prose_map, rule_set))
         for embedding in inspection.embeddings:
-            embedded_report = self._run(embedding.document, rule_set, fragment=True)
+            embedded_report = self._run(embedding.document, project_rules, fragment=True)
             mapped = tuple(embedding.embedded.host_diagnostic(item) for item in embedded_report.diagnostics)
             report = report.merged_with(Report(mapped, embedded_report.unavailable_sources))
         return report

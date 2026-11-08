@@ -27,7 +27,7 @@ class RuleTable(pydantic.BaseModel):
         return dict(self.__pydantic_extra__ or {})
 
 
-_RuleEntry = typing.Annotated[
+RuleEntry = typing.Annotated[
     typing.Literal['off', 'error', 'warning', 'suggestion'] | RuleTable, pydantic.Field(union_mode='left_to_right')
 ]
 
@@ -37,10 +37,6 @@ class SubeditSection(pydantic.BaseModel):
 
     # Left unset, the width falls back to the language's own default.
     line_width: int | None = pydantic.Field(default=None, alias='line-width', gt=0)
-    # A width for one kind of file by its language id, such as git-commit, over line-width and its convention.
-    line_widths: dict[str, typing.Annotated[int, pydantic.Field(gt=0)]] = pydantic.Field(
-        default_factory=dict, alias='line-widths'
-    )
     exclude: tuple[str, ...] = ()
     code_blocks: bool = pydantic.Field(default=False, alias='code-blocks')
     # Each is written with its period, as in Dept., since the case and the period are matched as written.
@@ -55,11 +51,21 @@ class SubeditSection(pydantic.BaseModel):
         return abbreviations
 
 
+class SurfaceSection(pydantic.BaseModel):
+    """What a project sets for one surface, such as commit-messages, over what it sets for every surface."""
+
+    model_config = pydantic.ConfigDict(frozen=True, populate_by_name=True, extra='forbid')
+
+    line_width: int | None = pydantic.Field(default=None, alias='line-width', gt=0)
+    rules: dict[str, RuleEntry] = pydantic.Field(default_factory=dict)
+
+
 class ConfigFile(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=True, extra='forbid')
 
     subedit: SubeditSection = pydantic.Field(default_factory=SubeditSection)
-    rules: dict[str, _RuleEntry] = pydantic.Field(default_factory=dict)
+    rules: dict[str, RuleEntry] = pydantic.Field(default_factory=dict)
+    surfaces: dict[str, SurfaceSection] = pydantic.Field(default_factory=dict)
 
     @classmethod
     def parse(cls, raw: typing.Mapping[str, object]) -> 'ConfigFile':

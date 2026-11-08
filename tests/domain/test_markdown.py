@@ -172,6 +172,15 @@ def test_a_code_block_is_left_alone_unless_the_project_opts_in() -> None:
     assert 'mid-clause-break' in found(lint(markdown(source), code_blocks()))
 
 
+def test_a_code_block_follows_the_rules_set_for_its_own_surface() -> None:
+    source = f'Notes.\n\n```python\n{MIS_WRAPPED}```\n'
+    comments = dataclasses.replace(
+        code_blocks(), enabled_rule_ids=code_blocks().enabled_rule_ids - {'mid-clause-break'}
+    )
+    rules = dataclasses.replace(code_blocks(), by_language={'python': comments})
+    assert 'mid-clause-break' not in found(lint(markdown(source), rules))
+
+
 @pytest.mark.parametrize(
     ('block', 'expected'),
     [

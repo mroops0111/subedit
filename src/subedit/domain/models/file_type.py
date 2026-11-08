@@ -10,6 +10,8 @@ class FileType:
     extensions: frozenset[str]
     # The extension Vale and AutoCorrect know the file by, since they read an unknown one as plain text.
     canonical_extension: str
+    # The kind of prose the file holds, which a project's config names to set rules for it alone.
+    surface: str
     # Directories a package manager fills with files nobody in the project wrote.
     vendor_directories: frozenset[str] = frozenset()
     # Files a tool writes whole, such as a lock file, which no one reads as prose.

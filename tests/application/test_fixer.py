@@ -166,7 +166,7 @@ def test_fixing_is_idempotent_at_every_width(width: int) -> None:
 class SilentParser(SourceParser[CommentGroup]):
     @property
     def file_types(self) -> tuple[FileType, ...]:
-        return (FileType('python', frozenset({'.py'}), '.py'),)
+        return (FileType('python', frozenset({'.py'}), '.py', 'comments'),)
 
     def read(self, document: Document) -> ParsedDocument[CommentGroup]:
         return ParsedDocument()

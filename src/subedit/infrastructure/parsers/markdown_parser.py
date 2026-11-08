@@ -11,7 +11,7 @@ from ...domain.models.position import SourceRange
 from ...domain.ports.source_parser import ParsedDocument, SourceParser
 
 
-MARKDOWN = FileType('markdown', frozenset({'.md', '.markdown'}), '.md')
+MARKDOWN = FileType('markdown', frozenset({'.md', '.markdown'}), '.md', 'markdown')
 
 _MARKDOWN_LANGUAGE = Language(tree_sitter_markdown.language())
 _HEADINGS = frozenset({'atx_heading', 'setext_heading'})

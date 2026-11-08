@@ -35,6 +35,13 @@ class RuleSet:
     reads_embedded: bool = False
     # Abbreviations the project adds to the built-in ones, each with its period, such as Dept.
     abbreviations: frozenset[str] = frozenset()
+    # The rule set of each language whose surface the project sets apart, by its language id,
+    # which holds the project's rules for every surface with the surface's own laid over them.
+    by_language: typing.Mapping[str, 'RuleSet'] = dataclasses.field(default_factory=dict)
+
+    def for_language(self, language_id: str) -> 'RuleSet':
+        """The rule set a document in a language is checked under, its surface's own where the project sets one."""
+        return self.by_language.get(language_id, self)
 
     def is_enabled(self, rule_id: str) -> bool:
         return rule_id in self.enabled_rule_ids

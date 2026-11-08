@@ -276,7 +276,21 @@ exceptions = ["npm"]
 
 A name Title Case must leave as written, such as `npm`, goes under `exceptions`, which headings, table headers, and list labels all follow.
 
-In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, and `[tool.subedit.rules.<name>]`.
+A rule that reads more than one surface, such as `mid-clause-break` on comments and commit messages, follows `[rules]` on each. A `[surfaces.<name>]` table sets one surface apart, with its own `line-width` and a `rules` table laid over `[rules]`. A surface's entry for a rule replaces the project's, except that a table's options join those of the project's table. The surfaces are `comments`, `markdown`, and `commit-messages`, and a Markdown code block follows the surface of its language.
+
+```toml
+[rules]
+line-too-short = "off"
+
+[surfaces.commit-messages]
+line-width = 100
+
+[surfaces.commit-messages.rules]
+line-too-short = "warning"
+subject-style = { style = "conventional" }
+```
+
+In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, `[tool.subedit.rules.<name>]`, and `[tool.subedit.surfaces.<name>]`.
 
 <details>
 <summary><b>Settings</b>: the width, excluded paths, code blocks, and abbreviations</summary>
@@ -286,12 +300,11 @@ In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.ru
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `line-width` | Integer | The formatter's width, else 120 | The column every comment line must fit, counting indent and delimiter |
-| `line-widths` | Table of integers | `{}` | A width for one language by its ID, such as `{ typescript = 80, git-commit = 100 }`, over `line-width` |
 | `exclude` | List of globs | `[]` | Paths a directory walk skips, relative to the config file |
 | `code-blocks` | Boolean | `false` | Whether the comments in a Markdown code block are read, in a language subedit supports |
 | `abbreviations` | List of strings | `[]` | Abbreviations whose period ends no sentence, each written with its period and its case, such as `"Dept."` |
 
-Left unset, `line-width` follows the formatter that would format the file, read from its own config. A commit message keeps git's width of 72 whatever `line-width` says, since that width is chosen for code.
+Left unset, `line-width` follows the formatter that would format the file, read from its own config. A commit message keeps git's width of 72 whatever `line-width` says, since that width is chosen for code, unless `[surfaces.commit-messages]` sets its own.
 
 | Language | Width Read From |
 | --- | --- |

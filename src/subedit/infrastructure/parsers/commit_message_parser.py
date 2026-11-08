@@ -14,6 +14,7 @@ COMMIT_MESSAGE = FileType(
     language_id='git-commit',
     extensions=frozenset(),
     canonical_extension='.md',
+    surface='commit-messages',
     file_names=frozenset({'COMMIT_EDITMSG', 'MERGE_MSG', 'SQUASH_MSG', 'TAG_EDITMSG'}),
     line_width=72,
 )

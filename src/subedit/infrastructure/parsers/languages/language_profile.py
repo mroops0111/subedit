@@ -14,6 +14,10 @@ from ....domain.ports.language_conventions import DelimiterSplit, LanguageConven
 from ...config_sources.formatter_width import WidthSetting
 
 
+# Every language a profile reads holds its prose in comments, which a project's config names as one surface.
+COMMENTS = 'comments'
+
+
 class NodeRole(enum.Enum):
     """What a grammar node is to the parser, which reads only definitions, imports, and comments by name."""
 
@@ -74,7 +78,12 @@ class LanguageProfile(LanguageConventions, GrammarAdapter):
     @property
     def file_type(self) -> FileType:
         return FileType(
-            self.language_id, self.extensions, self.canonical_extension, self.vendor_directories, self.generated_names
+            self.language_id,
+            self.extensions,
+            self.canonical_extension,
+            COMMENTS,
+            self.vendor_directories,
+            self.generated_names,
         )
 
     def role_of(self, node_type: str) -> NodeRole:
