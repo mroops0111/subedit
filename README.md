@@ -56,6 +56,23 @@ The same command joins the paragraph into one line and puts the heading in Title
 The cache keeps one entry per file, and drops it when the file changes.
 ```
 
+A commit message is wrapped at a fixed column the same way, and its subject drifts from git's convention.
+
+```text
+add the cache layer.
+The cache keeps one entry per file and drops it when the file
+changes, so a second run reads only what moved.
+```
+
+The same command gives the subject a capital and no period, parts it from the body with a blank line, and breaks the body at its clause comma.
+
+```text
+Add the cache layer
+
+The cache keeps one entry per file and drops it when the file changes,
+so a second run reads only what moved.
+```
+
 A sentence in a comment that runs past the width with no comma has nowhere legal to break, and only its author knows where the meaning divides, so it goes back to the agent that wrote it.
 
 ```text
@@ -103,8 +120,8 @@ Every command takes files or directories, and a directory walk skips dotted and 
 | `subedit check src/ --output=json` | Reports every finding as JSON, for other tools |
 | `subedit fix src/` | Shows the autofixes as a diff |
 | `subedit fix src/ --write` | Applies the autofixes in place |
-| `subedit stats src/` | Measures comment lengths and widths, to set thresholds from data |
-| `subedit rules` | Lists every native rule with its fix kind and default level |
+| `subedit stats src/` | Measures each surface's lengths and widths, to set thresholds from data |
+| `subedit rules` | Lists every native rule with the surfaces it reads, its fix kind, and its default level |
 | `subedit install-hook` | Installs git hooks that lay out the staged files and the commit message |
 | `subedit fix --staged --write` | Applies the autofixes to the files git has staged |
 
@@ -184,29 +201,44 @@ A file takes the same path through `subedit` whether the CLI or the agent hook s
 
 ![subedit pipeline. An author or agent edits or commits, and the CLI, the agent hook, or a git hook runs subedit, which reads subedit.toml for its rules, surfaces, and opt-in. subedit parses every surface's prose, lints it with its own rules, Vale, and AutoCorrect, then triages each finding by fix kind and level. An autofix is written back silently, and a rewrite is sent back to the author with its fix stated.](docs/assets/pipeline.svg)
 
+<details>
+<summary><b>Steps</b>: what each stage does</summary>
+
+<br>
+
 1. **Resolve**: the closest `subedit.toml`, or `[tool.subedit]` in `pyproject.toml`, gives the rules and the width.
 2. **Parse**: each surface's parser finds the prose, such as comments and docstrings, headings and paragraphs, or a commit's subject and body, and maps where code sits. A Markdown code block is read as its own language when the project sets `code-blocks` for Markdown.
 3. **Lint**: each native rule reads its own surface, and a Vale or AutoCorrect finding is kept only inside prose.
 4. **Autofix**: targeted edits, then reflow, rerun until nothing mechanical is left, for up to ten rounds.
 5. **Report**: what remains is a rewrite, reported as a blocking error or as advice.
 
+</details>
+
 ### Architecture
 
-The package follows a layered design, so a new language, rule, or delegated tool is one class behind an existing port.
+The package follows a layered design, so a new surface, language, rule, or delegated tool is one class behind an existing port.
+
+<details>
+<summary><b>Layers</b>: what each layer holds, and how to extend it</summary>
+
+<br>
 
 ![subedit layers. presentation holds the CLI, the agent hook, and the reports, and calls application, which holds the Linter, the Fixer, the report aggregator, and the corpus meter. application uses domain, which holds the models of each surface, the rules, and the ports. infrastructure holds a parser for each surface, the config source, the git adapter, and the Vale and AutoCorrect adapters. presentation wires infrastructure in, and infrastructure implements the domain ports.](docs/assets/layers.svg)
 
 Rules never see a syntax tree. A parser turns the file into prose units, such as a comment group with the symbol it documents, a Markdown paragraph, or a commit subject, and each rule reads the units of its own surface. A new surface is a `ProseUnit` with its `SourceParser`, and text an agent writes through the shell, as `git commit` does, reaches the hook through a `ShellWatcher`. A new language is a `LanguageProfile`, a format whose only prose is its line comments is one more `CommentOnlyProfile`, and a new agent is an `AgentHarness`.
 
+</details>
+
 ## Reference
 
 ### Agent Integration
 
-`subedit-hook` checks what an agent writes, on every surface alike. It runs after each file the agent edits, and after each shell command that writes prose, such as `git commit`. It applies the autofixes in place where it can write them, and exits 2 only when a sentence needs rewriting, which hands the message back to the model. A commit is already made, so the hook never amends it. It hands the laid out message back instead, for the agent to amend a commit it has not pushed. A warning reaches the model too, as context beside the tool result, without blocking.
+`subedit-hook` checks what an agent writes, on every surface alike, in a project that opts in with a `subedit.toml` or a `[tool.subedit]` table. Elsewhere it exits 0 and changes nothing.
 
-The hook acts only in a project that opts in, with a `subedit.toml` or a `[tool.subedit]` table in `pyproject.toml`, in the written file's directory or a parent. An empty table is enough. Elsewhere it exits 0 and changes nothing. The opt-in covers every surface. A surface is switched off under `[surfaces]`, and a single rule by name under `[rules]`.
-
-A session that opens in such a repository, with no [git hooks](#git-hooks) running subedit, hears once that `subedit install-hook` would add them, and the agent runs it only if you agree.
+- **Edits**: after each file the agent edits, the hook applies the autofixes in place, and exits 2 only when a sentence needs rewriting, which hands the message back to the model.
+- **Commits**: after a `git commit`, the hook hands the laid out message back, since amending history is the agent's call, for a commit not yet pushed.
+- **Warnings**: a warning reaches the model as context beside the tool result, without blocking.
+- **Sessions**: a session in a repository whose [git hooks](#git-hooks) do not run subedit hears once that `subedit install-hook` would add them, and the agent runs it only if you agree.
 
 #### Claude Code
 
@@ -237,7 +269,12 @@ With `subedit` installed as a tool, add this to `.claude/settings.json`.
 
 #### Codex
 
-Add this to `~/.codex/hooks.json`.
+Codex runs the same hook, registered in `~/.codex/hooks.json`.
+
+<details>
+<summary><b>Hook Registration</b>: the entries to add</summary>
+
+<br>
 
 ```json
 {
@@ -248,6 +285,8 @@ Add this to `~/.codex/hooks.json`.
 }
 ```
 
+</details>
+
 Registering the hook with both agents is fine, since each payload identifies its sender and anything else exits 0 untouched. `subedit-hook --help` prints the payload shapes it accepts.
 
 ### Git Hooks
@@ -257,7 +296,12 @@ Text written outside an agent, by a person or another tool, is checked when it i
 - **pre-commit**: lays out the staged files of every surface, and stops the commit until the laid out files are staged again, or on what needs rewriting.
 - **commit-msg**: lays out the commit message in place, and stops the commit on what needs rewriting.
 
-Both run `subedit fix --write`, on the staged files with `--staged` and on the message file git names. With [pre-commit](https://pre-commit.com), each is one entry instead, and `subedit install-hook` prints them in a project that has a `.pre-commit-config.yaml`.
+Both run `subedit fix --write`, on the staged files with `--staged` and on the message file git names. A project on [pre-commit](https://pre-commit.com) lists them as entries instead, which `subedit install-hook` prints for it.
+
+<details>
+<summary><b>pre-commit</b>: the entries to add</summary>
+
+<br>
 
 ```yaml
 repos:
@@ -270,6 +314,8 @@ repos:
 
 `pre-commit install --hook-type pre-commit --hook-type commit-msg` then enables them.
 
+</details>
+
 ### Configuration
 
 Settings come from `subedit.toml`, or from `[tool.subedit]` in `pyproject.toml`, whichever sits closest above the file being checked. Without either, `check` and `fix` run with the defaults. A config with a misspelled key, level, or option stops subedit with an error that names the file and the key, so a typo never leaves a project on defaults it did not choose.
@@ -279,29 +325,6 @@ A rule takes one of two forms, depending on whether it has options to set.
 - **Level Only**: a string, `"error"`, `"warning"`, or `"off"`. Every rule takes this form, including the delegated Vale and AutoCorrect rules.
 - **Level and Options**: a `[rules.<name>]` table, holding `severity` and the rule's options. Leave out `severity` to keep the default level. The [rule reference](docs/rules.md) lists each rule's options with their defaults.
 
-```toml
-[subedit]
-line-width = 100
-exclude = ["tests/fixtures/**"]
-
-[rules]
-mid-clause-break = "warning"
-file-header-comment = "off"
-"subedit.DateRef" = "off"
-
-[rules.comment-too-long]
-severity = "error"
-max-plain-lines = 3
-
-[rules.line-too-short]
-min-line-characters = 30
-
-[rules.heading-title-case]
-exceptions = ["npm"]
-```
-
-A name Title Case must leave as written, such as `npm`, goes under `exceptions`, which headings, table headers, and list labels all follow.
-
 Every surface is read once a project adopts subedit, and each is set the same way. The surfaces are `comments`, `markdown`, and `commit-messages`, and the [rule reference](docs/rules.md) names the surfaces each rule reads.
 
 - **Every Surface**: `[rules]` sets a rule on each surface it reads, such as `mid-clause-break` on comments and commit messages.
@@ -310,8 +333,17 @@ Every surface is read once a project adopts subedit, and each is set the same wa
 - **Code Blocks**: a Markdown code block follows the surface of its language, so a Python block follows `comments`.
 
 ```toml
+[subedit]
+line-width = 100
+exclude = ["tests/fixtures/**"]
+
 [rules]
-line-too-short = "off"
+mid-clause-break = "warning"
+"subedit.DateRef" = "off"
+
+[rules.comment-too-long]
+severity = "error"
+max-plain-lines = 3
 
 [surfaces]
 commit-messages = "off"
@@ -320,7 +352,7 @@ commit-messages = "off"
 code-blocks = true
 
 [surfaces.markdown.rules]
-heading-title-case = { style = "chicago" }
+heading-title-case = { style = "chicago", exceptions = ["npm"] }
 ```
 
 In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, `[tool.subedit.rules.<name>]`, `[tool.subedit.surfaces]`, and `[tool.subedit.surfaces.<name>]`.
@@ -383,13 +415,14 @@ A surface is a kind of text where prose lives, named in config as below. Every s
 
 | Surface | Read From | Focus |
 | --- | --- | --- |
-| `comments` | The comments and doc comments of each [language](#comments) | Layout, because a comment must fit a column limit |
+| `comments` | The comments and doc comments of each language below | Layout, because a comment must fit a column limit |
 | `markdown` | `.md` and `.markdown` files | One line per paragraph and the shape of headings, because Markdown has no column limit |
 | `commit-messages` | The files git writes a message to, such as `COMMIT_EDITMSG` | A subject that fits and follows the project convention, and a body laid out by clause within git's width |
 
-Editor diagnostics over LSP are planned, so the same findings show as you type.
+<details>
+<summary><b>Comments</b>: the languages read, and what is left alone</summary>
 
-#### Comments
+<br>
 
 Each language is a profile that knows its comment forms, its doc comment, and what counts as public. A data format has no doc comment or public symbol, so only the rules on wording and layout apply to its comments.
 
@@ -401,10 +434,7 @@ Each language is a profile that knows its comment forms, its doc comment, and wh
 | YAML | `.yml`, `.yaml` | None | None |
 | JSON | `.json`, `.jsonc` | None | None |
 
-<details>
-<summary><b>Content Left Alone</b>: what every profile skips</summary>
-
-<br>
+Every language leaves alone what is not prose.
 
 - **Commented-Out Code**: a comment line the language's own grammar reads as code, such as `// return result` or `# client.send(`, is left as written. In YAML and JSON, a setting commented out, such as `# timeout: 30` or `// "semi": false,`, is too.
 - **Doc Sections**: a docstring's sections from `Args:`, `Parameters`, or `:param` onward, and a JSDoc block's tags from the first one such as `@throws` onward, are left as written. A JSDoc block keeps its frame when reflowed.
@@ -415,7 +445,10 @@ Each language is a profile that knows its comment forms, its doc comment, and wh
 
 </details>
 
-#### Markdown
+<details>
+<summary><b>Markdown</b>: what is read, and what is left alone</summary>
+
+<br>
 
 Markdown is read from its paragraphs, list items, headings, and the header of each table.
 
@@ -423,13 +456,20 @@ Markdown is read from its paragraphs, list items, headings, and the header of ea
 - **Table Cells**: a table is read only for its header, since its cells are fragments rather than sentences.
 - **Code Blocks**: with `code-blocks = true` under `[surfaces.markdown]`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. Each block is checked as a file of that language would be, by Vale and AutoCorrect as well, except for the rules on a whole file. A code block is often an example, so this stays off unless the project asks.
 
-#### Commit Messages
+</details>
+
+<details>
+<summary><b>Commit Messages</b>: what is read, and what is left alone</summary>
+
+<br>
 
 A commit message is read from its subject and its body. The body breaks between clauses within 72 characters rather than filling each line, which git's convention allows, since it sets a limit on a line rather than a fill.
 
 - **Trailers**: the last paragraph, when every line is a trailer such as `Co-authored-by:` or `Closes #105`, is left alone.
 - **Comments**: the comments git adds, from the first line opening with `#`, and the scissors line below them, are left alone.
 - **Prefix**: a Conventional Commits type or a kernel subsystem before the description is kept apart from the prose.
+
+</details>
 
 ## License
 
