@@ -4,6 +4,7 @@ from ...domain.models.comment import CommentForm, CommentGroup, CommentPlacement
 from ...domain.models.document import Document
 from ...domain.models.file_type import FileType
 from ...domain.models.position import SourceRange
+from ...domain.models.prose_unit import ProseUnit
 from ...domain.ports.source_parser import ParsedDocument, SourceParser
 from .languages import LanguageProfile, NodeRole
 
@@ -24,6 +25,10 @@ class TreeSitterParser(SourceParser[CommentGroup]):
     @property
     def file_types(self) -> tuple[FileType, ...]:
         return tuple(profile.file_type for profile in self._profiles.values())
+
+    @property
+    def unit_types(self) -> tuple[type[ProseUnit], ...]:
+        return (CommentGroup,)
 
     def read(self, document: Document) -> ParsedDocument[CommentGroup]:
         """Turn source text into the comment groups the rules read.

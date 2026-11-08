@@ -1,5 +1,4 @@
 import dataclasses
-import typing
 
 from .laid_out_prose import LaidOutProse
 from .line_layout import LINE_LAYOUT, LineLayout, PrefixedLine
@@ -12,8 +11,6 @@ from .text import TextEdit
 @dataclasses.dataclass(frozen=True, slots=True)
 class CommitSubject(ProseUnit):
     """The first line of a commit message, which git and every tool after it show alone."""
-
-    surface_name: typing.ClassVar[str] = 'Commit Messages'
 
     range: SourceRange
     # A label before the description, such as a Conventional Commits type or a kernel subsystem,
@@ -53,8 +50,6 @@ class CommitSubject(ProseUnit):
 @dataclasses.dataclass(frozen=True, slots=True)
 class CommitBody(LaidOutProse):
     """The paragraphs under a commit message's subject, up to its trailers or the comments git adds."""
-
-    surface_name: typing.ClassVar[str] = 'Commit Messages'
 
     range: SourceRange
     lines: tuple[PrefixedLine, ...]

@@ -189,10 +189,19 @@ class TomlConfigSource:
             for file_type in self._file_types:
                 if file_type.surface == surface:
                     width = section.line_width or file_type.line_width or project_rules.line_width
-                    by_language[file_type.language_id] = self._rule_set(config_file, rules, width)
+                    by_language[file_type.language_id] = self._rule_set(
+                        config_file, rules, width, reads_embedded=bool(section.code_blocks)
+                    )
         return dataclasses.replace(project_rules, by_language=by_language)
 
-    def _rule_set(self, config_file: ConfigFile, rules: typing.Mapping[str, RuleEntry], line_width: int) -> RuleSet:
+    def _rule_set(
+        self,
+        config_file: ConfigFile,
+        rules: typing.Mapping[str, RuleEntry],
+        line_width: int,
+        *,
+        reads_embedded: bool = False,
+    ) -> RuleSet:
         enabled_ids = set(self._available_rule_ids)
         disabled_external_ids: set[str] = set()
         settings: dict[str, RuleSettings] = {}
@@ -215,7 +224,7 @@ class TomlConfigSource:
             settings=settings,
             line_width=line_width,
             disabled_external_ids=frozenset(disabled_external_ids),
-            reads_embedded=config_file.subedit.code_blocks,
+            reads_embedded=reads_embedded,
             abbreviations=frozenset(config_file.subedit.abbreviations),
         )
 

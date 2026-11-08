@@ -28,7 +28,7 @@ from ..domain.rules import (
     UnbreakableSentenceRule,
 )
 from .config_sources import CONFIG_NAME, ConfigError, FormatterWidths, TomlConfigSource
-from .git import CommitHook, GitRepository, HookInstallError
+from .git import GitHooks, GitRepository, HookInstallError
 from .linters import AutoCorrectLinter, ValeLinter
 from .parsers import (
     JAVASCRIPT,
@@ -126,9 +126,9 @@ __all__ = [
     'WORDING_RULES',
     'YAML',
     'AutoCorrectLinter',
-    'CommitHook',
     'CompositeParser',
     'ConfigError',
+    'GitHooks',
     'GitRepository',
     'HookInstallError',
     'LanguageProfile',

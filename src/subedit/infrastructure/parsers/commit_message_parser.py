@@ -35,6 +35,10 @@ class CommitMessageParser(SourceParser[ProseUnit]):
     def file_types(self) -> tuple[FileType, ...]:
         return (COMMIT_MESSAGE,)
 
+    @property
+    def unit_types(self) -> tuple[type[ProseUnit], ...]:
+        return (CommitSubject, CommitBody)
+
     def read(self, document: Document) -> ParsedDocument[ProseUnit]:
         lines = _Lines(document.text)
         message_end = next(

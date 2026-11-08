@@ -240,9 +240,17 @@ def test_subedit_config_sets_the_width_over_the_formatter(project: Project) -> N
     assert DEFAULT_CONFIG_SOURCE.resolve(str(project.root / 'a.py')).line_width == 100
 
 
-def test_code_blocks_are_read_only_where_the_project_asks(project: Project) -> None:
-    assert not source().resolve(str(configured(project, '[subedit]\n'))).reads_embedded
-    assert source().resolve(str(configured(project, '[subedit]\ncode-blocks = true\n'))).reads_embedded
+def test_code_blocks_are_read_only_where_a_surface_asks(project: Project) -> None:
+    project.write(CONFIG_NAME, '[surfaces.markdown]\ncode-blocks = true\n')
+    notes = project.write('notes.md', '# Notes\n')
+
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(notes)).for_language('markdown').reads_embedded
+    assert not DEFAULT_CONFIG_SOURCE.resolve(str(notes)).reads_embedded, 'only the surface that asks reads them'
+
+
+def test_code_blocks_set_for_every_surface_say_where_they_moved(project: Project) -> None:
+    with pytest.raises(ConfigError, match=re.escape('moved to [surfaces.markdown]')):
+        source().resolve(str(configured(project, '[subedit]\ncode-blocks = true\n')))
 
 
 @pytest.mark.parametrize(('surface', 'name'), [('comments', 'module.py'), ('markdown', 'README.md')])

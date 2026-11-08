@@ -34,6 +34,17 @@ class SourceParser(abc.ABC, typing.Generic[UnitT]):
     @abc.abstractmethod
     def read(self, document: Document) -> ParsedDocument[UnitT]: ...
 
+    @property
+    def unit_types(self) -> tuple[type[ProseUnit], ...]:
+        """The kinds of unit this parser yields, which tell a rule reference what surfaces a rule reads."""
+        return ()
+
+    def surfaces_reading(self, unit_type: type[ProseUnit]) -> tuple[str, ...]:
+        """The surfaces whose documents yield a unit that a rule reading unit_type reads, by their config names."""
+        if not any(issubclass(own_type, unit_type) for own_type in self.unit_types):
+            return ()
+        return tuple(dict.fromkeys(file_type.surface for file_type in self.file_types))
+
     def parse(self, document: Document) -> tuple[UnitT, ...]:
         return self.read(document).units
 

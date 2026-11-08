@@ -1,12 +1,14 @@
 import json
 import pathlib
+import re
 import subprocess
 import typing
 
 import pytest
 from factories import REPOSITORY_ROOT, Project
 
-from subedit.presentation.harnesses.claude_code_harness import EDIT_TOOLS, SHELL_TOOL
+from subedit.presentation.harnesses import SHELL_TOOL
+from subedit.presentation.harnesses.claude_code_harness import EDIT_TOOLS
 
 
 PLUGIN = REPOSITORY_ROOT / 'plugins' / 'subedit'
@@ -113,6 +115,25 @@ def test_the_wrapper_lets_a_shell_command_that_commits_nothing_pass_before_start
     completed = run_wrapper(project.root, payload=shell_payload)
 
     assert (completed.returncode, completed.stderr) == (0, ''), 'without uv on PATH, reaching uvx would fail'
+
+
+def test_the_wrapper_watches_the_word_of_every_shell_watcher() -> None:
+    from subedit.presentation.hook import SHELL_WATCHERS
+
+    line = next(line for line in WRAPPER.read_text(encoding='utf-8').splitlines() if line.startswith('WATCHED_WORDS='))
+    watched = set(line.split('=', 1)[1].strip("'").split())
+
+    assert watched == {watcher.keyword for watcher in SHELL_WATCHERS}, 'a watcher whose word is missing never runs'
+
+
+def test_the_pre_commit_hook_reads_every_extension_subedit_reads() -> None:
+    from subedit.infrastructure import EXTENSIONS
+
+    hooks = (REPOSITORY_ROOT / '.pre-commit-hooks.yaml').read_text(encoding='utf-8')
+    pattern = next(line.split('files:', 1)[1].strip() for line in hooks.splitlines() if 'files:' in line)
+    listed = set(re.fullmatch(r'\\\.\((.+)\)\$', pattern).group(1).split('|'))  # type: ignore[union-attr]
+
+    assert listed == {extension.lstrip('.') for extension in EXTENSIONS}
 
 
 def test_the_wrapper_runs_the_released_version() -> None:

@@ -25,15 +25,13 @@ from subedit.domain import (
     SourceRange,
     TextEdit,
 )
-from subedit.infrastructure import ALL_RULES, COMMENT_PARSER, CompositeParser, MarkdownParser
+from subedit.infrastructure import ALL_RULES, COMMENT_PARSER, DEFAULT_PARSER, CompositeParser, MarkdownParser
 from subedit.presentation import rule_reference
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Subtitle(ProseUnit):
     """One cue of a subtitle file, a surface subedit does not ship."""
-
-    surface_name: typing.ClassVar[str] = 'Subtitles'
 
     range: SourceRange
     text: str
@@ -55,6 +53,10 @@ class SubtitleParser(SourceParser[Subtitle]):
     @property
     def file_types(self) -> tuple[FileType, ...]:
         return (FileType('subtitle', frozenset({'.srt'}), '.srt', 'subtitles'),)
+
+    @property
+    def unit_types(self) -> tuple[type[ProseUnit], ...]:
+        return (Subtitle,)
 
     def read(self, document: Document) -> ParsedDocument[Subtitle]:
         cues: list[Subtitle] = []
@@ -131,17 +133,18 @@ def test_the_new_rule_never_reads_comments() -> None:
     assert report.is_clean
 
 
-def test_the_rule_reference_gives_the_new_surface_its_own_section() -> None:
-    reference = rule_reference.render((*ALL_RULES, ShoutingCueRule()))
-    section = reference.split('## Subtitles\n', 1)[1]
-    assert '`shouting-cue`' in section
-    assert '## ' not in section, 'the new surface is no broader than comments or Markdown, so its section comes last'
+def test_the_rule_reference_names_the_new_surface_by_its_config_name() -> None:
+    reference = rule_reference.render((*ALL_RULES, ShoutingCueRule()), PARSER)
+    row = next(line for line in reference.splitlines() if '`shouting-cue`' in line)
+
+    assert '| `subtitles` |' in row, 'a reader sets a rule for one surface by the name the reference shows'
+    every_surface = next(line for line in reference.splitlines() if '`mid-sentence-colon`' in line)
+    assert '`subtitles`' in every_surface, 'a rule on every surface reads the new one with no change of its own'
 
 
-def test_every_shipped_surface_names_itself() -> None:
-    surfaces = {rule.surface for rule in ALL_RULES} - {ProseUnit}
-    unnamed = [surface.__name__ for surface in surfaces if 'surface_name' not in vars(surface)]
-    assert not unnamed, f'surfaces that would borrow the name of every surface: {unnamed}'
+def test_every_shipped_rule_reads_some_surface() -> None:
+    unread = [rule.metadata.rule_id for rule in ALL_RULES if not DEFAULT_PARSER.surfaces_reading(rule.surface)]
+    assert not unread, f'rules no shipped parser yields a unit for: {unread}'
 
 
 def test_two_parsers_may_not_claim_one_language() -> None:

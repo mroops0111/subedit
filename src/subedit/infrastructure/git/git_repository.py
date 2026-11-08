@@ -29,6 +29,11 @@ class GitRepository:
         relative = _git(self.root, 'rev-parse', '--git-path', name) or f'.git/{name}'
         return (self.root / relative).resolve()
 
+    def staged_files(self) -> tuple[pathlib.Path, ...]:
+        """The files staged for the next commit that still exist, as added, copied, modified, or renamed."""
+        listed = _git(self.root, 'diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z', strip=False) or ''
+        return tuple(self.root / name for name in listed.split('\0') if name)
+
     def just_committed_message(self) -> str | None:
         """The message of a commit made in the last few minutes, or None when HEAD last moved for another reason."""
         entry = _git(self.root, 'reflog', '-1', '--date=unix', '--format=%gd %gs')

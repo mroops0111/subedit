@@ -1,7 +1,7 @@
 import pathlib
 
 from ...infrastructure import EXTENSIONS
-from .agent_harness import BLOCK_EXIT, AgentHarness, HarnessMetadata, Payload
+from .agent_harness import BLOCK_EXIT, SHELL_TOOL, AgentHarness, HarnessMetadata, Payload, ShellCommand
 from .claude_code_harness import ClaudeCodeHarness
 from .codex_harness import CodexHarness
 
@@ -29,10 +29,12 @@ def resolve(payload: Payload) -> tuple[AgentHarness, tuple[pathlib.Path, ...]] |
 __all__ = [
     'ALL_HARNESSES',
     'BLOCK_EXIT',
+    'SHELL_TOOL',
     'AgentHarness',
     'ClaudeCodeHarness',
     'CodexHarness',
     'HarnessMetadata',
     'Payload',
+    'ShellCommand',
     'resolve',
 ]

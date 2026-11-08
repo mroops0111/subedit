@@ -1,6 +1,5 @@
 import dataclasses
 import enum
-import typing
 
 from .laid_out_prose import LaidOutProse
 from .line_layout import LINE_LAYOUT, LineLayout, PrefixedLine
@@ -47,8 +46,6 @@ class SymbolRef:
 class CommentGroup(LaidOutProse):
     """Consecutive comment lines that read as one block, with what they document and how they are laid out."""
 
-    surface_name: typing.ClassVar[str] = 'Comments'
-
     range: SourceRange
     lines: tuple[PrefixedLine, ...]
     form: CommentForm
@@ -65,6 +62,15 @@ class CommentGroup(LaidOutProse):
                 f'Only a leading declaration comment documents a symbol, '
                 f'but a {self.placement.value} comment carries {self.attachment.name!r}'
             )
+
+    @property
+    def category(self) -> str:
+        if self.form is CommentForm.DOC:
+            visibility = Visibility.PUBLIC if self.attaches_to_public_symbol else Visibility.INTERNAL
+            return f'doc/{visibility.value}'
+        if self.placement is CommentPlacement.FILE_HEADER:
+            return 'plain/file-header'
+        return f'plain/{self.placement.value}'
 
     @property
     def attaches_to_public_symbol(self) -> bool:

@@ -6,21 +6,28 @@ import typing
 import typer
 
 from .. import __version__
-from ..application import CorpusMeter, CorpusStatistics, Fixer, Linter, ReportAggregator, RuleEngine
+from ..application import (
+    CorpusMeter,
+    CorpusStatistics,
+    Fixer,
+    Linter,
+    ReportAggregator,
+    RuleEngine,
+    SurfaceStatistics,
+)
 from ..domain.models.document import Document
 from ..domain.models.rule_set import RuleSet
 from ..domain.models.text import source_lines
 from ..domain.ports.external_linter import ExternalLinter
 from ..infrastructure import (
     ALL_RULES,
-    COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
     DEFAULT_PARSER,
     EXTERNAL_LINTERS,
     GENERATED_NAMES,
     VENDOR_DIRECTORIES,
-    CommitHook,
     ConfigError,
+    GitHooks,
     GitRepository,
     HookInstallError,
     language_id_for,
@@ -45,13 +52,13 @@ ConfigT = typing.TypeVar('ConfigT')
 
 @app.command()
 def check(
-    paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to check.'),
+    paths: list[pathlib.Path] = typer.Argument(None, help='Files or directories to check.'),
     output: str = typer.Option('full', '--output', help='full, actionable, or json.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
+    staged: bool = typer.Option(False, '--staged', help='Check the files git has staged, in place of paths.'),
 ) -> None:
     """Report findings, and exit non-zero when any is an error."""
-    documents = _load(tuple(paths))
-    _require(documents)
+    documents = _targets(paths, staged=staged)
     formatter = _FORMATTERS.get(output)
     if formatter is None:
         typer.echo(f'Unknown output format {output!r}. Choose full, actionable, or json.', err=True)
@@ -70,13 +77,15 @@ def check(
 
 @app.command()
 def fix(
-    paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to fix.'),
+    paths: list[pathlib.Path] = typer.Argument(None, help='Files or directories to fix.'),
     write: bool = typer.Option(False, '--write', help='Write changes instead of printing a diff.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
+    staged: bool = typer.Option(
+        False, '--staged', help='Fix the files git has staged, in place of paths, and fail when any changed.'
+    ),
 ) -> None:
     """Apply mechanical fixes, printing a diff unless told to write, and report what needs an author."""
-    documents = _load(tuple(paths))
-    _require(documents)
+    documents = _targets(paths, staged=staged)
 
     fixer = Fixer(_build_linter(), _external_linters(delegate))
     changed_file_count = 0
@@ -101,28 +110,32 @@ def fix(
         f'{unresolved_finding_count} {"finding needs" if unresolved_finding_count == 1 else "findings need"} an author.',
         err=True,
     )
+    # A fix written over a staged file leaves the commit holding the old text, so it waits for the file to be staged.
+    if staged and changed_file_count:
+        typer.echo('Stage the laid out files and commit again.', err=True)
+        raise typer.Exit(1)
     raise typer.Exit(1 if unresolved_finding_count else 0)
 
 
 @app.command()
 def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to measure.')) -> None:
-    """Measure a codebase's comments, to set limits from what it already holds."""
+    """Measure the prose of each surface, to set limits from what the codebase already holds."""
     documents = _load(tuple(paths))
     _require(documents)
-    typer.echo(_render(CorpusMeter(COMMENT_PARSER).run(documents)))
+    typer.echo(_render(CorpusMeter(DEFAULT_PARSER).run(documents)))
 
 
 @app.command()
 def rules() -> None:
-    """Print the native rules, grouped by the surface they read."""
-    typer.echo(rule_reference.render(ALL_RULES), nl=False)
+    """Print the native rules, with the surfaces each one reads."""
+    typer.echo(rule_reference.render(ALL_RULES, DEFAULT_PARSER), nl=False)
 
 
 @app.command(name='install-hook')
 def install_hook(
     directory: pathlib.Path = typer.Argument(pathlib.Path('.'), help='A directory inside the repository.'),
 ) -> None:
-    """Install a git commit-msg hook that lays out each commit message and stops on what needs rewriting.
+    """Install git hooks that lay out the staged files and the commit message, and stop on what needs rewriting.
 
     A hook another tool already holds, or one pre-commit manages, is left alone, with the step to take instead.
     """
@@ -131,7 +144,7 @@ def install_hook(
         typer.echo(f'{directory} is not inside a git repository.', err=True)
         raise typer.Exit(2)
     try:
-        typer.echo(CommitHook(repository, __version__).install())
+        typer.echo(GitHooks(repository, __version__).install())
     except HookInstallError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(1) from None
@@ -200,6 +213,25 @@ def _is_written_elsewhere(relative: pathlib.Path) -> bool:
     return any(part in VENDOR_DIRECTORIES or part.startswith('.') for part in relative.parts[:-1])
 
 
+# A commit that stages no file subedit reads has nothing to check, which is no mistake.
+def _targets(paths: list[pathlib.Path] | None, *, staged: bool) -> tuple[Document, ...]:
+    if staged:
+        repository = GitRepository.at(pathlib.Path.cwd())
+        if repository is None:
+            typer.echo('--staged needs a git repository.', err=True)
+            raise typer.Exit(2)
+        documents = _load(repository.staged_files())
+        if not documents:
+            raise typer.Exit(0)
+        return documents
+    if not paths:
+        typer.echo('Name files or directories, or pass --staged.', err=True)
+        raise typer.Exit(2)
+    documents = _load(tuple(paths))
+    _require(documents)
+    return documents
+
+
 def _require(documents: tuple[Document, ...]) -> None:
     if not documents:
         typer.echo('No readable source files found.', err=True)
@@ -246,25 +278,26 @@ def _diff(before: Document, after: Document) -> str:
 
 
 def _render(statistics: CorpusStatistics) -> str:
+    return '\n\n'.join(_render_surface(measured) for measured in statistics.surfaces)
+
+
+def _render_surface(measured: SurfaceStatistics) -> str:
     heading = (
         f'{"group":24s} {"n":>6s} {"med":>5s} '
         + ' '.join(f'p{int(fraction * 100):<3d}' for fraction in _PERCENTILES)
         + '  max'
     )
-    lines = [
-        f'{statistics.document_count} documents, {statistics.group_count} comment blocks',
-        '',
-        'block line counts',
-        heading,
-    ]
-    lines.extend(_row(distribution.label, distribution) for distribution in statistics.line_counts)
-    for distribution in (statistics.physical_widths, statistics.sentence_lengths):
+    lines = [f'{measured.surface}: {measured.document_count} documents, {measured.unit_count} units']
+    if measured.line_counts:
+        lines.extend(['', 'unit line counts', heading])
+        lines.extend(_row(distribution.label, distribution) for distribution in measured.line_counts)
+    distributions = (measured.physical_widths, measured.sentence_lengths)
+    for distribution in (distribution for distribution in distributions if distribution.count):
         lines.extend(['', distribution.label, _row('', distribution)])
     lines.extend(['', 'sentences over width with no comma to break at'])
-    for width, sentence_count in statistics.unbreakable_counts_by_width:
-        percentage = (
-            sentence_count / statistics.sentence_lengths.count * 100 if statistics.sentence_lengths.count else 0.0
-        )
+    for width, sentence_count in measured.unbreakable_counts_by_width:
+        sentence_total = measured.sentence_lengths.count
+        percentage = sentence_count / sentence_total * 100 if sentence_total else 0.0
         lines.append(f'  width {width:3d}  {sentence_count:5d} sentences  {percentage:5.2f}%')
     return '\n'.join(lines)
 

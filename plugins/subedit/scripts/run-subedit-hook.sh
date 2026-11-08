@@ -32,13 +32,20 @@ fi
 
 PAYLOAD=$(cat)
 
-# Every shell command reaches this hook, and starting subedit costs more than the string test that rules most out.
+# Every shell command reaches this hook, and starting subedit costs more than a string test.
+# Each shell watcher in subedit-hook names a word its commands contain, so one with none of them is skipped.
+WATCHED_WORDS='commit'
 case "$PAYLOAD" in
     *'"tool_name": "Bash"'* | *'"tool_name":"Bash"'*)
-        case "$PAYLOAD" in
-            *commit*) ;;
-            *) exit 0 ;;
-        esac
+        watched=false
+        for word in $WATCHED_WORDS; do
+            case "$PAYLOAD" in
+                *"$word"*) watched=true ;;
+            esac
+        done
+        if [ "$watched" = false ]; then
+            exit 0
+        fi
         ;;
 esac
 

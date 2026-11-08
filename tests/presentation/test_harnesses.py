@@ -1,10 +1,19 @@
+import json
 import pathlib
 import typing
 
 import pytest
 from factories import Project
 
-from subedit.presentation.harnesses import ALL_HARNESSES, ClaudeCodeHarness, CodexHarness, HarnessMetadata, resolve
+from subedit.presentation.harnesses import (
+    ALL_HARNESSES,
+    AgentHarness,
+    ClaudeCodeHarness,
+    CodexHarness,
+    HarnessMetadata,
+    ShellCommand,
+    resolve,
+)
 
 
 @pytest.fixture
@@ -105,31 +114,20 @@ def test_the_registry_holds_both_agents() -> None:
     assert [type(harness) for harness in ALL_HARNESSES] == [ClaudeCodeHarness, CodexHarness]
 
 
-@pytest.mark.parametrize(
-    ('command', 'moved'),
-    [
-        ('git commit -m "Add the parser"', ''),
-        ('git add . && git commit -F message.txt', ''),
-        ('git -c core.editor=true commit --amend', ''),
-        ('git -C packages/core commit -m "Add the parser"', 'packages/core'),
-    ],
-)
-def test_claude_code_reads_a_commit_from_the_shell(tmp_path: pathlib.Path, command: str, moved: str) -> None:
-    payload = {'tool_name': 'Bash', 'tool_input': {'command': command}, 'cwd': str(tmp_path)}
+@pytest.mark.parametrize('harness', ALL_HARNESSES, ids=lambda harness: harness.metadata.name)
+def test_each_agent_reads_a_shell_command_and_where_it_ran(harness: AgentHarness, tmp_path: pathlib.Path) -> None:
+    payload = {'tool_name': 'Bash', 'tool_input': {'command': 'git status'}, 'cwd': str(tmp_path)}
 
-    assert ClaudeCodeHarness(frozenset()).commit_directory(payload) == tmp_path / moved
+    assert harness.shell_command(payload) == ShellCommand('git status', tmp_path)
+    assert harness.shell_command({'tool_name': 'Read', 'tool_input': {'command': 'x'}}) is None
 
 
-@pytest.mark.parametrize('command', ['git log --grep commit', 'echo commit', 'git commit-tree HEAD^{tree}'])
-def test_claude_code_reads_no_commit_from_other_commands(tmp_path: pathlib.Path, command: str) -> None:
-    payload = {'tool_name': 'Bash', 'tool_input': {'command': command}, 'cwd': str(tmp_path)}
+@pytest.mark.parametrize('harness', ALL_HARNESSES, ids=lambda harness: harness.metadata.name)
+def test_each_agent_reads_a_session_start_and_answers_with_context(
+    harness: AgentHarness, tmp_path: pathlib.Path
+) -> None:
+    payload = {'hook_event_name': 'SessionStart', 'source': 'startup', 'cwd': str(tmp_path)}
 
-    assert ClaudeCodeHarness(frozenset()).commit_directory(payload) is None
-
-
-def test_only_claude_code_reads_a_session_start(tmp_path: pathlib.Path) -> None:
-    payload = {'hook_event_name': 'SessionStart', 'cwd': str(tmp_path)}
-
-    assert ClaudeCodeHarness(frozenset()).session_directory(payload) == tmp_path
-    assert CodexHarness(frozenset()).session_directory(payload) is None
-    assert CodexHarness(frozenset()).session_output('context') == ''
+    assert harness.session_directory(payload) == tmp_path
+    context = json.loads(harness.session_output('note'))['hookSpecificOutput']
+    assert context == {'hookEventName': 'SessionStart', 'additionalContext': 'note'}

@@ -2,7 +2,6 @@ import dataclasses
 import enum
 import itertools
 import re
-import typing
 import unicodedata
 
 from .position import SourceRange
@@ -37,8 +36,6 @@ class MarkdownLine:
 @dataclasses.dataclass(frozen=True, slots=True)
 class MarkdownBlock(ProseUnit):
     """A heading, paragraph, or table header cell of a Markdown document, ranging over its text from first to last."""
-
-    surface_name: typing.ClassVar[str] = 'Markdown'
 
     range: SourceRange
     kind: MarkdownBlockKind

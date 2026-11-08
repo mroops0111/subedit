@@ -27,8 +27,6 @@ class LaidOutProse(ProseUnit, abc.ABC):
 
     __slots__ = ()
 
-    surface_name: typing.ClassVar[str] = 'Laid Out Prose'
-
     range: SourceRange
     lines: tuple[PrefixedLine, ...]
     layout: LineLayout
@@ -42,6 +40,11 @@ class LaidOutProse(ProseUnit, abc.ABC):
     def keeps_its_layout(self, width: int) -> bool:
         """Whether reflow leaves the text as written, which it does for text that stays on its line."""
         return self.stays_on_its_line
+
+    @property
+    def category(self) -> str:
+        """The group a corpus measure counts this unit's lines under, so each kind can get a limit of its own."""
+        return 'all'
 
     @property
     def line_count(self) -> int:

@@ -93,7 +93,9 @@ def test_the_rule_reference_matches_each_rule() -> None:
     for rule in ALL_RULES:
         metadata = rule.metadata
         assert metadata.rule_id in rows, f'{metadata.rule_id} is absent from docs/rules.md'
-        _, _, fix_kind, level, options = rows[metadata.rule_id]
+        _, _, surfaces, fix_kind, level, options = rows[metadata.rule_id]
+        read = ', '.join(f'`{surface}`' for surface in DEFAULT_PARSER.surfaces_reading(rule.surface))
+        assert surfaces == read, f'{metadata.rule_id} reads {read}, so a reader setting it per surface finds it there'
         assert fix_kind.lower().startswith(metadata.fix_kind.value), f'{metadata.rule_id} fix kind is {fix_kind}'
         assert level == f'`{metadata.default_severity.name.lower()}`', f'{metadata.rule_id} level is {level}'
         declared = ', '.join(_option_cell(option) for option in metadata.options) or 'None'

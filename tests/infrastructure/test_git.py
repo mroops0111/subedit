@@ -3,13 +3,12 @@ import pathlib
 import pytest
 from factories import Project
 
-from subedit.infrastructure import CommitHook, GitRepository, HookInstallError
+from subedit.infrastructure import GitHooks, GitRepository, HookInstallError
+from subedit.infrastructure.git import STAGES, GitHookStage
 
 
 VERSION = '9.9.9'
-PRE_COMMIT_ENTRY = (
-    'repos:\n  - repo: https://github.com/mroops0111/subedit\n    hooks:\n      - id: subedit-commit-msg\n'
-)
+PRE_COMMIT_ENTRY = 'repos:\n  - repo: https://github.com/mroops0111/subedit\n    hooks:\n      - id: subedit\n      - id: subedit-commit-msg\n'
 
 
 def opened(directory: pathlib.Path) -> GitRepository:
@@ -18,8 +17,12 @@ def opened(directory: pathlib.Path) -> GitRepository:
     return opened_repository
 
 
-def hook_for(repository: Project) -> CommitHook:
-    return CommitHook(opened(repository.root), VERSION)
+def hooks_for(repository: Project) -> GitHooks:
+    return GitHooks(opened(repository.root), VERSION)
+
+
+def stage(name: str) -> GitHookStage:
+    return next(stage for stage in STAGES if stage.name == name)
 
 
 def test_a_directory_outside_any_repository_opens_none(tmp_path: pathlib.Path) -> None:
@@ -44,63 +47,78 @@ def test_head_moved_by_anything_but_a_commit_gives_no_message(repository: Projec
     assert opened(repository.root).just_committed_message() is None
 
 
+def test_staged_files_lists_what_the_next_commit_holds(repository: Project) -> None:
+    repository.write('kept.py', '# note\n')
+    repository.write('notes/plan.md', '# Plan\n')
+    repository.write('unstaged.py', '# note\n')
+    repository.git('add', 'kept.py', 'notes/plan.md')
+
+    staged = opened(repository.root).staged_files()
+
+    assert sorted(path.name for path in staged) == ['kept.py', 'plan.md']
+
+
 def test_the_hook_path_follows_core_hooks_path(repository: Project) -> None:
     repository.git('config', 'core.hooksPath', '.githooks')
 
-    assert hook_for(repository).path == repository.root.resolve() / '.githooks' / 'commit-msg'
+    assert hooks_for(repository).path(stage('commit-msg')) == repository.root.resolve() / '.githooks' / 'commit-msg'
 
 
-def test_install_writes_an_executable_hook_that_runs_subedit(repository: Project) -> None:
-    hook = hook_for(repository)
+@pytest.mark.parametrize(
+    ('name', 'command'), [('pre-commit', 'fix --write --staged'), ('commit-msg', 'fix --write "$1"')]
+)
+def test_install_writes_an_executable_hook_at_each_stage(repository: Project, name: str, command: str) -> None:
+    hooks = hooks_for(repository)
 
-    assert 'Installed' in hook.install()
-    script = hook.path.read_text(encoding='utf-8')
+    assert f'Installed a {name} hook' in hooks.install()
+    script = hooks.path(stage(name)).read_text(encoding='utf-8')
     assert script.startswith('#!/bin/sh\n')
-    assert 'subedit fix --write "$1"' in script
+    assert f'subedit {command}' in script
     assert f"'subedit>={VERSION}'" in script, 'the fallback must run at least the subedit that installed it'
-    assert hook.path.stat().st_mode & 0o111
-    assert hook.is_installed()
+    assert hooks.path(stage(name)).stat().st_mode & 0o111
+    assert hooks.is_installed()
 
 
 def test_a_second_install_changes_nothing(repository: Project) -> None:
-    hook = hook_for(repository)
-    hook.install()
+    hooks = hooks_for(repository)
+    hooks.install()
 
-    assert 'already' in hook.install()
-
-
-def test_a_hook_another_tool_holds_is_left_alone(repository: Project) -> None:
-    hook = hook_for(repository)
-    hook.path.parent.mkdir(parents=True, exist_ok=True)
-    hook.path.write_text('#!/bin/sh\nnpx commitlint --edit "$1"\n', encoding='utf-8')
-
-    with pytest.raises(HookInstallError, match='not subedit'):
-        hook.install()
-    assert 'commitlint' in hook.path.read_text(encoding='utf-8')
-    assert not hook.is_installed()
+    assert hooks.install().count('already') == len(STAGES)
 
 
-def test_a_pre_commit_project_is_told_the_entry_to_add(repository: Project) -> None:
+def test_a_hook_another_tool_holds_is_left_alone_and_the_rest_installed(repository: Project) -> None:
+    hooks = hooks_for(repository)
+    repository.write('.git/hooks/commit-msg', '#!/bin/sh\nnpx commitlint --edit "$1"\n')
+
+    with pytest.raises(HookInstallError, match='not subedit') as raised:
+        hooks.install()
+    assert 'Installed a pre-commit hook' in str(raised.value)
+    assert 'commitlint' in hooks.path(stage('commit-msg')).read_text(encoding='utf-8')
+    assert not hooks.is_installed()
+
+
+def test_a_pre_commit_project_is_told_the_entries_to_add(repository: Project) -> None:
     repository.write('.pre-commit-config.yaml', 'repos: []\n')
 
     with pytest.raises(HookInstallError) as raised:
-        hook_for(repository).install()
-    assert 'id: subedit-commit-msg' in str(raised.value)
-    assert f'rev: v{VERSION}' in str(raised.value)
-    assert 'pre-commit install --hook-type commit-msg' in str(raised.value)
+        hooks_for(repository).install()
+    message = str(raised.value)
+    assert 'id: subedit\n' in message
+    assert 'id: subedit-commit-msg\n' in message
+    assert f'rev: v{VERSION}' in message
+    assert 'pre-commit install --hook-type pre-commit --hook-type commit-msg' in message
 
 
-def test_a_pre_commit_project_listing_the_hook_is_told_to_install_it(repository: Project) -> None:
+def test_a_pre_commit_project_listing_the_hooks_is_told_to_install_them(repository: Project) -> None:
     repository.write('.pre-commit-config.yaml', PRE_COMMIT_ENTRY)
 
-    with pytest.raises(HookInstallError, match='has not installed it'):
-        hook_for(repository).install()
+    with pytest.raises(HookInstallError, match='has not installed them'):
+        hooks_for(repository).install()
 
 
-def test_pre_commit_running_the_listed_hook_counts_as_installed(repository: Project) -> None:
+def test_pre_commit_running_the_listed_hooks_counts_as_installed(repository: Project) -> None:
     repository.write('.pre-commit-config.yaml', PRE_COMMIT_ENTRY)
-    hook = hook_for(repository)
-    hook.path.parent.mkdir(parents=True, exist_ok=True)
-    hook.path.write_text('#!/usr/bin/env bash\n# File generated by pre-commit\n', encoding='utf-8')
+    for name in ('pre-commit', 'commit-msg'):
+        repository.write(f'.git/hooks/{name}', '#!/usr/bin/env bash\n# File generated by pre-commit\n')
 
-    assert hook.is_installed()
+    assert hooks_for(repository).is_installed()

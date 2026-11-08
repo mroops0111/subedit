@@ -40,7 +40,6 @@ class SubeditSection(pydantic.BaseModel):
     # Left unset, the width falls back to the language's own default.
     line_width: int | None = pydantic.Field(default=None, alias='line-width', gt=0)
     exclude: tuple[str, ...] = ()
-    code_blocks: bool = pydantic.Field(default=False, alias='code-blocks')
     # Each is written with its period, as in Dept., since the case and the period are matched as written.
     abbreviations: tuple[str, ...] = ()
 
@@ -59,6 +58,9 @@ class SurfaceSection(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=True, populate_by_name=True, extra='forbid')
 
     line_width: int | None = pydantic.Field(default=None, alias='line-width', gt=0)
+    # A document embedded in one of the surface's, such as a Markdown code block, is often an example,
+    # so it is read only when the project asks.
+    code_blocks: bool | None = pydantic.Field(default=None, alias='code-blocks')
     rules: dict[str, RuleEntry] = pydantic.Field(default_factory=dict)
 
 
@@ -84,6 +86,12 @@ class ConfigFile(pydantic.BaseModel):
 
     @classmethod
     def parse(cls, raw: typing.Mapping[str, object]) -> 'ConfigFile':
+        settings = raw.get('subedit')
+        if isinstance(settings, dict) and 'code-blocks' in settings:
+            raise ConfigError(
+                'subedit.code-blocks: moved to [surfaces.markdown], as code-blocks = true, '
+                'since it belongs to the surface whose code blocks it reads'
+            )
         try:
             return cls.model_validate(raw)
         except pydantic.ValidationError as error:
