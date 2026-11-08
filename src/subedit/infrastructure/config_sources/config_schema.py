@@ -6,6 +6,8 @@ from ...domain.models.diagnostic import SEVERITY_BY_NAME, Severity
 
 
 _SeverityName = typing.Literal['error', 'warning', 'suggestion']
+# The names pydantic gives the table branch of an entry that is a word or a table.
+_TABLE_BRANCHES = ('RuleTable', 'SurfaceSection')
 
 
 class ConfigError(ValueError):
@@ -60,12 +62,25 @@ class SurfaceSection(pydantic.BaseModel):
     rules: dict[str, RuleEntry] = pydantic.Field(default_factory=dict)
 
 
+# A surface is switched off as a rule is, with "off", or set apart with a table of its own.
+SurfaceEntry = typing.Annotated[typing.Literal['off'] | SurfaceSection, pydantic.Field(union_mode='left_to_right')]
+
+
 class ConfigFile(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(frozen=True, extra='forbid')
 
     subedit: SubeditSection = pydantic.Field(default_factory=SubeditSection)
     rules: dict[str, RuleEntry] = pydantic.Field(default_factory=dict)
-    surfaces: dict[str, SurfaceSection] = pydantic.Field(default_factory=dict)
+    surfaces: dict[str, SurfaceEntry] = pydantic.Field(default_factory=dict)
+
+    @property
+    def surface_sections(self) -> dict[str, SurfaceSection]:
+        """The surfaces the project sets apart with a table, leaving out those it switches off."""
+        return {name: entry for name, entry in self.surfaces.items() if isinstance(entry, SurfaceSection)}
+
+    @property
+    def off_surfaces(self) -> frozenset[str]:
+        return frozenset(name for name, entry in self.surfaces.items() if entry == 'off')
 
     @classmethod
     def parse(cls, raw: typing.Mapping[str, object]) -> 'ConfigFile':
@@ -76,21 +91,23 @@ class ConfigFile(pydantic.BaseModel):
             raise ConfigError('; '.join(_describe(detail) for detail in details)) from None
 
 
-# A rule entry is a level or a table, and pydantic reports both branches, so only the one written stays.
+# A rule or surface entry is a word or a table, and pydantic reports both branches, so only the one written stays.
 def _matches_what_was_written(detail: typing.Any) -> bool:
-    branches = [str(part) for part in detail['loc'] if str(part).startswith('literal[') or part == 'RuleTable']
+    branches = [str(part) for part in detail['loc'] if _is_branch(part)]
     if not branches:
         return True
-    if branches[0] == 'RuleTable':
+    if branches[0] in _TABLE_BRANCHES:
         return detail['type'] != 'model_type'
     return not isinstance(detail['input'], dict)
 
 
 def _describe(detail: typing.Any) -> str:
-    location = '.'.join(
-        str(part) for part in detail['loc'] if not str(part).startswith('literal[') and part != 'RuleTable'
-    )
+    location = '.'.join(str(part) for part in detail['loc'] if not _is_branch(part))
     message = 'is not a setting subedit knows' if detail['type'] == 'extra_forbidden' else detail['msg']
     # A validator's own sentence comes after the prefix pydantic puts on it.
     message = message.removeprefix('Value error, ')
     return f'{location}: {message}' if location else message
+
+
+def _is_branch(part: object) -> bool:
+    return str(part).startswith('literal[') or part in _TABLE_BRANCHES

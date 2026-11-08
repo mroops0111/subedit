@@ -5,7 +5,14 @@ import pytest
 from factories import Project
 
 from subedit.domain import Severity
-from subedit.infrastructure import ALL_RULES, CONFIG_NAME, DEFAULT_CONFIG_SOURCE, ConfigError, TomlConfigSource
+from subedit.infrastructure import (
+    ALL_RULES,
+    CONFIG_NAME,
+    DEFAULT_CONFIG_SOURCE,
+    ConfigError,
+    TomlConfigSource,
+    language_id_for,
+)
 
 
 AVAILABLE = ('mid-clause-break', 'line-too-long', 'line-too-short', 'heading-title-case', 'discouraged-word')
@@ -236,6 +243,22 @@ def test_subedit_config_sets_the_width_over_the_formatter(project: Project) -> N
 def test_code_blocks_are_read_only_where_the_project_asks(project: Project) -> None:
     assert not source().resolve(str(configured(project, '[subedit]\n'))).reads_embedded
     assert source().resolve(str(configured(project, '[subedit]\ncode-blocks = true\n'))).reads_embedded
+
+
+@pytest.mark.parametrize(('surface', 'name'), [('comments', 'module.py'), ('markdown', 'README.md')])
+def test_a_surface_switched_off_is_read_by_nothing(project: Project, surface: str, name: str) -> None:
+    project.write(CONFIG_NAME, f'[surfaces]\n{surface} = "off"\n')
+    target = project.write(name, '# note\n')
+    language_id = language_id_for(target)
+
+    assert language_id is not None
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(target)).for_language(language_id).is_off
+    assert not DEFAULT_CONFIG_SOURCE.resolve(str(target)).for_language('git-commit').is_off
+
+
+def test_a_surface_takes_off_or_a_table_and_nothing_else(project: Project) -> None:
+    with pytest.raises(ConfigError, match=re.escape('surfaces.markdown')):
+        source().resolve(str(configured(project, '[surfaces]\nmarkdown = "warning"\n')))
 
 
 def commit_message_in(project: Project, body: str) -> pathlib.Path:

@@ -1,4 +1,5 @@
 import pathlib
+import subprocess
 import typing
 
 from subedit.application import Fixer, Linter, ReportAggregator, RuleEngine
@@ -114,3 +115,11 @@ class Project:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body, encoding='utf-8')
         return path
+
+    def git(self, *arguments: str) -> str:
+        """Run git in the repository, with an author set so a commit needs no global config."""
+        identity = ('-c', 'user.name=Subedit Test', '-c', 'user.email=test@example.com')
+        completed = subprocess.run(
+            ['git', *identity, *arguments], cwd=self.root, check=True, capture_output=True, text=True
+        )
+        return completed.stdout

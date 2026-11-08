@@ -38,6 +38,8 @@ class RuleSet:
     # The rule set of each language whose surface the project sets apart, by its language id,
     # which holds the project's rules for every surface with the surface's own laid over them.
     by_language: typing.Mapping[str, 'RuleSet'] = dataclasses.field(default_factory=dict)
+    # A surface the project switches off is read by nothing, neither subedit's rules nor the tools it delegates to.
+    is_off: bool = False
 
     def for_language(self, language_id: str) -> 'RuleSet':
         """The rule set a document in a language is checked under, its surface's own where the project sets one."""

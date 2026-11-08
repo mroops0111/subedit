@@ -103,3 +103,33 @@ def test_a_harness_must_name_itself() -> None:
 
 def test_the_registry_holds_both_agents() -> None:
     assert [type(harness) for harness in ALL_HARNESSES] == [ClaudeCodeHarness, CodexHarness]
+
+
+@pytest.mark.parametrize(
+    ('command', 'moved'),
+    [
+        ('git commit -m "Add the parser"', ''),
+        ('git add . && git commit -F message.txt', ''),
+        ('git -c core.editor=true commit --amend', ''),
+        ('git -C packages/core commit -m "Add the parser"', 'packages/core'),
+    ],
+)
+def test_claude_code_reads_a_commit_from_the_shell(tmp_path: pathlib.Path, command: str, moved: str) -> None:
+    payload = {'tool_name': 'Bash', 'tool_input': {'command': command}, 'cwd': str(tmp_path)}
+
+    assert ClaudeCodeHarness(frozenset()).commit_directory(payload) == tmp_path / moved
+
+
+@pytest.mark.parametrize('command', ['git log --grep commit', 'echo commit', 'git commit-tree HEAD^{tree}'])
+def test_claude_code_reads_no_commit_from_other_commands(tmp_path: pathlib.Path, command: str) -> None:
+    payload = {'tool_name': 'Bash', 'tool_input': {'command': command}, 'cwd': str(tmp_path)}
+
+    assert ClaudeCodeHarness(frozenset()).commit_directory(payload) is None
+
+
+def test_only_claude_code_reads_a_session_start(tmp_path: pathlib.Path) -> None:
+    payload = {'hook_event_name': 'SessionStart', 'cwd': str(tmp_path)}
+
+    assert ClaudeCodeHarness(frozenset()).session_directory(payload) == tmp_path
+    assert CodexHarness(frozenset()).session_directory(payload) is None
+    assert CodexHarness(frozenset()).session_output('context') == ''

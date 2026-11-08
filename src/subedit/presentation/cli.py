@@ -19,7 +19,10 @@ from ..infrastructure import (
     EXTERNAL_LINTERS,
     GENERATED_NAMES,
     VENDOR_DIRECTORIES,
+    CommitHook,
     ConfigError,
+    GitRepository,
+    HookInstallError,
     language_id_for,
 )
 from . import report as reporters
@@ -113,6 +116,25 @@ def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directo
 def rules() -> None:
     """Print the native rules, grouped by the surface they read."""
     typer.echo(rule_reference.render(ALL_RULES), nl=False)
+
+
+@app.command(name='install-hook')
+def install_hook(
+    directory: pathlib.Path = typer.Argument(pathlib.Path('.'), help='A directory inside the repository.'),
+) -> None:
+    """Install a git commit-msg hook that lays out each commit message and stops on what needs rewriting.
+
+    A hook another tool already holds, or one pre-commit manages, is left alone, with the step to take instead.
+    """
+    repository = GitRepository.at(directory)
+    if repository is None:
+        typer.echo(f'{directory} is not inside a git repository.', err=True)
+        raise typer.Exit(2)
+    try:
+        typer.echo(CommitHook(repository, __version__).install())
+    except HookInstallError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(1) from None
 
 
 @app.command()

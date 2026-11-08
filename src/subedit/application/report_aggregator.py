@@ -23,6 +23,8 @@ class ReportAggregator:
     # so a Python block in Markdown follows what the project sets for comments.
     def _run(self, document: Document, project_rules: RuleSet, *, fragment: bool) -> Report:
         rule_set = project_rules.for_language(document.language_id)
+        if rule_set.is_off:
+            return Report()
         inspection = self._linter.inspect(document, rule_set, fragment=fragment)
         report = inspection.report.merged_with(self._external_report(document, inspection.prose_map, rule_set))
         for embedding in inspection.embeddings:

@@ -37,6 +37,18 @@ class AgentHarness(abc.ABC):
         """
         ...
 
+    def commit_directory(self, payload: Payload) -> pathlib.Path | None:
+        """The directory a commit was run in when this payload ran git commit, or None for any other payload."""
+        return None
+
+    def session_directory(self, payload: Payload) -> pathlib.Path | None:
+        """The directory a session opened in when this payload starts one, or None for any other payload."""
+        return None
+
+    def session_output(self, context: str) -> str:
+        """Stdout that puts context in front of the model as a session opens, or nothing where the agent has none."""
+        return ''
+
     def advisory_output(self, advice: str) -> str:
         """Stdout that puts advice in front of the model without blocking, or nothing where the agent has no channel.
 

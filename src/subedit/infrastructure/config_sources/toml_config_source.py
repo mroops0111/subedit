@@ -131,7 +131,7 @@ class TomlConfigSource:
                     f'surfaces.{surface}: is not a surface subedit reads, it reads {", ".join(known_surfaces)}'
                 )
         self._check_rules('rules', config_file.rules)
-        for surface, section in config_file.surfaces.items():
+        for surface, section in config_file.surface_sections.items():
             self._check_rules(f'surfaces.{surface}.rules', section.rules)
 
     # A rule subedit does not define belongs to a delegated tool, whose options it cannot know.
@@ -168,7 +168,7 @@ class TomlConfigSource:
     def _width(self, config_file: ConfigFile, path: str) -> int:
         file_type = self._file_type_for(path)
         if file_type is not None:
-            surface = config_file.surfaces.get(file_type.surface)
+            surface = config_file.surface_sections.get(file_type.surface)
             if surface is not None and surface.line_width is not None:
                 return surface.line_width
             if file_type.line_width is not None:
@@ -181,7 +181,10 @@ class TomlConfigSource:
     def _to_rule_set(self, config_file: ConfigFile, path: str) -> RuleSet:
         project_rules = self._rule_set(config_file, config_file.rules, self._width(config_file, path))
         by_language: dict[str, RuleSet] = {}
-        for surface, section in config_file.surfaces.items():
+        for file_type in self._file_types:
+            if file_type.surface in config_file.off_surfaces:
+                by_language[file_type.language_id] = RuleSet(enabled_rule_ids=frozenset(), is_off=True)
+        for surface, section in config_file.surface_sections.items():
             rules = _overlaid(config_file.rules, section.rules)
             for file_type in self._file_types:
                 if file_type.surface == surface:

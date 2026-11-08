@@ -6,7 +6,7 @@ import typing
 import pytest
 from factories import REPOSITORY_ROOT, Project
 
-from subedit.presentation.harnesses.claude_code_harness import EDIT_TOOLS
+from subedit.presentation.harnesses.claude_code_harness import EDIT_TOOLS, SHELL_TOOL
 
 
 PLUGIN = REPOSITORY_ROOT / 'plugins' / 'subedit'
@@ -44,10 +44,18 @@ def test_the_hook_matcher_covers_every_tool_the_harness_recognises() -> None:
     assert matched == EDIT_TOOLS, 'a tool the harness reads but the matcher omits never reaches the hook'
 
 
-def test_the_hook_runs_the_wrapper_from_the_plugin_directory() -> None:
-    command = load(HOOKS)['hooks']['PostToolUse'][0]['hooks'][0]['command']
+def test_the_shell_tool_reaches_the_hook_for_commits() -> None:
+    matchers = [entry['matcher'] for entry in load(HOOKS)['hooks']['PostToolUse']]
 
-    assert command == WRAPPER_COMMAND, 'a bare or unquoted path breaks once the plugin is installed elsewhere'
+    assert SHELL_TOOL in matchers, (
+        'a commit an agent makes through the shell is checked only if the shell reaches the hook'
+    )
+
+
+def test_the_hook_runs_the_wrapper_from_the_plugin_directory() -> None:
+    commands = {entry['hooks'][0]['command'] for entry in load(HOOKS)['hooks']['PostToolUse']}
+
+    assert commands == {WRAPPER_COMMAND}, 'a bare or unquoted path breaks once the plugin is installed elsewhere'
 
 
 def test_the_wrapper_is_executable() -> None:
@@ -58,14 +66,14 @@ def test_the_wrapper_is_valid_shell() -> None:
     subprocess.run(['bash', '-n', str(WRAPPER)], check=True, capture_output=True)
 
 
-def run_wrapper(project: pathlib.Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+def run_wrapper(project: pathlib.Path, *arguments: str, payload: str = '') -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ['bash', str(WRAPPER), *arguments],
         check=False,
         capture_output=True,
         text=True,
         env={'PATH': '/usr/bin:/bin', 'CLAUDE_PROJECT_DIR': str(project)},
-        input='',
+        input=payload,
     )
 
 
@@ -96,6 +104,15 @@ def test_the_wrapper_acts_in_a_subdirectory_of_a_configured_project(project: Pro
     (project.root / 'packages').mkdir()
 
     assert 'astral.sh/uv' in run_wrapper(project.root / 'packages').stderr
+
+
+def test_the_wrapper_lets_a_shell_command_that_commits_nothing_pass_before_starting_subedit(project: Project) -> None:
+    project.write('subedit.toml', '[subedit]\n')
+    shell_payload = json.dumps({'tool_name': 'Bash', 'tool_input': {'command': 'ls'}})
+
+    completed = run_wrapper(project.root, payload=shell_payload)
+
+    assert (completed.returncode, completed.stderr) == (0, ''), 'without uv on PATH, reaching uvx would fail'
 
 
 def test_the_wrapper_runs_the_released_version() -> None:

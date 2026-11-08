@@ -225,3 +225,35 @@ class _PreparedLinter(ExternalLinter):
 
     def run(self, document: Document) -> tuple[Diagnostic, ...]:
         return ()
+
+
+def test_install_hook_writes_the_commit_msg_hook(repository: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        app(['install-hook', str(repository.root)])
+
+    assert exit_info.value.code == 0
+    assert 'Installed' in capsys.readouterr().out
+    assert (repository.root / '.git' / 'hooks' / 'commit-msg').is_file()
+
+
+def test_install_hook_outside_a_repository_is_a_usage_error(tmp_path: pathlib.Path) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        app(['install-hook', str(tmp_path)])
+    assert exit_info.value.code == 2
+
+
+def test_install_hook_leaves_another_tools_hook_and_exits_non_zero(repository: Project) -> None:
+    repository.write('.git/hooks/commit-msg', '#!/bin/sh\nnpx commitlint --edit "$1"\n')
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['install-hook', str(repository.root)])
+    assert exit_info.value.code == 1
+
+
+def test_a_surface_switched_off_reports_nothing(project: Project) -> None:
+    project.write('subedit.toml', '[surfaces]\nmarkdown = "off"\n')
+    target = project.write('notes.md', '## when to apply\n\n- item\n')
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check', '--no-delegate', str(target)])
+    assert exit_info.value.code == 0

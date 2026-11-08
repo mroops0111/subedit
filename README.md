@@ -105,6 +105,7 @@ Every command takes files or directories, and a directory walk skips dotted and 
 | `subedit fix src/ --write` | Applies the autofixes in place |
 | `subedit stats src/` | Measures comment lengths and widths, to set thresholds from data |
 | `subedit rules` | Lists every native rule with its fix kind and default level |
+| `subedit install-hook` | Installs a git `commit-msg` hook that lays out each commit message |
 
 To adopt `subedit`, add an empty `subedit.toml` at the project root, run `fix --write` once, and read what `check` still reports. `check` exits 1 on any `error` finding, and `fix` exits 1 while an `error` rewrite remains, so both drop into CI or a pre-commit hook. `--no-delegate` skips Vale and AutoCorrect.
 
@@ -204,6 +205,8 @@ Rules never see a syntax tree. A parser turns the file into prose units, such as
 
 The hook acts only in a project that opts in, with a `subedit.toml` or a `[tool.subedit]` table in `pyproject.toml`, in the edited file's directory or a parent. An empty table is enough. Elsewhere it exits 0 and changes nothing. The opt-in covers every surface, and a single rule is switched off by name under `[rules]`.
 
+In Claude Code the hook also checks each commit an agent makes through the shell, unless the project switches the `commit-messages` surface off. It never rewrites the commit, since amending history is the agent's call. It exits 2 with the findings and the message laid out, so the agent can amend a commit it has not pushed. A session that opens in a repository whose commits subedit checks, with no git hook yet, hears once that `subedit install-hook` would add one, and the agent runs it only if you agree.
+
 #### Claude Code
 
 The [plugin](#claude-code-plugin) registers the hook for you. It also ships the `subedit:judging-findings` skill, which gives the model the criteria for every finding a tool cannot fix, such as when a spec identifier stays and a ticket number goes. Criteria in your `CLAUDE.md`, `AGENTS.md`, or a skill of your own come first.
@@ -276,11 +279,14 @@ exceptions = ["npm"]
 
 A name Title Case must leave as written, such as `npm`, goes under `exceptions`, which headings, table headers, and list labels all follow.
 
-A rule that reads more than one surface, such as `mid-clause-break` on comments and commit messages, follows `[rules]` on each. A `[surfaces.<name>]` table sets one surface apart, with its own `line-width` and a `rules` table laid over `[rules]`. A surface's entry for a rule replaces the project's, except that a table's options join those of the project's table. The surfaces are `comments`, `markdown`, and `commit-messages`, and a Markdown code block follows the surface of its language.
+A rule that reads more than one surface, such as `mid-clause-break` on comments and commit messages, follows `[rules]` on each. A `[surfaces.<name>]` table sets one surface apart, with its own `line-width` and a `rules` table laid over `[rules]`. A surface's entry for a rule replaces the project's, except that a table's options join those of the project's table. The surfaces are `comments`, `markdown`, and `commit-messages`, and a Markdown code block follows the surface of its language. Every surface is read once a project adopts subedit, and one is switched off as a rule is, with `"off"` under `[surfaces]`.
 
 ```toml
 [rules]
 line-too-short = "off"
+
+[surfaces]
+markdown = "off"
 
 [surfaces.commit-messages]
 line-width = 100
@@ -290,7 +296,7 @@ line-too-short = "warning"
 subject-style = { style = "conventional" }
 ```
 
-In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, `[tool.subedit.rules.<name>]`, and `[tool.subedit.surfaces.<name>]`.
+In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.rules]`, `[tool.subedit.rules.<name>]`, `[tool.subedit.surfaces]`, and `[tool.subedit.surfaces.<name>]`.
 
 <details>
 <summary><b>Settings</b>: the width, excluded paths, code blocks, and abbreviations</summary>
@@ -346,7 +352,12 @@ A surface is a kind of file where prose lives. Every surface goes through the sa
 
 Markdown is read from `.md` and `.markdown` files, leaving front matter, code, and HTML blocks alone, and reading only the header of a table. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. Each block is checked as a file of that language would be, by Vale and AutoCorrect as well, except for the rules on a whole file. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
 
-A commit message is read from the files git writes it to, such as `COMMIT_EDITMSG`, so a `commit-msg` hook lays out the body in place and stops the commit on what needs rewriting. The body breaks between clauses within 72 characters rather than filling each line, which git's convention allows, since it sets a limit on a line rather than a fill. With [pre-commit](https://pre-commit.com), the hook is one entry, and `pre-commit install --hook-type commit-msg` enables it.
+A commit message is read from the files git writes it to, such as `COMMIT_EDITMSG`. The body breaks between clauses within 72 characters rather than filling each line, which git's convention allows, since it sets a limit on a line rather than a fill. Two hooks read it, and a project may run both:
+
+- **Agent Hook**: the [agent hook](#agent-integration) checks each commit an agent makes and hands the findings back to the model.
+- **Git Hook**: a `commit-msg` hook lays out every commit's body in place, whoever writes it, and stops the commit on what needs rewriting. `subedit install-hook` writes one, and leaves a hook another tool holds alone.
+
+With [pre-commit](https://pre-commit.com), the git hook is one entry instead, and `pre-commit install --hook-type commit-msg` enables it. `subedit install-hook` prints this entry in a project that has a `.pre-commit-config.yaml`.
 
 ```yaml
 repos:
@@ -355,8 +366,6 @@ repos:
     hooks:
       - id: subedit-commit-msg
 ```
-
-Without pre-commit, `.git/hooks/commit-msg` holds `exec subedit fix --write "$1"`.
 
 #### Languages
 
