@@ -1,9 +1,9 @@
 import re
 
-from ...domain.models.comment_layout import CommentLine
 from ...domain.models.commit_message import CommitBody, CommitSubject
 from ...domain.models.document import Document
 from ...domain.models.file_type import FileType
+from ...domain.models.line_layout import PrefixedLine
 from ...domain.models.position import SourceRange
 from ...domain.models.prose_unit import ProseUnit
 from ...domain.ports.source_parser import ParsedDocument, SourceParser
@@ -55,7 +55,7 @@ class CommitMessageParser(SourceParser[ProseUnit]):
                 CommitBody(
                     range=SourceRange(lines.ranges[body_start].start, lines.ranges[body_end - 1].end),
                     lines=tuple(
-                        CommentLine(range=lines.ranges[index], indent='', delimiter='', text=lines.texts[index])
+                        PrefixedLine(range=lines.ranges[index], indent='', delimiter='', text=lines.texts[index])
                         for index in range(body_start, body_end)
                     ),
                 )

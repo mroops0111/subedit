@@ -2,8 +2,8 @@ import dataclasses
 import enum
 import typing
 
-from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .laid_out_prose import LaidOutProse
+from .line_layout import LINE_LAYOUT, LineLayout, PrefixedLine
 from .position import SourceRange
 from .prose import PLAIN_MARKUP, ProseMarkup
 
@@ -50,11 +50,11 @@ class CommentGroup(LaidOutProse):
     surface_name: typing.ClassVar[str] = 'Comments'
 
     range: SourceRange
-    lines: tuple[CommentLine, ...]
+    lines: tuple[PrefixedLine, ...]
     form: CommentForm
     placement: CommentPlacement
     attachment: SymbolRef | None = None
-    layout: CommentLayout = LINE_LAYOUT
+    layout: LineLayout = LINE_LAYOUT
     markup: ProseMarkup = PLAIN_MARKUP
 
     def __post_init__(self) -> None:

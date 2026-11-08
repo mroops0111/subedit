@@ -1,88 +1,22 @@
-import abc
 import dataclasses
 
-from .position import SourceRange
+from .line_layout import LineLayout, PrefixedLine
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
-class CommentLine:
-    range: SourceRange
-    indent: str
-    delimiter: str
-    text: str
-    suffix: str = ''
-
-    @property
-    def physical_width(self) -> int:
-        return len(self.indent) + len(self.delimiter) + len(self.text) + len(self.suffix)
-
-    @property
-    def prefix_width(self) -> int:
-        return len(self.indent) + len(self.delimiter)
-
-    def render(self) -> str:
-        if not self.text and not self.suffix:
-            return (self.indent + self.delimiter).rstrip()
-        return self.indent + self.delimiter + self.text + self.suffix
-
-
-class CommentLayout(abc.ABC):
-    """How a comment sets its text on lines, which each language's comment syntax decides and reflow follows."""
-
-    # The style guide that keeps the first sentence to one line, as a summary indexing tools read alone.
-    summary_convention: str | None = None
-    # reStructuredText and Markdown read a list as part of the paragraph above it unless a blank line parts them,
-    # while a line comment's list may sit right under the line that introduces it.
-    parts_every_paragraph = False
-
-    @abc.abstractmethod
-    def text_budget(self, lines: tuple[CommentLine, ...], width: int, *, first_line: bool) -> int:
-        """The characters of text one line holds once the indent and the comment syntax take their share."""
-
-    @abc.abstractmethod
-    def rebuild(self, lines: tuple[CommentLine, ...], texts: tuple[str, ...], width: int) -> tuple[CommentLine, ...]:
-        """Set the texts on lines of this syntax, in place of the lines given."""
-
-    def closing(self, lines: tuple[CommentLine, ...]) -> str:
-        """What closes the comment on its last text line, which that line must leave room for."""
-        return ''
-
-
-class LinePrefixLayout(CommentLayout):
-    """A comment whose every line opens with the same delimiter, such as # or //."""
-
-    def text_budget(self, lines: tuple[CommentLine, ...], width: int, *, first_line: bool) -> int:
-        return max(20, width - lines[0].prefix_width)
-
-    def rebuild(self, lines: tuple[CommentLine, ...], texts: tuple[str, ...], width: int) -> tuple[CommentLine, ...]:
-        if not texts:
-            raise ValueError('A comment block needs at least one line')
-        # A blank line's delimiter drops its space, so a text moved onto it takes the spacing of a filled one.
-        template = next((line for line in lines if line.text), lines[0])
-        return tuple(
-            dataclasses.replace(
-                lines[index] if index < len(lines) else template,
-                delimiter=template.delimiter if text else template.delimiter.rstrip(),
-                text=text,
-            )
-            for index, text in enumerate(texts)
-        )
-
-
-class QuotedDocLayout(CommentLayout):
+class QuotedDocLayout(LineLayout):
     """A docstring, whose text runs on from its opening quotes with no prefix on the lines after."""
 
     summary_convention = 'PEP 257'
     parts_every_paragraph = True
 
-    def text_budget(self, lines: tuple[CommentLine, ...], width: int, *, first_line: bool) -> int:
+    def text_budget(self, lines: tuple[PrefixedLine, ...], width: int, *, first_line: bool) -> int:
         opening = lines[0]
         return max(20, width - (opening.prefix_width if first_line else len(opening.indent)))
 
-    def closing(self, lines: tuple[CommentLine, ...]) -> str:
+    def closing(self, lines: tuple[PrefixedLine, ...]) -> str:
         return lines[-1].suffix or lines[0].delimiter.strip()
 
-    def rebuild(self, lines: tuple[CommentLine, ...], texts: tuple[str, ...], width: int) -> tuple[CommentLine, ...]:
+    def rebuild(self, lines: tuple[PrefixedLine, ...], texts: tuple[str, ...], width: int) -> tuple[PrefixedLine, ...]:
         opening, closing = lines[0], lines[-1]
         closes_alone = len(lines) > 1 and not closing.text.strip()
         body = [dataclasses.replace(opening, delimiter='', suffix='', text=text) for text in texts]
@@ -98,7 +32,7 @@ class QuotedDocLayout(CommentLayout):
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class FramedDocLayout(CommentLayout):
+class FramedDocLayout(LineLayout):
     """A doc block such as JSDoc, framed by an opening line, a prefix on each text line, and a closing line."""
 
     parts_every_paragraph = True
@@ -106,10 +40,10 @@ class FramedDocLayout(CommentLayout):
     prefix: str
     closing_line: str
 
-    def text_budget(self, lines: tuple[CommentLine, ...], width: int, *, first_line: bool) -> int:
+    def text_budget(self, lines: tuple[PrefixedLine, ...], width: int, *, first_line: bool) -> int:
         return max(20, width - len(lines[0].indent) - len(self.prefix))
 
-    def rebuild(self, lines: tuple[CommentLine, ...], texts: tuple[str, ...], width: int) -> tuple[CommentLine, ...]:
+    def rebuild(self, lines: tuple[PrefixedLine, ...], texts: tuple[str, ...], width: int) -> tuple[PrefixedLine, ...]:
         """Open the frame, unless the block sat on one line and its text, framed on both sides, still fits there."""
         opening = lines[0]
         if len(texts) == 1 and len(lines) == 1:
@@ -126,5 +60,4 @@ class FramedDocLayout(CommentLayout):
         )
 
 
-LINE_LAYOUT = LinePrefixLayout()
 QUOTED_DOC_LAYOUT = QuotedDocLayout()

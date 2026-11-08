@@ -70,10 +70,10 @@ class Segment:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class ProseMarkup:
-    """What a language writes in its comments besides prose, which reflow leaves as written.
+    """What a text holds besides prose, which reflow leaves as written.
 
-    A tag section, such as JSDoc's from its first @throws on, runs to the end of the comment.
-    An example tag's body is code, and so is a line that the language's grammar reads as code commented out.
+    A tag section, from its first tag on, runs to the end of the text.
+    An example tag's body is code, and so is a line that a language's grammar reads as code.
     """
 
     tag_section: re.Pattern[str] | None = None
@@ -150,7 +150,7 @@ class Prose:
                 inside_list = True
             elif not self._continues_list_item(line, previous_line, inside_list):
                 inside_list = False
-            # The indented body under a commented-out opening brace is code too.
+            # The indented body under an opening brace read as code is code too.
             inside_code = self.markup.is_code(line) or (inside_code and line[:1].isspace())
             flush(
                 next_is_literal=inside_fence
@@ -184,7 +184,7 @@ class Prose:
         return frozenset(indexes)
 
     # A line set two spaces past the margin, such as a tree diagram or an aligned table, is laid out by hand.
-    # Markdown wants four for a code block, but a comment's prefix already takes the space a writer would count.
+    # Markdown wants four for a code block, but a delimiter already takes the space a writer would count.
     def _is_indented(self, line: str) -> bool:
         return line.startswith(('  ', '\t'))
 

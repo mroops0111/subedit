@@ -1,8 +1,8 @@
 import dataclasses
 import typing
 
-from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
 from .laid_out_prose import LaidOutProse
+from .line_layout import LINE_LAYOUT, LineLayout, PrefixedLine
 from .position import SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup
 from .prose_unit import ProseLine, ProseUnit
@@ -57,8 +57,8 @@ class CommitBody(LaidOutProse):
     surface_name: typing.ClassVar[str] = 'Commit Messages'
 
     range: SourceRange
-    lines: tuple[CommentLine, ...]
-    layout: CommentLayout = LINE_LAYOUT
+    lines: tuple[PrefixedLine, ...]
+    layout: LineLayout = LINE_LAYOUT
     markup: ProseMarkup = PLAIN_MARKUP
 
     def __post_init__(self) -> None:

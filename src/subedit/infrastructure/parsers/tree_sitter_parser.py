@@ -1,6 +1,6 @@
 from tree_sitter import Node, Parser, Query, QueryCursor
 
-from ...domain.models.comment import CommentForm, CommentGroup, CommentLine, CommentPlacement, SymbolRef
+from ...domain.models.comment import CommentForm, CommentGroup, CommentPlacement, PrefixedLine, SymbolRef
 from ...domain.models.document import Document
 from ...domain.models.file_type import FileType
 from ...domain.models.position import SourceRange
@@ -114,11 +114,11 @@ class TreeSitterParser(SourceParser[CommentGroup]):
     def _build_doc_group(
         self, profile: LanguageProfile, document: Document, node: Node, exported: frozenset[str]
     ) -> CommentGroup:
-        lines: list[CommentLine] = []
+        lines: list[PrefixedLine] = []
         for line_number in range(node.start_point[0], node.end_point[0] + 1):
             marker_split = profile.split_delimiter(document.positions.line_text(line_number), CommentForm.DOC)
             lines.append(
-                CommentLine(
+                PrefixedLine(
                     range=document.positions.line_range(line_number),
                     indent=marker_split.indent,
                     delimiter=marker_split.delimiter,
@@ -143,11 +143,11 @@ class TreeSitterParser(SourceParser[CommentGroup]):
     # Vale measures the extracted content alone, which is why a deeply indented comment passes there.
     def _build_comment_line(
         self, profile: LanguageProfile, document: Document, node: Node, form: CommentForm
-    ) -> CommentLine:
+    ) -> PrefixedLine:
         line_number, column = node.start_point
         line_text = document.positions.line_text(line_number)
         marker_split = profile.split_delimiter(line_text[column:], form)
-        return CommentLine(
+        return PrefixedLine(
             range=document.positions.line_range(line_number),
             indent=line_text[:column] + marker_split.indent,
             delimiter=marker_split.delimiter,

@@ -2,7 +2,7 @@ import abc
 import dataclasses
 import typing
 
-from .comment_layout import CommentLayout, CommentLine
+from .line_layout import LineLayout, PrefixedLine
 from .position import SourceRange
 from .prose import LIST_MARKER, Prose, ProseMarkup
 from .prose_unit import ProseLine, ProseUnit
@@ -20,7 +20,7 @@ from .text import TextEdit
 
 
 class LaidOutProse(ProseUnit, abc.ABC):
-    """Prose set on lines of a width, such as a comment, which reflow lays out sentence by sentence.
+    """Prose set on lines of a width, which reflow lays out sentence by sentence.
 
     A subclass is a frozen dataclass holding these fields, and says when its text must keep the layout it has.
     """
@@ -30,8 +30,8 @@ class LaidOutProse(ProseUnit, abc.ABC):
     surface_name: typing.ClassVar[str] = 'Laid Out Prose'
 
     range: SourceRange
-    lines: tuple[CommentLine, ...]
-    layout: CommentLayout
+    lines: tuple[PrefixedLine, ...]
+    layout: LineLayout
     markup: ProseMarkup
 
     @property
@@ -53,7 +53,7 @@ class LaidOutProse(ProseUnit, abc.ABC):
 
     @property
     def has_summary_line(self) -> bool:
-        """Whether the first sentence is a one-line summary, as a style guide such as PEP 257 asks."""
+        """Whether the first sentence is a one-line summary, as the style guide the layout follows asks."""
         return self.layout.summary_convention is not None
 
     def prose(self) -> Prose:
@@ -135,13 +135,13 @@ class LaidOutProse(ProseUnit, abc.ABC):
         return tuple(splitting)
 
     def text_budget(self, width: int, *, first_line: bool) -> int:
-        """The characters of text a line holds, which on a docstring's opening line also cede the quotes."""
+        """The characters of text a line holds, which on the opening line also cede what opens the text."""
         return self.layout.text_budget(self.lines, width, first_line=first_line)
 
     # A sentence takes as few lines as fit, and the author's layout stays when it is legal.
     # A sentence whose new layout would strand a stub or still overflow needs its author,
     # so it keeps the layout they gave it rather than one its own check rejects.
-    # A summary never breaks where the comment's style guide keeps it to one line.
+    # A summary never breaks where the text's style guide keeps it to one line.
     def _reflow_into_texts(
         self, width: int, policy: BreakPolicy, reserve: int = 0, splitting: list[str] | None = None
     ) -> tuple[str, ...]:
@@ -213,7 +213,7 @@ class LaidOutProse(ProseUnit, abc.ABC):
         return tuple(paragraphs)
 
     def closing(self) -> str:
-        """What closes the text on its last line, such as a docstring's quotes."""
+        """What closes the text on its last line, which that line must leave room for."""
         return self.layout.closing(self.lines)
 
     def render(self) -> str:
