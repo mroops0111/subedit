@@ -1,7 +1,7 @@
 import typing
 
-from ..models.comment import CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.laid_out_prose import LaidOutProse
 from ..models.prose import Prose
 from ..models.reflow import BreakPolicy, reflow_sentence
 from ..models.rule_option import CountOption
@@ -14,7 +14,7 @@ _MAX_ITEM_WORDS = CountOption('max-item-words', 3)
 _BRACKET_NOTE = 'A comma inside brackets or a code span separates items, so it is no place to break. '
 
 
-def is_summary(group: CommentGroup, index: int) -> bool:
+def is_summary(group: LaidOutProse, index: int) -> bool:
     """Whether a sentence is the comment's one-line summary, which reflow never breaks."""
     return index == 0 and group.has_summary_line
 
@@ -34,7 +34,7 @@ def break_policy(context: RuleContext) -> BreakPolicy:
     )
 
 
-class LineTooShortRule(Rule[CommentGroup]):
+class LineTooShortRule(Rule[LaidOutProse]):
     metadata = RuleMetadata(
         rule_id='line-too-short',
         summary='A sentence forced to break must not leave a line too short to read as a clause.',
@@ -42,11 +42,11 @@ class LineTooShortRule(Rule[CommentGroup]):
         default_severity=Severity.WARNING,
         options=(_MINIMUM_CHARACTERS,),
     )
-    surface = CommentGroup
+    surface = LaidOutProse
 
-    def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
+    def check(self, group: LaidOutProse, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # A trailing comment never breaks, so a rule judging where a sentence breaks leaves it to line-too-long.
-        if group.placement is CommentPlacement.TRAILING:
+        if group.stays_on_its_line:
             return
         policy = break_policy(context)
         minimum_length = policy.stub_floor
@@ -72,7 +72,7 @@ class LineTooShortRule(Rule[CommentGroup]):
             )
 
 
-class UnbreakableSentenceRule(Rule[CommentGroup]):
+class UnbreakableSentenceRule(Rule[LaidOutProse]):
     metadata = RuleMetadata(
         rule_id='unbreakable-sentence',
         summary=(
@@ -81,11 +81,11 @@ class UnbreakableSentenceRule(Rule[CommentGroup]):
         ),
         fix_kind=FixKind.REWRITE,
     )
-    surface = CommentGroup
+    surface = LaidOutProse
 
-    def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
+    def check(self, group: LaidOutProse, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # A trailing comment never breaks, so its width is line-too-long's to judge.
-        if group.placement is CommentPlacement.TRAILING:
+        if group.stays_on_its_line:
             return
         sentences = _budgeted_sentences(group, context)
         for index, (sentence, budget) in enumerate(sentences):
@@ -124,7 +124,7 @@ class UnbreakableSentenceRule(Rule[CommentGroup]):
         )
 
 
-class MidListBreakRule(Rule[CommentGroup]):
+class MidListBreakRule(Rule[LaidOutProse]):
     metadata = RuleMetadata(
         rule_id='mid-list-break',
         summary='A sentence that has to break should not break between the items of a list.',
@@ -132,11 +132,11 @@ class MidListBreakRule(Rule[CommentGroup]):
         default_severity=Severity.WARNING,
         options=(_MAX_ITEM_WORDS,),
     )
-    surface = CommentGroup
+    surface = LaidOutProse
 
-    def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
+    def check(self, group: LaidOutProse, context: RuleContext) -> typing.Iterable[Diagnostic]:
         # Whether a comma parts list items or an aside is syntax, which only a reader can settle, so this warns.
-        if group.placement is CommentPlacement.TRAILING:
+        if group.stays_on_its_line:
             return
         for sentence in group.sentences_splitting_a_list(context.rule_set.line_width, break_policy(context)):
             yield Diagnostic(
@@ -152,7 +152,7 @@ class MidListBreakRule(Rule[CommentGroup]):
             )
 
 
-def _prose_sentences(group: CommentGroup, context: RuleContext) -> tuple[str, ...]:
+def _prose_sentences(group: LaidOutProse, context: RuleContext) -> tuple[str, ...]:
     return tuple(
         sentence.text
         for segment in group.prose().segments()
@@ -161,7 +161,7 @@ def _prose_sentences(group: CommentGroup, context: RuleContext) -> tuple[str, ..
     )
 
 
-def _budgeted_sentences(group: CommentGroup, context: RuleContext) -> tuple[tuple[str, int], ...]:
+def _budgeted_sentences(group: LaidOutProse, context: RuleContext) -> tuple[tuple[str, int], ...]:
     """Pair each sentence with the budget reflow lays it out in, so no rule judges a layout reflow would not make."""
     return tuple(
         (sentence, group.text_budget(context.rule_set.line_width, first_line=index == 0))

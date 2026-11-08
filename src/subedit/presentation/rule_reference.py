@@ -33,10 +33,19 @@ def render(rules: tuple[Rule[typing.Any], ...]) -> str:
 
 
 def _surfaces(rules: tuple[Rule[typing.Any], ...]) -> list[type[ProseUnit]]:
-    # A broader surface comes first, since its rules read every narrower one,
-    # and surfaces of one breadth keep the order their first rule takes.
-    surfaces = list(dict.fromkeys(rule.surface for rule in rules))
-    return sorted(surfaces, key=lambda surface: len(surface.__mro__))
+    # A broader surface comes before every narrower one, since its rules read them too,
+    # and otherwise each keeps the order its first rule takes.
+    pending = list(dict.fromkeys(rule.surface for rule in rules))
+    ordered: list[type[ProseUnit]] = []
+    while pending:
+        ready = next(
+            surface
+            for surface in pending
+            if not any(other is not surface and issubclass(surface, other) for other in pending)
+        )
+        ordered.append(ready)
+        pending.remove(ready)
+    return ordered
 
 
 def _row(metadata: RuleMetadata) -> str:

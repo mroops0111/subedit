@@ -1,20 +1,20 @@
 import typing
 
-from ..models.comment import CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata
+from ..models.laid_out_prose import LaidOutProse
 from ..ports.rule import Rule, RuleContext
 from .sentence import break_policy
 
 
-class MidClauseBreakRule(Rule[CommentGroup]):
+class MidClauseBreakRule(Rule[LaidOutProse]):
     metadata = RuleMetadata(
         rule_id='mid-clause-break',
         summary='A sentence sits on one line when it fits, and otherwise breaks at clause commas, on as few lines as it can.',
         fix_kind=FixKind.REFLOW,
     )
-    surface = CommentGroup
+    surface = LaidOutProse
 
-    def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
+    def check(self, group: LaidOutProse, context: RuleContext) -> typing.Iterable[Diagnostic]:
         reflowed = group.reflow(context.rule_set.line_width, break_policy(context))
         if reflowed.render() == group.render():
             return
@@ -30,19 +30,19 @@ class MidClauseBreakRule(Rule[CommentGroup]):
         )
 
 
-class LineTooLongRule(Rule[CommentGroup]):
+class LineTooLongRule(Rule[LaidOutProse]):
     metadata = RuleMetadata(
         rule_id='line-too-long',
         summary='A physical comment line must fit the configured width, counting indent and delimiter.',
         fix_kind=FixKind.REFLOW,
     )
-    surface = CommentGroup
+    surface = LaidOutProse
 
-    def check(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Diagnostic]:
+    def check(self, group: LaidOutProse, context: RuleContext) -> typing.Iterable[Diagnostic]:
         width = context.rule_set.line_width
         if group.longest_line <= width:
             return
-        if group.placement is CommentPlacement.TRAILING:
+        if group.stays_on_its_line:
             yield Diagnostic(
                 rule_id=self.metadata.rule_id,
                 range=group.range,
