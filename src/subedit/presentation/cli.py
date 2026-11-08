@@ -16,7 +16,6 @@ from ..infrastructure import (
     COMMENT_PARSER,
     DEFAULT_CONFIG_SOURCE,
     DEFAULT_PARSER,
-    EXTENSIONS,
     EXTERNAL_LINTERS,
     GENERATED_NAMES,
     VENDOR_DIRECTORIES,
@@ -148,10 +147,10 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
                 sorted(
                     candidate
                     for candidate in path.rglob('*')
-                    if candidate.suffix in EXTENSIONS and not _is_written_elsewhere(candidate.relative_to(path))
+                    if language_id_for(candidate) is not None and not _is_written_elsewhere(candidate.relative_to(path))
                 )
             )
-        elif path.suffix in EXTENSIONS:
+        elif language_id_for(path) is not None:
             source_paths.append(path)
     documents: list[Document] = []
     for source_path in source_paths:

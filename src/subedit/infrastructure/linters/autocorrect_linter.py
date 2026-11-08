@@ -21,10 +21,10 @@ class AutoCorrectLinter(ExternalLinter):
     name = 'autocorrect'
 
     def __init__(
-        self, config_path: pathlib.Path = _CONFIG_PATH, suffix_aliases: typing.Mapping[str, str] | None = None
+        self, config_path: pathlib.Path = _CONFIG_PATH, aliases: typing.Mapping[str, str] | None = None
     ) -> None:
         self._config_path = config_path
-        self._suffix_aliases = dict(suffix_aliases or {})
+        self._aliases = dict(aliases or {})
         self._config_loaded = False
 
     def is_available(self) -> bool:
@@ -40,7 +40,7 @@ class AutoCorrectLinter(ExternalLinter):
         # Its grammar gives up on a large file, and one file it cannot read must not stop the run.
         try:
             corrected_text = autocorrect_py.format_for(
-                document.text, as_known_path(document.uri.removeprefix('file://'), self._suffix_aliases)
+                document.text, as_known_path(document.uri.removeprefix('file://'), self._aliases)
             )
         except ValueError:
             return ()

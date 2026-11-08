@@ -13,7 +13,7 @@ Linters keep an agent's code in shape. Almost nothing does the same for its sent
 
 - **Built for Agents**: a post-edit hook for Claude Code and Codex checks each file an agent writes, as it lands.
 - **Silent Autofix, Stated Rewrites**: layout and spacing are autofixed without a message, and only a finding that needs the sentence's meaning goes back, with its fix stated.
-- **Sentence-Aware Layout**: a comment breaks only at a comma that ends a clause, and a Markdown paragraph stays on one line.
+- **Sentence-Aware Layout**: a comment or a commit message body breaks only at a comma that ends a clause, and a Markdown paragraph stays on one line.
 - **Never Touches Code**: tree-sitter finds the prose, so code, string literals, and commented-out code are left as they are.
 - **One Report, Three Engines**: native layout and structure rules, a bundled Vale style, and AutoCorrect share one config and one report.
 
@@ -286,11 +286,12 @@ In `pyproject.toml`, the same keys sit under `[tool.subedit]`, `[tool.subedit.ru
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `line-width` | Integer | The formatter's width, else 120 | The column every comment line must fit, counting indent and delimiter |
+| `line-widths` | Table of integers | `{}` | A width for one language by its ID, such as `{ typescript = 80, git-commit = 100 }`, over `line-width` |
 | `exclude` | List of globs | `[]` | Paths a directory walk skips, relative to the config file |
 | `code-blocks` | Boolean | `false` | Whether the comments in a Markdown code block are read, in a language subedit supports |
 | `abbreviations` | List of strings | `[]` | Abbreviations whose period ends no sentence, each written with its period and its case, such as `"Dept."` |
 
-Left unset, `line-width` follows the formatter that would format the file, read from its own config.
+Left unset, `line-width` follows the formatter that would format the file, read from its own config. A commit message keeps git's width of 72 whatever `line-width` says, since that width is chosen for code.
 
 | Language | Width Read From |
 | --- | --- |
@@ -301,7 +302,7 @@ Left unset, `line-width` follows the formatter that would format the file, read 
 
 ### Rules
 
-`subedit` ships 21 native rules, a bundled Vale style of 5 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
+`subedit` ships 25 native rules, a bundled Vale style of 5 rules, and AutoCorrect. Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, and its fix kind follows [Fix Kinds](#fix-kinds).
 
 Comments and Markdown share one house style, and differ where their forms differ. A comment has a column limit and sits beside the code it explains, while Markdown has no limit and is built from paragraphs and headings.
 
@@ -328,8 +329,21 @@ A surface is a kind of file where prose lives. Every surface goes through the sa
 | --- | --- | --- |
 | Code comments and docstrings | Available | Layout, because a comment must fit a column limit |
 | Markdown | Available | One line per paragraph and the shape of headings, because Markdown has no column limit |
+| Commit messages | Available | A subject that fits and follows the project convention, and a body laid out by clause within git's width |
 
 Markdown is read from `.md` and `.markdown` files, leaving front matter, code, and HTML blocks alone, and reading only the header of a table. With `code-blocks = true`, the comments in a fenced block are read too, when its info string names a language subedit supports, such as `python`, `ts`, or `yaml`. Each block is checked as a file of that language would be, by Vale and AutoCorrect as well, except for the rules on a whole file. A code block is often an example, so this stays off unless the project asks. Editor diagnostics over LSP are planned, so the same findings show as you type.
+
+A commit message is read from the files git writes it to, such as `COMMIT_EDITMSG`, so a `commit-msg` hook lays out the body in place and stops the commit on what needs rewriting. The body breaks between clauses within 72 characters rather than filling each line, which git's convention allows, since it sets a limit on a line rather than a fill. With [pre-commit](https://pre-commit.com), the hook is one entry, and `pre-commit install --hook-type commit-msg` enables it.
+
+```yaml
+repos:
+  - repo: https://github.com/mroops0111/subedit
+    rev: v0.6.0
+    hooks:
+      - id: subedit-commit-msg
+```
+
+Without pre-commit, `.git/hooks/commit-msg` holds `exec subedit fix --write "$1"`.
 
 #### Languages
 

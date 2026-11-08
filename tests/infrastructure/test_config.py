@@ -228,3 +228,26 @@ def test_subedit_config_sets_the_width_over_the_formatter(project: Project) -> N
 def test_code_blocks_are_read_only_where_the_project_asks(project: Project) -> None:
     assert not source().resolve(str(configured(project, '[subedit]\n'))).reads_embedded
     assert source().resolve(str(configured(project, '[subedit]\ncode-blocks = true\n'))).reads_embedded
+
+
+def commit_message_in(project: Project, body: str) -> pathlib.Path:
+    project.write(CONFIG_NAME, body)
+    return project.write('.git/COMMIT_EDITMSG', 'Fix it\n')
+
+
+def test_a_commit_message_takes_gits_width_over_the_projects_code_width(project: Project) -> None:
+    target = commit_message_in(project, '[subedit]\nline-width = 120\n')
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(target)).line_width == 72
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(project.write('module.py', '# note\n'))).line_width == 120
+
+
+def test_a_width_set_for_a_language_wins(project: Project) -> None:
+    target = commit_message_in(project, '[subedit]\nline-widths = { git-commit = 100, python = 88 }\n')
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(target)).line_width == 100
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(project.write('module.py', '# note\n'))).line_width == 88
+
+
+def test_a_width_for_a_language_subedit_does_not_read_is_an_error(project: Project) -> None:
+    target = commit_message_in(project, '[subedit]\nline-widths = { cobol = 72 }\n')
+    with pytest.raises(ConfigError, match=re.escape('subedit.line-widths.cobol: is not a language subedit reads')):
+        DEFAULT_CONFIG_SOURCE.resolve(str(target))

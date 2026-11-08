@@ -15,10 +15,12 @@ from .comment_layout import (
     LinePrefixLayout,
     QuotedDocLayout,
 )
+from .commit_message import CommitBody, CommitSubject
 from .diagnostic import SEVERITY_BY_NAME, Diagnostic, Fix, FixKind, Report, RuleMetadata, Severity
 from .document import Document
 from .embedded import EmbeddedDocument
 from .file_type import FileType
+from .laid_out_prose import LaidOutProse
 from .markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
 from .position import Encoding, Position, PositionMap, SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence
@@ -40,6 +42,8 @@ __all__ = [
     'CommentLayout',
     'CommentLine',
     'CommentPlacement',
+    'CommitBody',
+    'CommitSubject',
     'CountOption',
     'Diagnostic',
     'Document',
@@ -50,6 +54,7 @@ __all__ = [
     'FixKind',
     'FramedDocLayout',
     'HeadingLevelsOption',
+    'LaidOutProse',
     'LinePrefixLayout',
     'MarkdownBlock',
     'MarkdownBlockKind',

@@ -4,6 +4,7 @@ import tomllib
 import typing
 
 from ...domain.models.diagnostic import RuleMetadata
+from ...domain.models.file_type import FileType
 from ...domain.models.rule_set import DEFAULT_LINE_WIDTH, RuleSet, RuleSettings
 from .config_schema import ConfigError, ConfigFile, RuleTable
 from .formatter_width import FormatterWidths
@@ -24,11 +25,13 @@ class TomlConfigSource:
         rules: tuple[RuleMetadata, ...],
         formatter_widths: FormatterWidths | None = None,
         fallback_width: int = DEFAULT_LINE_WIDTH,
+        file_types: tuple[FileType, ...] = (),
     ) -> None:
         self._rules = {metadata.rule_id: metadata for metadata in rules}
         self._available_rule_ids = tuple(self._rules)
         self._formatter_widths = formatter_widths or FormatterWidths({})
         self._fallback_width = fallback_width
+        self._file_types = file_types
 
     def resolve(self, path: str) -> RuleSet:
         config_file = self._read(path)
@@ -40,7 +43,13 @@ class TomlConfigSource:
         return RuleSet(enabled_rule_ids=frozenset(self._available_rule_ids), line_width=self.default_width(path))
 
     def default_width(self, path: str) -> int:
-        """The width a file gets when subedit's config sets none, which the project's formatter sets if it has one."""
+        """The width a file gets when subedit's config sets none.
+
+        A commit message takes the width its own convention sets. Any other file takes its formatter's, if it has one.
+        """
+        file_type = self._file_type_for(path)
+        if file_type is not None and file_type.line_width is not None:
+            return file_type.line_width
         formatter_width = self._formatter_widths.width_for(path)
         return self._fallback_width if formatter_width is None else formatter_width
 
@@ -112,6 +121,13 @@ class TomlConfigSource:
         return isinstance(tools, dict) and 'subedit' in tools
 
     def _check_options(self, config_file: ConfigFile) -> None:
+        known_languages = {file_type.language_id for file_type in self._file_types}
+        for language_id in config_file.subedit.line_widths:
+            if known_languages and language_id not in known_languages:
+                raise ConfigError(
+                    f'subedit.line-widths.{language_id}: is not a language subedit reads, '
+                    f'it reads {", ".join(sorted(known_languages))}'
+                )
         # A rule subedit does not define belongs to a delegated tool, whose options it cannot know.
         # A delegated tool names its rules Style.Rule, as Vale and AutoCorrect do,
         # so a name with no dot that subedit does not define is a mistake, such as a rule's old name.
@@ -140,6 +156,20 @@ class TomlConfigSource:
         declared = {option.name: option for option in metadata.options}
         return {name: declared[name].convert(value) for name, value in options.items()}
 
+    # A width set for the file's language wins, then a width the file's own convention sets,
+    # since a project's line-width is chosen for its code.
+    def _width(self, config_file: ConfigFile, path: str) -> int:
+        file_type = self._file_type_for(path)
+        widths = config_file.subedit.line_widths
+        if file_type is not None and file_type.language_id in widths:
+            return widths[file_type.language_id]
+        if file_type is not None and file_type.line_width is not None:
+            return file_type.line_width
+        return config_file.subedit.line_width or self.default_width(path)
+
+    def _file_type_for(self, path: str) -> FileType | None:
+        return next((file_type for file_type in self._file_types if file_type.matches(pathlib.Path(path))), None)
+
     def _to_rule_set(self, config_file: ConfigFile, path: str) -> RuleSet:
         enabled_ids = set(self._available_rule_ids)
         disabled_external_ids: set[str] = set()
@@ -161,7 +191,7 @@ class TomlConfigSource:
         return RuleSet(
             enabled_rule_ids=frozenset(enabled_ids),
             settings=settings,
-            line_width=config_file.subedit.line_width or self.default_width(path),
+            line_width=self._width(config_file, path),
             disabled_external_ids=frozenset(disabled_external_ids),
             reads_embedded=config_file.subedit.code_blocks,
             abbreviations=frozenset(config_file.subedit.abbreviations),

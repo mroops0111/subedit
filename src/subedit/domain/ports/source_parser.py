@@ -1,5 +1,6 @@
 import abc
 import dataclasses
+import pathlib
 import typing
 
 from ..models.document import Document
@@ -54,3 +55,7 @@ class SourceParser(abc.ABC, typing.Generic[UnitT]):
     def language_id_for(self, extension: str) -> str | None:
         """The language a file is read as, from its extension."""
         return next((file_type.language_id for file_type in self.file_types if extension in file_type.extensions), None)
+
+    def file_type_for(self, path: pathlib.PurePath) -> FileType | None:
+        """The file type a path is read as, by its name where git names the file, and otherwise by its extension."""
+        return next((file_type for file_type in self.file_types if file_type.matches(path)), None)

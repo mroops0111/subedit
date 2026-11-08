@@ -37,6 +37,10 @@ class SubeditSection(pydantic.BaseModel):
 
     # Left unset, the width falls back to the language's own default.
     line_width: int | None = pydantic.Field(default=None, alias='line-width', gt=0)
+    # A width for one kind of file by its language id, such as git-commit, over line-width and its convention.
+    line_widths: dict[str, typing.Annotated[int, pydantic.Field(gt=0)]] = pydantic.Field(
+        default_factory=dict, alias='line-widths'
+    )
     exclude: tuple[str, ...] = ()
     code_blocks: bool = pydantic.Field(default=False, alias='code-blocks')
     # Each is written with its period, as in Dept., since the case and the period are matched as written.

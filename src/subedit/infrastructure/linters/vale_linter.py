@@ -58,10 +58,10 @@ class ValeLinter(ExternalLinter):
         self,
         executable: str | None = None,
         fallback_config: pathlib.Path = _BUNDLED_CONFIG,
-        suffix_aliases: typing.Mapping[str, str] | None = None,
+        aliases: typing.Mapping[str, str] | None = None,
     ) -> None:
         self._executable = executable or _default_executable()
-        self._suffix_aliases = dict(suffix_aliases or {})
+        self._aliases = dict(aliases or {})
         self._fallback_config = fallback_config
         self._needs_fallback = False
 
@@ -87,7 +87,7 @@ class ValeLinter(ExternalLinter):
             return ()
         # The text goes in on stdin, because during a fix it is ahead of what the file on disk holds.
         # The path still selects the config sections, and Vale matches them exactly as for a file.
-        source_path = as_known_path(document.uri.removeprefix('file://'), self._suffix_aliases)
+        source_path = as_known_path(document.uri.removeprefix('file://'), self._aliases)
         if not self._needs_fallback:
             process = self._run_vale(document, source_path)
             if process is None:

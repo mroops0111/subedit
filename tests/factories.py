@@ -46,6 +46,11 @@ def markdown(text: str) -> Document:
     return document(text, 'markdown')
 
 
+def commit_message(text: str) -> Document:
+    """A commit message in memory, named as git names the file it writes for the editor."""
+    return Document(uri='file:///repository/.git/COMMIT_EDITMSG', text=text, language_id='git-commit')
+
+
 def rule_ids(rules: typing.Iterable[Rule[typing.Any]]) -> frozenset[str]:
     """The IDs of the rules given, to enable exactly those."""
     return frozenset(rule.metadata.rule_id for rule in rules)

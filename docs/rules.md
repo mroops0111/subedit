@@ -1,6 +1,6 @@
 # Rules
 
-`subedit` ships 21 native rules, a bundled Vale style of 5 rules, and AutoCorrect. The [README](../README.md#rules) compares what comments and Markdown share and where they differ, and this page lists every rule by group.
+`subedit` ships 25 native rules, a bundled Vale style of 5 rules, and AutoCorrect. The [README](../README.md#rules) compares what comments and Markdown share and where they differ, and this page lists every rule by group.
 
 Every rule is set by name under `[rules]` to `"error"`, `"warning"`, or `"off"`, as in `"subedit.DateRef" = "off"`. An error fails `check` and stops an agent, while a warning is shown as advice. The fix kind states who resolves a finding, as [Fix Kinds](../README.md#fix-kinds) describes.
 
@@ -45,18 +45,18 @@ AutoCorrect ships as a Python dependency, so it runs wherever `subedit` does, an
 
 ## Layout
 
-These rules read comments, and autofix how a comment breaks across lines.
+These rules read comments and commit message bodies, and autofix how their text breaks across lines.
 
 | Rule | Catches | Fix Kind | Default | Options |
 | --- | --- | --- | --- | --- |
 | `mid-clause-break` | A sentence broken where it need not be, or a wrapped sentence that would fit one line | Reflow | `error` | None |
-| `line-too-long` | A comment line past the width, counting indent and delimiter | Reflow, or Rewrite for a trailing comment | `error` | None |
+| `line-too-long` | A line past the width, counting indent and comment delimiter | Reflow, or Rewrite for a trailing comment | `error` | None |
 
 A trailing comment cannot break without leaving its code behind, so `line-too-long` asks the author to shorten it or move it above the code.
 
 ## Sentence
 
-These rules read comments, and catch the sentences no layout can save, which the author rewrites.
+These rules read comments and commit message bodies, and catch the sentences no layout can save, which the author rewrites.
 
 | Rule | Catches | Fix Kind | Default | Options |
 | --- | --- | --- | --- | --- |
@@ -103,3 +103,18 @@ GitHub issues, Notion, and Heptabase can show a source newline as a line break, 
 Title Case follows a published standard, which `style` names. `apa` lowercases articles, conjunctions, and prepositions of three letters or fewer, so it writes *Working With a List*. `chicago` lowercases articles, *and*, *but*, *for*, *or*, *nor*, and every preposition, so it writes *Working with a List*. A word such as *up* or *in* that may stand as an adverb, as in *Set Up*, keeps the case the author wrote, and a capitalized one inside a heading is a warning. Title Case leaves code, file names, acronyms, and a lone lowercase word alone. A lowercase name such as `npm` goes under `exceptions`. List labels and table headers follow `style` and `exceptions` too. A table is otherwise left unread, since its cells are fragments rather than sentences.
 
 A heading that opens with a question word such as *How* or *What*, or ends with a question mark, is a question, so it is an error. A heading whose first word is followed straight by a word opening an object, such as *a*, *the*, or *your*, reads as an instruction, as in *Add a Rule*. That is a guess, so it is a warning unless the project sets the rule's severity. A single word such as *Install* passes, since it may name the subject. Both heading rules read only the heading levels listed under `levels`, so a project can leave out a document title or a FAQ.
+
+## Commit Messages
+
+These rules read the subject of a commit message, from `COMMIT_EDITMSG` and the other files git writes a message to.
+
+| Rule | Catches | Fix Kind | Default | Options |
+| --- | --- | --- | --- | --- |
+| `subject-too-long` | A subject past the width GitHub and `git log --oneline` show | Rewrite | `error` | `max-subject-characters` (72) |
+| `subject-style` | A subject ending in a period, or off the project convention | Targeted, or Rewrite for a missing type | `error` | `style` (`git`), `types` (`['build', 'chore', 'ci', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test']`) |
+| `subject-not-imperative` | A subject that reports the change, as in *Fixed* or *Fixes*, rather than giving it as an instruction | Rewrite | `warning` | None |
+| `missing-blank-line` | A body that starts on the line under the subject | Targeted | `error` | None |
+
+`style` names the convention. `git` opens the description with a capital, as git's own documentation does, and leaves a prefix such as a kernel subsystem as written. `conventional` follows Conventional Commits, so the subject opens with one of the `types`, and the description after it opens in lowercase. A word with a capital after its first letter, such as *iOS*, keeps its case under either.
+
+Whether the first word is a verb is grammar a word list can only guess, so `subject-not-imperative` is a warning. The body is laid out by the layout and sentence rules at git's width of 72, and the wording rules read both the subject and the body. Trailers such as `Co-authored-by:` and `Closes #105`, and the comments git adds, are left unread.

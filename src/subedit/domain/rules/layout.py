@@ -22,7 +22,7 @@ class MidClauseBreakRule(Rule[LaidOutProse]):
             rule_id=self.metadata.rule_id,
             range=group.range,
             message=(
-                'Comment layout breaks a sentence where it need not. '
+                'This layout breaks a sentence where it need not. '
                 'A sentence that fits takes one line, and a longer one breaks only at a comma ending a clause. '
                 'Short sentences may share a line that fits.'
             ),
@@ -61,8 +61,8 @@ class LineTooLongRule(Rule[LaidOutProse]):
             rule_id=self.metadata.rule_id,
             range=group.range,
             message=(
-                f'A comment line runs to {group.longest_line} characters against a limit of {width}, '
-                'counting indent and delimiter.'
+                f'A line runs to {group.longest_line} characters against a limit of {width}, '
+                'counting any indent and comment delimiter.'
             ),
             fix=Fix.reflow(reflowed.as_edit()),
         )

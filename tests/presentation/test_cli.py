@@ -201,6 +201,15 @@ def test_a_diff_keeps_a_blank_last_context_line(project: Project, capsys: pytest
     assert hunk.endswith('\n \n'), 'patch counts a blank context line, so dropping it makes the hunk short'
 
 
+def test_fix_write_lays_out_the_message_a_commit_msg_hook_hands_it(project: Project) -> None:
+    project.write('subedit.toml', '')
+    message = project.write('.git/COMMIT_EDITMSG', 'Fix the parser.\nIt dropped a line.\n')
+    with pytest.raises(SystemExit) as exit_info:
+        app(['fix', '--write', '--no-delegate', str(message)])
+    assert exit_info.value.code == 0
+    assert message.read_text(encoding='utf-8') == 'Fix the parser\n\nIt dropped a line.\n'
+
+
 class _PreparedLinter(ExternalLinter):
     name = 'probe'
 

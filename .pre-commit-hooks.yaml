@@ -1,0 +1,6 @@
+- id: subedit-commit-msg
+  name: subedit commit message
+  description: Lay out a commit message body by clause and report what needs rewriting.
+  entry: subedit fix --write
+  language: python
+  stages: [commit-msg]
