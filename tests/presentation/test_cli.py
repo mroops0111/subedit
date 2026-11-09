@@ -229,7 +229,7 @@ class _PreparedLinter(ExternalLinter):
 
 def test_install_hook_writes_the_git_hooks(repository: Project, capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exit_info:
-        app(['install-hook', str(repository.root)])
+        app(['install-git-hooks', str(repository.root)])
 
     assert exit_info.value.code == 0
     assert 'Installed' in capsys.readouterr().out
@@ -239,7 +239,7 @@ def test_install_hook_writes_the_git_hooks(repository: Project, capsys: pytest.C
 
 def test_install_hook_outside_a_repository_is_a_usage_error(tmp_path: pathlib.Path) -> None:
     with pytest.raises(SystemExit) as exit_info:
-        app(['install-hook', str(tmp_path)])
+        app(['install-git-hooks', str(tmp_path)])
     assert exit_info.value.code == 2
 
 
@@ -247,7 +247,7 @@ def test_install_hook_leaves_another_tools_hook_and_exits_non_zero(repository: P
     repository.write('.git/hooks/commit-msg', '#!/bin/sh\nnpx commitlint --edit "$1"\n')
 
     with pytest.raises(SystemExit) as exit_info:
-        app(['install-hook', str(repository.root)])
+        app(['install-git-hooks', str(repository.root)])
     assert exit_info.value.code == 1
 
 

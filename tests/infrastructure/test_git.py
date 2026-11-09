@@ -3,8 +3,8 @@ import pathlib
 import pytest
 from factories import Project
 
-from subedit.infrastructure import GitHooks, GitRepository, HookInstallError
-from subedit.infrastructure.git import STAGES, GitHookStage
+from subedit.infrastructure import GitHookInstallError, GitHooks, GitRepository
+from subedit.infrastructure.git import GIT_HOOK_STAGES, GitHookStage
 
 
 VERSION = '9.9.9'
@@ -22,7 +22,7 @@ def hooks_for(repository: Project) -> GitHooks:
 
 
 def stage(name: str) -> GitHookStage:
-    return next(stage for stage in STAGES if stage.name == name)
+    return next(stage for stage in GIT_HOOK_STAGES if stage.name == name)
 
 
 def test_a_directory_outside_any_repository_opens_none(tmp_path: pathlib.Path) -> None:
@@ -38,13 +38,13 @@ def test_a_subdirectory_opens_its_working_tree(repository: Project) -> None:
 def test_a_commit_just_made_gives_its_message(repository: Project) -> None:
     repository.git('commit', '-q', '--allow-empty', '-m', 'Add the parser\n\nIt reads the subject.')
 
-    assert opened(repository.root).just_committed_message() == 'Add the parser\n\nIt reads the subject.\n\n'
+    assert opened(repository.root).recent_commit_message() == 'Add the parser\n\nIt reads the subject.\n\n'
 
 
 def test_head_moved_by_anything_but_a_commit_gives_no_message(repository: Project) -> None:
     repository.git('checkout', '-q', '-b', 'topic')
 
-    assert opened(repository.root).just_committed_message() is None
+    assert opened(repository.root).recent_commit_message() is None
 
 
 def test_staged_files_lists_what_the_next_commit_holds(repository: Project) -> None:
@@ -83,14 +83,14 @@ def test_a_second_install_changes_nothing(repository: Project) -> None:
     hooks = hooks_for(repository)
     hooks.install()
 
-    assert hooks.install().count('already') == len(STAGES)
+    assert hooks.install().count('already') == len(GIT_HOOK_STAGES)
 
 
 def test_a_hook_another_tool_holds_is_left_alone_and_the_rest_installed(repository: Project) -> None:
     hooks = hooks_for(repository)
     repository.write('.git/hooks/commit-msg', '#!/bin/sh\nnpx commitlint --edit "$1"\n')
 
-    with pytest.raises(HookInstallError, match='not subedit') as raised:
+    with pytest.raises(GitHookInstallError, match='not subedit') as raised:
         hooks.install()
     assert 'Installed a pre-commit hook' in str(raised.value)
     assert 'commitlint' in hooks.path(stage('commit-msg')).read_text(encoding='utf-8')
@@ -100,7 +100,7 @@ def test_a_hook_another_tool_holds_is_left_alone_and_the_rest_installed(reposito
 def test_a_pre_commit_project_is_told_the_entries_to_add(repository: Project) -> None:
     repository.write('.pre-commit-config.yaml', 'repos: []\n')
 
-    with pytest.raises(HookInstallError) as raised:
+    with pytest.raises(GitHookInstallError) as raised:
         hooks_for(repository).install()
     message = str(raised.value)
     assert 'id: subedit\n' in message
@@ -112,7 +112,7 @@ def test_a_pre_commit_project_is_told_the_entries_to_add(repository: Project) ->
 def test_a_pre_commit_project_listing_the_hooks_is_told_to_install_them(repository: Project) -> None:
     repository.write('.pre-commit-config.yaml', PRE_COMMIT_ENTRY)
 
-    with pytest.raises(HookInstallError, match='has not installed them'):
+    with pytest.raises(GitHookInstallError, match='has not installed them'):
         hooks_for(repository).install()
 
 

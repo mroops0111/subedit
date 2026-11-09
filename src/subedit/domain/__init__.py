@@ -1,5 +1,5 @@
 from .models import (
-    LINE_LAYOUT,
+    LINE_PREFIX_LAYOUT,
     PLAIN_MARKUP,
     QUOTED_DOC_LAYOUT,
     SEVERITY_BY_NAME,
@@ -61,7 +61,7 @@ from .ports import (
 
 
 __all__ = [
-    'LINE_LAYOUT',
+    'LINE_PREFIX_LAYOUT',
     'PLAIN_MARKUP',
     'QUOTED_DOC_LAYOUT',
     'SEVERITY_BY_NAME',

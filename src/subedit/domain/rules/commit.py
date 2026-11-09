@@ -133,9 +133,9 @@ class SubjectNotImperativeRule(Rule[CommitSubject]):
         )
 
 
-class MissingBlankLineRule(Rule[CommitSubject]):
+class SubjectRunsIntoBodyRule(Rule[CommitSubject]):
     metadata = RuleMetadata(
-        rule_id='missing-blank-line',
+        rule_id='subject-runs-into-body',
         summary='A blank line parts a commit subject from its body, since git reads every line before it as the subject.',
         fix_kind=FixKind.TARGETED,
     )

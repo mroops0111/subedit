@@ -120,7 +120,7 @@ def test_an_instruction_passes(word: str) -> None:
 
 
 def test_a_body_under_the_subject_gets_a_blank_line() -> None:
-    assert ids('Fix the parser\nIt dropped a line.\n') == ['missing-blank-line']
+    assert ids('Fix the parser\nIt dropped a line.\n') == ['subject-runs-into-body']
     assert fix('Fix the parser\nIt dropped a line.\n') == 'Fix the parser\n\nIt dropped a line.\n'
 
 

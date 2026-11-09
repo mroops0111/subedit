@@ -15,20 +15,20 @@ from ..domain.rules import (
     MidClauseBreakRule,
     MidListBreakRule,
     MidSentenceColonRule,
-    MissingBlankLineRule,
     MissingLeadSentenceRule,
     ParagraphLineBreakRule,
     ParenthesisStyleRule,
     PlainCommentOnPublicRule,
     SignatureRestatingTagRule,
     SubjectNotImperativeRule,
+    SubjectRunsIntoBodyRule,
     SubjectStyleRule,
     SubjectTooLongRule,
     TableHeaderTitleCaseRule,
     UnbreakableSentenceRule,
 )
 from .config_sources import CONFIG_NAME, ConfigError, FormatterWidths, TomlConfigSource
-from .git import GitHooks, GitRepository, HookInstallError
+from .git import GitHookInstallError, GitHooks, GitRepository
 from .linters import AutoCorrectLinter, ValeLinter
 from .parsers import (
     JAVASCRIPT,
@@ -80,7 +80,7 @@ MARKDOWN_RULES = (
     MissingLeadSentenceRule(),
     HeadingNotNounPhraseRule(),
 )
-COMMIT_RULES = (SubjectTooLongRule(), SubjectStyleRule(), SubjectNotImperativeRule(), MissingBlankLineRule())
+COMMIT_RULES = (SubjectTooLongRule(), SubjectStyleRule(), SubjectNotImperativeRule(), SubjectRunsIntoBodyRule())
 ALL_RULES = LAYOUT_RULES + REWRITE_RULES + STRUCTURAL_RULES + WORDING_RULES + MARKDOWN_RULES + COMMIT_RULES
 
 DEFAULT_CONFIG_SOURCE = TomlConfigSource(
@@ -128,9 +128,9 @@ __all__ = [
     'AutoCorrectLinter',
     'CompositeParser',
     'ConfigError',
+    'GitHookInstallError',
     'GitHooks',
     'GitRepository',
-    'HookInstallError',
     'LanguageProfile',
     'MarkdownParser',
     'NodeRole',

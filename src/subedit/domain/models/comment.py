@@ -2,7 +2,7 @@ import dataclasses
 import enum
 
 from .laid_out_prose import LaidOutProse
-from .line_layout import LINE_LAYOUT, LineLayout, PrefixedLine
+from .line_layout import LINE_PREFIX_LAYOUT, LineLayout, PrefixedLine
 from .position import SourceRange
 from .prose import PLAIN_MARKUP, ProseMarkup
 
@@ -51,7 +51,7 @@ class CommentGroup(LaidOutProse):
     form: CommentForm
     placement: CommentPlacement
     attachment: SymbolRef | None = None
-    layout: LineLayout = LINE_LAYOUT
+    layout: LineLayout = LINE_PREFIX_LAYOUT
     markup: ProseMarkup = PLAIN_MARKUP
 
     def __post_init__(self) -> None:
@@ -64,7 +64,7 @@ class CommentGroup(LaidOutProse):
             )
 
     @property
-    def category(self) -> str:
+    def statistics_category(self) -> str:
         if self.form is CommentForm.DOC:
             visibility = Visibility.PUBLIC if self.attaches_to_public_symbol else Visibility.INTERNAL
             return f'doc/{visibility.value}'

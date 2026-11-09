@@ -7,7 +7,7 @@ from ...domain.models.diagnostic import SEVERITY_BY_NAME, Severity
 
 _SeverityName = typing.Literal['error', 'warning', 'suggestion']
 # The names pydantic gives the table branch of an entry that is a word or a table.
-_TABLE_BRANCHES = ('RuleTable', 'SurfaceSection')
+_TABLE_BRANCHES = ('RuleTable', 'SurfaceTable')
 
 
 class ConfigError(ValueError):
@@ -52,7 +52,7 @@ class SubeditSection(pydantic.BaseModel):
         return abbreviations
 
 
-class SurfaceSection(pydantic.BaseModel):
+class SurfaceTable(pydantic.BaseModel):
     """What a project sets for one surface, such as commit-messages, over what it sets for every surface."""
 
     model_config = pydantic.ConfigDict(frozen=True, populate_by_name=True, extra='forbid')
@@ -65,7 +65,7 @@ class SurfaceSection(pydantic.BaseModel):
 
 
 # A surface is switched off as a rule is, with "off", or set apart with a table of its own.
-SurfaceEntry = typing.Annotated[typing.Literal['off'] | SurfaceSection, pydantic.Field(union_mode='left_to_right')]
+SurfaceEntry = typing.Annotated[typing.Literal['off'] | SurfaceTable, pydantic.Field(union_mode='left_to_right')]
 
 
 class ConfigFile(pydantic.BaseModel):
@@ -76,9 +76,9 @@ class ConfigFile(pydantic.BaseModel):
     surfaces: dict[str, SurfaceEntry] = pydantic.Field(default_factory=dict)
 
     @property
-    def surface_sections(self) -> dict[str, SurfaceSection]:
+    def surface_tables(self) -> dict[str, SurfaceTable]:
         """The surfaces the project sets apart with a table, leaving out those it switches off."""
-        return {name: entry for name, entry in self.surfaces.items() if isinstance(entry, SurfaceSection)}
+        return {name: entry for name, entry in self.surfaces.items() if isinstance(entry, SurfaceTable)}
 
     @property
     def off_surfaces(self) -> frozenset[str]:

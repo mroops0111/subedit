@@ -1,9 +1,10 @@
 import pathlib
 import re
 
-from ..infrastructure import GitRepository
-from .agent_writes import AgentWrite, ShellWatcher
-from .harnesses import ShellCommand
+from ...infrastructure import GitRepository
+from ..agent_written_text import AgentWrittenText
+from ..harnesses import ShellCommand
+from .shell_command_reader import ShellCommandReader
 
 
 # git takes its own options before the subcommand, and -C among them moves where it runs.
@@ -13,7 +14,7 @@ _CHANGE_DIRECTORY = re.compile(r'-C\s+(\S+)')
 _MESSAGE_FILE = 'COMMIT_EDITMSG'
 
 
-class CommittedMessage(AgentWrite):
+class CommittedMessage(AgentWrittenText):
     """The message of a commit an agent just made, which only an amend can change."""
 
     def __init__(self, repository: GitRepository, message: str) -> None:
@@ -36,22 +37,22 @@ class CommittedMessage(AgentWrite):
         )
 
 
-class CommitWatcher(ShellWatcher):
+class CommitReader(ShellCommandReader):
     """Recognises git commit, and reads back the message of a commit it made, as HEAD's reflog shows."""
 
     @property
     def keyword(self) -> str:
         return 'commit'
 
-    def writes(self, command: ShellCommand) -> tuple[AgentWrite, ...]:
-        commit = _GIT_COMMIT.search(command.command)
+    def written_texts(self, command: ShellCommand) -> tuple[AgentWrittenText, ...]:
+        commit = _GIT_COMMIT.search(command.text)
         if commit is None:
             return ()
-        directory = command.directory
+        directory = command.working_directory
         for moved in _CHANGE_DIRECTORY.finditer(commit.group(1)):
             directory = directory / moved.group(1).strip('\'"')
         repository = GitRepository.at(directory)
-        message = repository.just_committed_message() if repository else None
+        message = repository.recent_commit_message() if repository else None
         if repository is None or message is None:
             return ()
         return (CommittedMessage(repository, message),)

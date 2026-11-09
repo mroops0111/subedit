@@ -122,7 +122,7 @@ Every command takes files or directories, and a directory walk skips dotted and 
 | `subedit fix src/ --write` | Applies the autofixes in place |
 | `subedit stats src/` | Measures each surface's lengths and widths, to set thresholds from data |
 | `subedit rules` | Lists every native rule with the surfaces it reads, its fix kind, and its default level |
-| `subedit install-hook` | Installs git hooks that lay out the staged files and the commit message |
+| `subedit install-git-hooks` | Installs git hooks that lay out the staged files and the commit message |
 | `subedit fix --staged --write` | Applies the autofixes to the files git has staged |
 
 To adopt `subedit`, add an empty `subedit.toml` at the project root, run `fix --write` once, and read what `check` still reports. `check` exits 1 on any `error` finding, and `fix` exits 1 while an `error` rewrite remains, so both drop into CI, and [Git Hooks](#git-hooks) runs them on each commit. `--no-delegate` skips Vale and AutoCorrect.
@@ -225,7 +225,7 @@ The package follows a layered design, so a new surface, language, rule, or deleg
 
 ![subedit layers. presentation holds the CLI, the agent hook, and the reports, and calls application, which holds the Linter, the Fixer, the report aggregator, and the corpus meter. application uses domain, which holds the models of each surface, the rules, and the ports. infrastructure holds a parser for each surface, the config source, the git adapter, and the Vale and AutoCorrect adapters. presentation wires infrastructure in, and infrastructure implements the domain ports.](docs/assets/layers.svg)
 
-Rules never see a syntax tree. A parser turns the file into prose units, such as a comment group with the symbol it documents, a Markdown paragraph, or a commit subject, and each rule reads the units of its own surface. A new surface is a `ProseUnit` with its `SourceParser`, and text an agent writes through the shell, as `git commit` does, reaches the hook through a `ShellWatcher`. A new language is a `LanguageProfile`, a format whose only prose is its line comments is one more `CommentOnlyProfile`, and a new agent is an `AgentHarness`.
+Rules never see a syntax tree. A parser turns the file into prose units, such as a comment group with the symbol it documents, a Markdown paragraph, or a commit subject, and each rule reads the units of its own surface. A new surface is a `ProseUnit` with its `SourceParser`, and text an agent writes through the shell, as `git commit` does, reaches the hook through a `ShellCommandReader`. A new language is a `LanguageProfile`, a format whose only prose is its line comments is one more `CommentOnlyProfile`, and a new agent is an `AgentHarness`.
 
 </details>
 
@@ -238,7 +238,7 @@ Rules never see a syntax tree. A parser turns the file into prose units, such as
 - **Edits**: after each file the agent edits, the hook applies the autofixes in place, and exits 2 only when a sentence needs rewriting, which hands the message back to the model.
 - **Commits**: after a `git commit`, the hook hands the laid out message back, since amending history is the agent's call, for a commit not yet pushed.
 - **Warnings**: a warning reaches the model as context beside the tool result, without blocking.
-- **Sessions**: a session in a repository whose [git hooks](#git-hooks) do not run subedit hears once that `subedit install-hook` would add them, and the agent runs it only if you agree.
+- **Sessions**: a session in a repository whose [git hooks](#git-hooks) do not run subedit hears once that `subedit install-git-hooks` would add them, and the agent runs it only if you agree.
 
 #### Claude Code
 
@@ -291,12 +291,12 @@ Registering the hook with both agents is fine, since each payload identifies its
 
 ### Git Hooks
 
-Text written outside an agent, by a person or another tool, is checked when it is committed. `subedit install-hook` installs two git hooks, and leaves a hook another tool holds alone.
+Text written outside an agent, by a person or another tool, is checked when it is committed. `subedit install-git-hooks` installs two git hooks, and leaves a hook another tool holds alone.
 
 - **pre-commit**: lays out the staged files of every surface, and stops the commit until the laid out files are staged again, or on what needs rewriting.
 - **commit-msg**: lays out the commit message in place, and stops the commit on what needs rewriting.
 
-Both run `subedit fix --write`, on the staged files with `--staged` and on the message file git names. A project on [pre-commit](https://pre-commit.com) lists them as entries instead, which `subedit install-hook` prints for it.
+Both run `subedit fix --write`, on the staged files with `--staged` and on the message file git names. A project on [pre-commit](https://pre-commit.com) lists them as entries instead, which `subedit install-git-hooks` prints for it.
 
 <details>
 <summary><b>pre-commit</b>: the entries to add</summary>

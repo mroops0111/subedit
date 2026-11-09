@@ -1,10 +1,8 @@
 import abc
 import pathlib
 
-from .harnesses import ShellCommand
 
-
-class AgentWrite(abc.ABC):
+class AgentWrittenText(abc.ABC):
     """Text an agent wrote that the hook checks, and how a fixed version of it reaches where it lives."""
 
     @property
@@ -22,7 +20,7 @@ class AgentWrite(abc.ABC):
         ...
 
 
-class EditedFile(AgentWrite):
+class EditedFile(AgentWrittenText):
     """A file an agent edited, which the hook fixes in place."""
 
     def __init__(self, path: pathlib.Path) -> None:
@@ -41,16 +39,3 @@ class EditedFile(AgentWrite):
     def write_back(self, text: str) -> str | None:
         self._path.write_text(text, encoding='utf-8')
         return None
-
-
-class ShellWatcher(abc.ABC):
-    """Recognises a shell command that wrote text some surface reads, and hands that text to the hook."""
-
-    @property
-    @abc.abstractmethod
-    def keyword(self) -> str:
-        """A word every command this watcher reads contains, which lets the plugin skip the rest before starting."""
-        ...
-
-    @abc.abstractmethod
-    def writes(self, command: ShellCommand) -> tuple[AgentWrite, ...]: ...

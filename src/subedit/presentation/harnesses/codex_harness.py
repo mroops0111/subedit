@@ -54,7 +54,7 @@ class CodexHarness(AgentHarness):
     def session_directory(self, payload: Payload) -> pathlib.Path | None:
         return session_directory_in(payload)
 
-    def session_output(self, context: str) -> str:
+    def session_context_output(self, context: str) -> str:
         return context_output(SESSION_START, context)
 
     def _tool_input(self, payload: Payload) -> typing.Mapping[str, object]:

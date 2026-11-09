@@ -17,19 +17,16 @@ from ..infrastructure import (
     language_id_for,
 )
 from . import report as reporters
-from .agent_writes import AgentWrite, EditedFile, ShellWatcher
-from .commit_watcher import CommitWatcher
+from .agent_written_text import AgentWrittenText, EditedFile
 from .harnesses import ALL_HARNESSES, BLOCK_EXIT, AgentHarness, Payload, resolve
+from .shell_readers import ALL_SHELL_READERS
 
-
-# Each recognises a shell command that writes text some surface reads, so a new one is one more watcher.
-SHELL_WATCHERS: tuple[ShellWatcher, ...] = (CommitWatcher(),)
 
 _HELP_FLAGS = frozenset({'--help', '-h', '--harnesses'})
-_HOOK_OFFER = (
+_GIT_HOOK_OFFER = (
     'This repository configures subedit, but its git hooks do not run it, '
     'so text written outside this session goes unchecked until an agent edits it. '
-    'Offer the user, once, to run `subedit install-hook`, and run it only if they agree.'
+    'Offer the user, once, to run `subedit install-git-hooks`, and run it only if they agree.'
 )
 
 
@@ -61,7 +58,9 @@ def run(payload: Payload, *, write: bool = True) -> HookResult:
         command = harness.shell_command(payload)
         if command is not None:
             return _check(
-                harness, tuple(written for watcher in SHELL_WATCHERS for written in watcher.writes(command)), write
+                harness,
+                tuple(written for reader in ALL_SHELL_READERS for written in reader.written_texts(command)),
+                write,
             )
     recognition = resolve(payload)
     if recognition is None:
@@ -116,15 +115,15 @@ def main() -> int:
     return hook_result.exit_code
 
 
-def _check(harness: AgentHarness, writes: tuple[AgentWrite, ...], write: bool) -> HookResult:
+def _check(harness: AgentHarness, written_texts: tuple[AgentWrittenText, ...], write: bool) -> HookResult:
     fixer = Fixer(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), EXTERNAL_LINTERS)
     author_messages: list[str] = []
     advice_messages: list[str] = []
     repaired_paths: list[str] = []
 
-    for agent_write in writes:
-        source_path = agent_write.path
-        source_text = agent_write.read()
+    for written_text in written_texts:
+        source_path = written_text.path
+        source_text = written_text.read()
         language_id = language_id_for(source_path)
         if source_text is None or language_id is None:
             continue
@@ -143,7 +142,7 @@ def _check(harness: AgentHarness, writes: tuple[AgentWrite, ...], write: bool) -
         if brief_report:
             author_messages.append(brief_report)
         if fix_result.has_changes and write:
-            unwritten = agent_write.write_back(fix_result.document.text)
+            unwritten = written_text.write_back(fix_result.document.text)
             if unwritten is None:
                 repaired_paths.append(str(source_path))
             else:
@@ -180,7 +179,9 @@ def _offer_git_hooks(harness: AgentHarness, directory: pathlib.Path) -> HookResu
         return quiet
     if GitHooks(repository, __version__).is_installed():
         return quiet
-    return HookResult(exit_code=0, stdout=harness.session_output(_HOOK_OFFER), harness_name=harness.metadata.name)
+    return HookResult(
+        exit_code=0, stdout=harness.session_context_output(_GIT_HOOK_OFFER), harness_name=harness.metadata.name
+    )
 
 
 if __name__ == '__main__':

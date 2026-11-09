@@ -52,13 +52,13 @@ These rules autofix where text breaks across lines. A surface laid out against a
 | `mid-clause-break` | A sentence broken where it need not be, or a wrapped sentence that would fit one line | `comments`, `commit-messages` | Reflow | `error` | None |
 | `line-too-long` | A line past the width, counting indent and comment delimiter | `comments`, `commit-messages` | Reflow, or Rewrite for a trailing comment | `error` | None |
 | `paragraph-line-break` | A paragraph or list item broken across source lines | `markdown` | Reflow | `error` | None |
-| `missing-blank-line` | A body that starts on the line under the subject | `commit-messages` | Targeted | `error` | None |
+| `subject-runs-into-body` | A body that starts on the line under the subject | `commit-messages` | Targeted | `error` | None |
 
 A trailing comment cannot break without leaving its code behind, so `line-too-long` asks the author to shorten it or move it above the code.
 
 GitHub issues, Notion, and Heptabase can show a source newline as a line break, so a hand-wrapped paragraph breaks once it is copied there. Joining puts no space between two CJK characters, and keeps a break the author marked with two trailing spaces or a backslash.
 
-git reads every line up to the first blank one as a commit subject, so `missing-blank-line` puts a blank line between the subject and the body.
+git reads every line up to the first blank one as a commit subject, so `subject-runs-into-body` puts a blank line between the subject and the body.
 
 ## Sentence
 

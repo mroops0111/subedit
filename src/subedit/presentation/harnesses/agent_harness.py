@@ -30,8 +30,8 @@ class HarnessMetadata:
 class ShellCommand:
     """A command an agent ran in the shell, and the directory it ran in."""
 
-    command: str
-    directory: pathlib.Path
+    text: str
+    working_directory: pathlib.Path
 
 
 class AgentHarness(abc.ABC):
@@ -57,7 +57,7 @@ class AgentHarness(abc.ABC):
         """The directory a session opened in when this payload starts one, or None for any other payload."""
         return None
 
-    def session_output(self, context: str) -> str:
+    def session_context_output(self, context: str) -> str:
         """Stdout that puts context in front of the model as a session opens, or nothing where the agent has none."""
         return ''
 

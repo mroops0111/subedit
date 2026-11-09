@@ -10,7 +10,7 @@ PRE_COMMIT_REPOSITORY = 'https://github.com/mroops0111/subedit'
 # The installed hook runs a subedit the project already has, else one uv fetches,
 # which is how the plugin runs it, so it needs nothing but uv.
 _SCRIPT = """#!/bin/sh
-# Installed by subedit install-hook. {purpose}
+# Installed by subedit install-git-hooks. {purpose}
 if command -v subedit >/dev/null 2>&1; then
     exec subedit {arguments}
 fi
@@ -30,7 +30,7 @@ class GitHookStage:
 
 
 # Staged files are read before the commit, and the message once git has written it.
-STAGES = (
+GIT_HOOK_STAGES = (
     GitHookStage(
         'pre-commit',
         'fix --write --staged',
@@ -46,14 +46,16 @@ STAGES = (
 )
 
 
-class HookInstallError(Exception):
+class GitHookInstallError(Exception):
     """A git hook subedit will not write, with what the person can do instead."""
 
 
 class GitHooks:
     """The git hooks that run subedit at each stage of a commit, written as scripts or listed in pre-commit's config."""
 
-    def __init__(self, repository: GitRepository, version: str, stages: tuple[GitHookStage, ...] = STAGES) -> None:
+    def __init__(
+        self, repository: GitRepository, version: str, stages: tuple[GitHookStage, ...] = GIT_HOOK_STAGES
+    ) -> None:
         self._repository = repository
         self._version = version
         self._stages = stages
@@ -67,7 +69,7 @@ class GitHooks:
     def install(self) -> str:
         """Write each missing hook and say what was done, or raise when another tool holds one or should write it."""
         if (self._repository.root / PRE_COMMIT_CONFIG).is_file() and not self.is_installed():
-            raise HookInstallError(self._pre_commit_steps())
+            raise GitHookInstallError(self._pre_commit_steps())
         done: list[str] = []
         refusals: list[str] = []
         for stage in self._stages:
@@ -85,7 +87,7 @@ class GitHooks:
                 path.chmod(_EXECUTABLE)
                 done.append(f'Installed a {stage.name} hook at {path}.')
         if refusals:
-            raise HookInstallError('\n'.join(done + refusals))
+            raise GitHookInstallError('\n'.join(done + refusals))
         return '\n'.join(done)
 
     def _script(self, stage: GitHookStage) -> str:

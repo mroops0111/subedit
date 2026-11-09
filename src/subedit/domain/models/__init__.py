@@ -13,7 +13,7 @@ from .document import Document
 from .embedded import EmbeddedDocument
 from .file_type import FileType
 from .laid_out_prose import LaidOutProse
-from .line_layout import LINE_LAYOUT, LineLayout, LinePrefixLayout, PrefixedLine
+from .line_layout import LINE_PREFIX_LAYOUT, LineLayout, LinePrefixLayout, PrefixedLine
 from .markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
 from .position import Encoding, Position, PositionMap, SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence
@@ -25,7 +25,7 @@ from .text import TextEdit, apply_edits
 
 
 __all__ = [
-    'LINE_LAYOUT',
+    'LINE_PREFIX_LAYOUT',
     'PLAIN_MARKUP',
     'QUOTED_DOC_LAYOUT',
     'SEVERITY_BY_NAME',

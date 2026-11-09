@@ -1,7 +1,7 @@
 import dataclasses
 
 from .laid_out_prose import LaidOutProse
-from .line_layout import LINE_LAYOUT, LineLayout, PrefixedLine
+from .line_layout import LINE_PREFIX_LAYOUT, LineLayout, PrefixedLine
 from .position import SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup
 from .prose_unit import ProseLine, ProseUnit
@@ -53,7 +53,7 @@ class CommitBody(LaidOutProse):
 
     range: SourceRange
     lines: tuple[PrefixedLine, ...]
-    layout: LineLayout = LINE_LAYOUT
+    layout: LineLayout = LINE_PREFIX_LAYOUT
     markup: ProseMarkup = PLAIN_MARKUP
 
     def __post_init__(self) -> None:

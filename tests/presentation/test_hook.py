@@ -288,7 +288,7 @@ def test_a_session_in_a_repository_without_the_git_hook_hears_the_offer(reposito
 
     context = json.loads(hook_result.stdout)['hookSpecificOutput']
     assert context['hookEventName'] == 'SessionStart'
-    assert 'subedit install-hook' in context['additionalContext']
+    assert 'subedit install-git-hooks' in context['additionalContext']
 
 
 def test_a_session_hears_no_offer_once_the_git_hooks_run_subedit(repository: Project) -> None:

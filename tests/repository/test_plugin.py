@@ -117,13 +117,15 @@ def test_the_wrapper_lets_a_shell_command_that_commits_nothing_pass_before_start
     assert (completed.returncode, completed.stderr) == (0, ''), 'without uv on PATH, reaching uvx would fail'
 
 
-def test_the_wrapper_watches_the_word_of_every_shell_watcher() -> None:
-    from subedit.presentation.hook import SHELL_WATCHERS
+def test_the_wrapper_lets_through_the_keyword_of_every_shell_reader() -> None:
+    from subedit.presentation.shell_readers import ALL_SHELL_READERS
 
-    line = next(line for line in WRAPPER.read_text(encoding='utf-8').splitlines() if line.startswith('WATCHED_WORDS='))
-    watched = set(line.split('=', 1)[1].strip("'").split())
+    line = next(
+        line for line in WRAPPER.read_text(encoding='utf-8').splitlines() if line.startswith('COMMAND_KEYWORDS=')
+    )
+    keywords = set(line.split('=', 1)[1].strip("'").split())
 
-    assert watched == {watcher.keyword for watcher in SHELL_WATCHERS}, 'a watcher whose word is missing never runs'
+    assert keywords == {reader.keyword for reader in ALL_SHELL_READERS}, 'a reader whose keyword is missing never runs'
 
 
 def test_the_pre_commit_hook_reads_every_extension_subedit_reads() -> None:

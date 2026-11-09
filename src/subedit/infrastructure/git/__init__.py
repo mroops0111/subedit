@@ -1,5 +1,5 @@
-from .git_hooks import PRE_COMMIT_CONFIG, STAGES, GitHooks, GitHookStage, HookInstallError
+from .git_hooks import GIT_HOOK_STAGES, PRE_COMMIT_CONFIG, GitHookInstallError, GitHooks, GitHookStage
 from .git_repository import GitRepository
 
 
-__all__ = ['PRE_COMMIT_CONFIG', 'STAGES', 'GitHookStage', 'GitHooks', 'GitRepository', 'HookInstallError']
+__all__ = ['GIT_HOOK_STAGES', 'PRE_COMMIT_CONFIG', 'GitHookInstallError', 'GitHookStage', 'GitHooks', 'GitRepository']

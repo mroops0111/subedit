@@ -129,5 +129,5 @@ def test_each_agent_reads_a_session_start_and_answers_with_context(
     payload = {'hook_event_name': 'SessionStart', 'source': 'startup', 'cwd': str(tmp_path)}
 
     assert harness.session_directory(payload) == tmp_path
-    context = json.loads(harness.session_output('note'))['hookSpecificOutput']
+    context = json.loads(harness.session_context_output('note'))['hookSpecificOutput']
     assert context == {'hookEventName': 'SessionStart', 'additionalContext': 'note'}

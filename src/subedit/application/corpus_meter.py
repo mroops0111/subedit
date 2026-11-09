@@ -92,7 +92,7 @@ class CorpusMeter:
                             unbreakable_counts[width] += 1
                 # Only text laid out in lines against a width has line counts and widths to measure.
                 if isinstance(unit, LaidOutProse):
-                    grouped_line_counts.setdefault(unit.category, []).append(unit.line_count)
+                    grouped_line_counts.setdefault(unit.statistics_category, []).append(unit.line_count)
                     physical_widths.extend(line.physical_width for line in unit.lines)
 
         return SurfaceStatistics(

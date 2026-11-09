@@ -71,4 +71,4 @@ class LinePrefixLayout(LineLayout):
         )
 
 
-LINE_LAYOUT = LinePrefixLayout()
+LINE_PREFIX_LAYOUT = LinePrefixLayout()

@@ -1,7 +1,7 @@
 from .commit import (
     CONVENTIONAL_TYPES,
-    MissingBlankLineRule,
     SubjectNotImperativeRule,
+    SubjectRunsIntoBodyRule,
     SubjectStyleRule,
     SubjectTooLongRule,
 )
@@ -42,13 +42,13 @@ __all__ = [
     'MidClauseBreakRule',
     'MidListBreakRule',
     'MidSentenceColonRule',
-    'MissingBlankLineRule',
     'MissingLeadSentenceRule',
     'ParagraphLineBreakRule',
     'ParenthesisStyleRule',
     'PlainCommentOnPublicRule',
     'SignatureRestatingTagRule',
     'SubjectNotImperativeRule',
+    'SubjectRunsIntoBodyRule',
     'SubjectStyleRule',
     'SubjectTooLongRule',
     'TableHeaderTitleCaseRule',

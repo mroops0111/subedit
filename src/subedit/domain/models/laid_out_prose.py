@@ -42,7 +42,7 @@ class LaidOutProse(ProseUnit, abc.ABC):
         return self.stays_on_its_line
 
     @property
-    def category(self) -> str:
+    def statistics_category(self) -> str:
         """The group a corpus measure counts this unit's lines under, so each kind can get a limit of its own."""
         return 'all'
 

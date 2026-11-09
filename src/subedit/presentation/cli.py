@@ -27,9 +27,9 @@ from ..infrastructure import (
     GENERATED_NAMES,
     VENDOR_DIRECTORIES,
     ConfigError,
+    GitHookInstallError,
     GitHooks,
     GitRepository,
-    HookInstallError,
     language_id_for,
 )
 from . import report as reporters
@@ -58,7 +58,7 @@ def check(
     staged: bool = typer.Option(False, '--staged', help='Check the files git has staged, in place of paths.'),
 ) -> None:
     """Report findings, and exit non-zero when any is an error."""
-    documents = _targets(paths, staged=staged)
+    documents = _documents_to_read(paths, staged=staged)
     formatter = _FORMATTERS.get(output)
     if formatter is None:
         typer.echo(f'Unknown output format {output!r}. Choose full, actionable, or json.', err=True)
@@ -85,7 +85,7 @@ def fix(
     ),
 ) -> None:
     """Apply mechanical fixes, printing a diff unless told to write, and report what needs an author."""
-    documents = _targets(paths, staged=staged)
+    documents = _documents_to_read(paths, staged=staged)
 
     fixer = Fixer(_build_linter(), _external_linters(delegate))
     changed_file_count = 0
@@ -131,8 +131,8 @@ def rules() -> None:
     typer.echo(rule_reference.render(ALL_RULES, DEFAULT_PARSER), nl=False)
 
 
-@app.command(name='install-hook')
-def install_hook(
+@app.command(name='install-git-hooks')
+def install_git_hooks(
     directory: pathlib.Path = typer.Argument(pathlib.Path('.'), help='A directory inside the repository.'),
 ) -> None:
     """Install git hooks that lay out the staged files and the commit message, and stop on what needs rewriting.
@@ -145,7 +145,7 @@ def install_hook(
         raise typer.Exit(2)
     try:
         typer.echo(GitHooks(repository, __version__).install())
-    except HookInstallError as error:
+    except GitHookInstallError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(1) from None
 
@@ -214,7 +214,7 @@ def _is_written_elsewhere(relative: pathlib.Path) -> bool:
 
 
 # A commit that stages no file subedit reads has nothing to check, which is no mistake.
-def _targets(paths: list[pathlib.Path] | None, *, staged: bool) -> tuple[Document, ...]:
+def _documents_to_read(paths: list[pathlib.Path] | None, *, staged: bool) -> tuple[Document, ...]:
     if staged:
         repository = GitRepository.at(pathlib.Path.cwd())
         if repository is None:

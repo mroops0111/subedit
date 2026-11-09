@@ -3,12 +3,12 @@ import pathlib
 import pytest
 from factories import Project
 
-from subedit.presentation.commit_watcher import CommitWatcher
 from subedit.presentation.harnesses import ShellCommand
+from subedit.presentation.shell_readers import CommitReader
 
 
 def writes_of(directory: pathlib.Path, command: str) -> list[str | None]:
-    return [written.read() for written in CommitWatcher().writes(ShellCommand(command, directory))]
+    return [written.read() for written in CommitReader().written_texts(ShellCommand(command, directory))]
 
 
 @pytest.mark.parametrize(
@@ -47,7 +47,7 @@ def test_a_commit_command_that_made_no_commit_writes_nothing(repository: Project
 
 def test_the_message_is_read_as_the_file_git_writes_it_to(repository: Project) -> None:
     repository.git('commit', '-q', '--allow-empty', '-m', 'Add the parser')
-    (written,) = CommitWatcher().writes(ShellCommand('git commit', repository.root))
+    (written,) = CommitReader().written_texts(ShellCommand('git commit', repository.root))
 
     assert written.path.name == 'COMMIT_EDITMSG'
     assert 'git commit --amend --only -F -' in (written.write_back('Add the parser\n') or '')
