@@ -1,9 +1,19 @@
 {
-  "description": "Repair prose layout after every write, and block only on a finding that needs rewriting.",
+  "description": "Repair prose layout after every write, check the commits an agent makes, and block only on a finding that needs rewriting.",
   "hooks": {
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/run-subedit-hook.sh",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",

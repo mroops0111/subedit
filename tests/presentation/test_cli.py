@@ -25,7 +25,7 @@ def test_stats_reports_a_measured_corpus(project: Project, capsys: pytest.Captur
     assert exit_info.value.code == 0
 
     output = capsys.readouterr().out
-    assert '1 documents, 2 comment blocks' in output
+    assert 'comments: 1 documents, 2 units' in output
     assert 'doc/public' in output
     assert 'plain/inline-body' in output
 
@@ -201,6 +201,15 @@ def test_a_diff_keeps_a_blank_last_context_line(project: Project, capsys: pytest
     assert hunk.endswith('\n \n'), 'patch counts a blank context line, so dropping it makes the hunk short'
 
 
+def test_fix_write_lays_out_the_message_a_commit_msg_hook_hands_it(project: Project) -> None:
+    project.write('subedit.toml', '')
+    message = project.write('.git/COMMIT_EDITMSG', 'Fix the parser.\nIt dropped a line.\n')
+    with pytest.raises(SystemExit) as exit_info:
+        app(['fix', '--write', '--no-delegate', str(message)])
+    assert exit_info.value.code == 0
+    assert message.read_text(encoding='utf-8') == 'Fix the parser\n\nIt dropped a line.\n'
+
+
 class _PreparedLinter(ExternalLinter):
     name = 'probe'
 
@@ -216,3 +225,72 @@ class _PreparedLinter(ExternalLinter):
 
     def run(self, document: Document) -> tuple[Diagnostic, ...]:
         return ()
+
+
+def test_install_hook_writes_the_git_hooks(repository: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        app(['install-git-hooks', str(repository.root)])
+
+    assert exit_info.value.code == 0
+    assert 'Installed' in capsys.readouterr().out
+    assert (repository.root / '.git' / 'hooks' / 'pre-commit').is_file()
+    assert (repository.root / '.git' / 'hooks' / 'commit-msg').is_file()
+
+
+def test_install_hook_outside_a_repository_is_a_usage_error(tmp_path: pathlib.Path) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        app(['install-git-hooks', str(tmp_path)])
+    assert exit_info.value.code == 2
+
+
+def test_install_hook_leaves_another_tools_hook_and_exits_non_zero(repository: Project) -> None:
+    repository.write('.git/hooks/commit-msg', '#!/bin/sh\nnpx commitlint --edit "$1"\n')
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['install-git-hooks', str(repository.root)])
+    assert exit_info.value.code == 1
+
+
+def test_a_surface_switched_off_reports_nothing(project: Project) -> None:
+    project.write('subedit.toml', '[surfaces]\nmarkdown = "off"\n')
+    target = project.write('notes.md', '## when to apply\n\n- item\n')
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check', '--no-delegate', str(target)])
+    assert exit_info.value.code == 0
+
+
+def test_fix_staged_lays_out_the_staged_files_and_fails_until_they_are_staged_again(
+    repository: Project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository.write('subedit.toml', '[subedit]\nline-width = 74\n')
+    target = repository.write(
+        'probe.py',
+        'def f():\n    # cap the size to the shared limit so the mmap does not\n'
+        '    # blow past it, an unbounded value faults the runner.\n    pass\n',
+    )
+    repository.write('untouched.py', '# a line that is never staged.\n')
+    repository.git('add', 'probe.py', 'subedit.toml')
+    monkeypatch.chdir(repository.root)
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['fix', '--staged', '--write', '--no-delegate'])
+
+    assert exit_info.value.code == 1, 'the commit would hold the text before the fix'
+    assert 'does not blow past it,\n' in target.read_text(encoding='utf-8')
+
+
+def test_fix_staged_with_nothing_subedit_reads_passes(repository: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    repository.write('data.bin', 'x')
+    repository.git('add', 'data.bin')
+    monkeypatch.chdir(repository.root)
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check', '--staged', '--no-delegate'])
+    assert exit_info.value.code == 0
+
+
+def test_a_command_with_neither_paths_nor_staged_is_a_usage_error() -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check'])
+    assert exit_info.value.code == 2

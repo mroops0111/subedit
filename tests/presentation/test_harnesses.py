@@ -1,10 +1,19 @@
+import json
 import pathlib
 import typing
 
 import pytest
 from factories import Project
 
-from subedit.presentation.harnesses import ALL_HARNESSES, ClaudeCodeHarness, CodexHarness, HarnessMetadata, resolve
+from subedit.presentation.harnesses import (
+    ALL_HARNESSES,
+    AgentHarness,
+    ClaudeCodeHarness,
+    CodexHarness,
+    HarnessMetadata,
+    ShellCommand,
+    resolve,
+)
 
 
 @pytest.fixture
@@ -103,3 +112,22 @@ def test_a_harness_must_name_itself() -> None:
 
 def test_the_registry_holds_both_agents() -> None:
     assert [type(harness) for harness in ALL_HARNESSES] == [ClaudeCodeHarness, CodexHarness]
+
+
+@pytest.mark.parametrize('harness', ALL_HARNESSES, ids=lambda harness: harness.metadata.name)
+def test_each_agent_reads_a_shell_command_and_where_it_ran(harness: AgentHarness, tmp_path: pathlib.Path) -> None:
+    payload = {'tool_name': 'Bash', 'tool_input': {'command': 'git status'}, 'cwd': str(tmp_path)}
+
+    assert harness.shell_command(payload) == ShellCommand('git status', tmp_path)
+    assert harness.shell_command({'tool_name': 'Read', 'tool_input': {'command': 'x'}}) is None
+
+
+@pytest.mark.parametrize('harness', ALL_HARNESSES, ids=lambda harness: harness.metadata.name)
+def test_each_agent_reads_a_session_start_and_answers_with_context(
+    harness: AgentHarness, tmp_path: pathlib.Path
+) -> None:
+    payload = {'hook_event_name': 'SessionStart', 'source': 'startup', 'cwd': str(tmp_path)}
+
+    assert harness.session_directory(payload) == tmp_path
+    context = json.loads(harness.session_context_output('note'))['hookSpecificOutput']
+    assert context == {'hookEventName': 'SessionStart', 'additionalContext': 'note'}

@@ -1,24 +1,19 @@
 from .comment import (
     CommentForm,
     CommentGroup,
-    CommentLine,
     CommentPlacement,
     SymbolKind,
     SymbolRef,
     Visibility,
 )
-from .comment_layout import (
-    LINE_LAYOUT,
-    QUOTED_DOC_LAYOUT,
-    CommentLayout,
-    FramedDocLayout,
-    LinePrefixLayout,
-    QuotedDocLayout,
-)
+from .comment_layout import QUOTED_DOC_LAYOUT, FramedDocLayout, QuotedDocLayout
+from .commit_message import CommitBody, CommitSubject
 from .diagnostic import SEVERITY_BY_NAME, Diagnostic, Fix, FixKind, Report, RuleMetadata, Severity
 from .document import Document
 from .embedded import EmbeddedDocument
 from .file_type import FileType
+from .laid_out_prose import LaidOutProse
+from .line_layout import LINE_PREFIX_LAYOUT, LineLayout, LinePrefixLayout, PrefixedLine
 from .markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
 from .position import Encoding, Position, PositionMap, SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence
@@ -30,16 +25,16 @@ from .text import TextEdit, apply_edits
 
 
 __all__ = [
-    'LINE_LAYOUT',
+    'LINE_PREFIX_LAYOUT',
     'PLAIN_MARKUP',
     'QUOTED_DOC_LAYOUT',
     'SEVERITY_BY_NAME',
     'ChoiceOption',
     'CommentForm',
     'CommentGroup',
-    'CommentLayout',
-    'CommentLine',
     'CommentPlacement',
+    'CommitBody',
+    'CommitSubject',
     'CountOption',
     'Diagnostic',
     'Document',
@@ -50,12 +45,15 @@ __all__ = [
     'FixKind',
     'FramedDocLayout',
     'HeadingLevelsOption',
+    'LaidOutProse',
+    'LineLayout',
     'LinePrefixLayout',
     'MarkdownBlock',
     'MarkdownBlockKind',
     'MarkdownLine',
     'Position',
     'PositionMap',
+    'PrefixedLine',
     'Prose',
     'ProseLine',
     'ProseMap',

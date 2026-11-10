@@ -1,5 +1,6 @@
 import abc
 import dataclasses
+import pathlib
 import typing
 
 from ..models.document import Document
@@ -33,6 +34,17 @@ class SourceParser(abc.ABC, typing.Generic[UnitT]):
     @abc.abstractmethod
     def read(self, document: Document) -> ParsedDocument[UnitT]: ...
 
+    @property
+    def unit_types(self) -> tuple[type[ProseUnit], ...]:
+        """The kinds of unit this parser yields, which tell a rule reference what surfaces a rule reads."""
+        return ()
+
+    def surfaces_reading(self, unit_type: type[ProseUnit]) -> tuple[str, ...]:
+        """The surfaces whose documents yield a unit that a rule reading unit_type reads, by their config names."""
+        if not any(issubclass(own_type, unit_type) for own_type in self.unit_types):
+            return ()
+        return tuple(dict.fromkeys(file_type.surface for file_type in self.file_types))
+
     def parse(self, document: Document) -> tuple[UnitT, ...]:
         return self.read(document).units
 
@@ -54,3 +66,7 @@ class SourceParser(abc.ABC, typing.Generic[UnitT]):
     def language_id_for(self, extension: str) -> str | None:
         """The language a file is read as, from its extension."""
         return next((file_type.language_id for file_type in self.file_types if extension in file_type.extensions), None)
+
+    def file_type_for(self, path: pathlib.PurePath) -> FileType | None:
+        """The file type a path is read as, by its name where git names the file, and otherwise by its extension."""
+        return next((file_type for file_type in self.file_types if file_type.matches(path)), None)

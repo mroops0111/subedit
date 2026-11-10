@@ -166,10 +166,17 @@ def test_a_codex_patch_reaches_the_same_loop(project: Project) -> None:
 
 def test_an_unclaimed_payload_does_nothing(project: Project) -> None:
     seed(project, UNBREAKABLE)
-    outcome = hook.run({'tool_name': 'Bash', 'tool_input': {'command': 'ls'}})
+    outcome = hook.run({'tool_name': 'Read', 'tool_input': {'file_path': 'notes.txt'}})
 
     assert outcome.exit_code == 0
     assert outcome.harness_name == ''
+
+
+def test_a_shell_command_that_writes_no_prose_passes_quietly(project: Project) -> None:
+    seed(project, UNBREAKABLE)
+    outcome = hook.run({'tool_name': 'Bash', 'tool_input': {'command': 'ls'}, 'cwd': str(project.root)})
+
+    assert (outcome.exit_code, outcome.stderr, outcome.stdout) == (0, '', '')
 
 
 def test_the_hook_can_list_the_shapes_it_accepts() -> None:
@@ -212,3 +219,85 @@ def test_codex_has_no_channel_for_a_warning(project: Project) -> None:
 
     assert outcome.exit_code == 0
     assert outcome.stdout == ''
+
+
+ADOPTED = '[subedit]\n'
+COMMITS_OFF = '[surfaces]\ncommit-messages = "off"\n'
+
+
+def commit_payload(repository: Project, command: str = 'git commit -m "add the parser."') -> dict[str, object]:
+    return {'tool_name': 'Bash', 'tool_input': {'command': command}, 'cwd': str(repository.root)}
+
+
+def session_payload(repository: Project) -> dict[str, object]:
+    return {'hook_event_name': 'SessionStart', 'source': 'startup', 'cwd': str(repository.root)}
+
+
+def commit(repository: Project, message: str) -> None:
+    repository.git('commit', '-q', '--allow-empty', '-m', message)
+
+
+def test_a_commit_message_to_change_blocks_with_its_laid_out_text(repository: Project) -> None:
+    repository.write('subedit.toml', ADOPTED)
+    commit(repository, 'add the parser.')
+
+    hook_result = hook.run(commit_payload(repository))
+
+    assert hook_result.is_blocking
+    assert 'git commit --amend --only -F -' in hook_result.stderr
+    assert 'Add the parser' in hook_result.stderr
+    assert repository.git('log', '-1', '--format=%s').strip() == 'add the parser.', 'the hook never rewrites history'
+
+
+def test_a_commit_message_that_needs_an_author_names_the_finding(repository: Project) -> None:
+    repository.write('subedit.toml', ADOPTED)
+    commit(repository, 'Add the parser\n\n' + 'This sentence carries no comma and runs on' + ' and on' * 12 + '.')
+
+    hook_result = hook.run(commit_payload(repository))
+
+    assert hook_result.is_blocking
+    assert 'unbreakable-sentence' in hook_result.stderr
+
+
+def test_a_clean_commit_message_passes(repository: Project) -> None:
+    repository.write('subedit.toml', ADOPTED)
+    commit(repository, 'Add the parser')
+
+    assert hook.run(commit_payload(repository)).exit_code == 0
+
+
+def test_commits_go_unchecked_where_the_surface_is_off(repository: Project) -> None:
+    repository.write('subedit.toml', COMMITS_OFF)
+    commit(repository, 'add the parser.')
+
+    assert hook.run(commit_payload(repository)).exit_code == 0
+
+
+def test_a_commit_command_that_made_no_commit_checks_nothing(repository: Project) -> None:
+    repository.write('subedit.toml', ADOPTED)
+    commit(repository, 'add the parser.')
+    repository.git('checkout', '-q', '-b', 'topic')
+
+    assert hook.run(commit_payload(repository)).exit_code == 0
+
+
+def test_a_session_in_a_repository_without_the_git_hook_hears_the_offer(repository: Project) -> None:
+    repository.write('subedit.toml', ADOPTED)
+
+    hook_result = hook.run(session_payload(repository))
+
+    context = json.loads(hook_result.stdout)['hookSpecificOutput']
+    assert context['hookEventName'] == 'SessionStart'
+    assert 'subedit install-git-hooks' in context['additionalContext']
+
+
+def test_a_session_hears_no_offer_once_the_git_hooks_run_subedit(repository: Project) -> None:
+    repository.write('subedit.toml', ADOPTED)
+    repository.write('.git/hooks/pre-commit', '#!/bin/sh\nexec subedit fix --write --staged\n')
+    repository.write('.git/hooks/commit-msg', '#!/bin/sh\nexec subedit fix --write "$1"\n')
+
+    assert hook.run(session_payload(repository)).stdout == ''
+
+
+def test_a_session_hears_no_offer_where_subedit_is_not_configured(repository: Project) -> None:
+    assert hook.run(session_payload(repository)).stdout == ''

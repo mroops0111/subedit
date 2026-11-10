@@ -19,7 +19,7 @@ from subedit.infrastructure import (
     ALL_RULES,
     DEFAULT_CONFIG_SOURCE,
     LAYOUT_RULES,
-    SUFFIX_ALIASES,
+    PATH_ALIASES,
     TYPESCRIPT,
     language_id_for,
 )
@@ -291,8 +291,12 @@ def test_an_inline_link_closing_a_jsdoc_line_is_prose() -> None:
     assert group.code_ranges() == (), 'only a line that opens or closes a block of code is code'
 
 
-def test_every_extension_aliases_to_the_one_prose_tools_know() -> None:
-    assert SUFFIX_ALIASES == {
+def test_every_extension_and_file_name_aliases_to_the_one_prose_tools_know() -> None:
+    assert PATH_ALIASES == {
+        'COMMIT_EDITMSG': '.md',
+        'MERGE_MSG': '.md',
+        'SQUASH_MSG': '.md',
+        'TAG_EDITMSG': '.md',
         '.mts': '.ts',
         '.cts': '.ts',
         '.mjs': '.js',

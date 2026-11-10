@@ -1,0 +1,13 @@
+- id: subedit
+  name: subedit
+  description: Lay out the prose in staged files and report what needs rewriting.
+  entry: subedit fix --write
+  language: python
+  files: \.(cjs|cts|js|json|jsonc|jsx|markdown|md|mjs|mts|py|pyi|ts|tsx|yaml|yml)$
+  stages: [pre-commit]
+- id: subedit-commit-msg
+  name: subedit commit message
+  description: Lay out a commit message body by clause and report what needs rewriting.
+  entry: subedit fix --write
+  language: python
+  stages: [commit-msg]

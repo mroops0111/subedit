@@ -5,7 +5,14 @@ import pytest
 from factories import Project
 
 from subedit.domain import Severity
-from subedit.infrastructure import ALL_RULES, CONFIG_NAME, DEFAULT_CONFIG_SOURCE, ConfigError, TomlConfigSource
+from subedit.infrastructure import (
+    ALL_RULES,
+    CONFIG_NAME,
+    DEFAULT_CONFIG_SOURCE,
+    ConfigError,
+    TomlConfigSource,
+    language_id_for,
+)
 
 
 AVAILABLE = ('mid-clause-break', 'line-too-long', 'line-too-short', 'heading-title-case', 'discouraged-word')
@@ -162,6 +169,14 @@ def test_rules_nest_under_the_tool_table_in_pyproject(project: Project) -> None:
     assert rules.is_enabled('line-too-long')
 
 
+def test_surfaces_nest_under_the_tool_table_in_pyproject(project: Project) -> None:
+    body = '[tool.subedit]\n\n[tool.subedit.surfaces.markdown.rules]\nheading-title-case = "off"\n'
+    target = configured(project, body, PYPROJECT)
+    rules = DEFAULT_CONFIG_SOURCE.resolve(str(target))
+    assert not rules.for_language('markdown').is_enabled('heading-title-case')
+    assert rules.is_enabled('heading-title-case')
+
+
 def test_excludes_are_read_from_pyproject(project: Project) -> None:
     body = '[tool.subedit]\nexclude = ["build/**"]\n'
     assert source().exclude_patterns(str(configured(project, body, PYPROJECT))) == ('build/**',)
@@ -225,6 +240,95 @@ def test_subedit_config_sets_the_width_over_the_formatter(project: Project) -> N
     assert DEFAULT_CONFIG_SOURCE.resolve(str(project.root / 'a.py')).line_width == 100
 
 
-def test_code_blocks_are_read_only_where_the_project_asks(project: Project) -> None:
-    assert not source().resolve(str(configured(project, '[subedit]\n'))).reads_embedded
-    assert source().resolve(str(configured(project, '[subedit]\ncode-blocks = true\n'))).reads_embedded
+def test_code_blocks_are_read_only_where_a_surface_asks(project: Project) -> None:
+    project.write(CONFIG_NAME, '[surfaces.markdown]\ncode-blocks = true\n')
+    notes = project.write('notes.md', '# Notes\n')
+
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(notes)).for_language('markdown').reads_embedded
+    assert not DEFAULT_CONFIG_SOURCE.resolve(str(notes)).reads_embedded, 'only the surface that asks reads them'
+
+
+def test_code_blocks_set_for_every_surface_say_where_they_moved(project: Project) -> None:
+    with pytest.raises(ConfigError, match=re.escape('moved to [surfaces.markdown]')):
+        source().resolve(str(configured(project, '[subedit]\ncode-blocks = true\n')))
+
+
+@pytest.mark.parametrize(('surface', 'name'), [('comments', 'module.py'), ('markdown', 'README.md')])
+def test_a_surface_switched_off_is_read_by_nothing(project: Project, surface: str, name: str) -> None:
+    project.write(CONFIG_NAME, f'[surfaces]\n{surface} = "off"\n')
+    target = project.write(name, '# note\n')
+    language_id = language_id_for(target)
+
+    assert language_id is not None
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(target)).for_language(language_id).is_off
+    assert not DEFAULT_CONFIG_SOURCE.resolve(str(target)).for_language('git-commit').is_off
+
+
+def test_a_surface_takes_off_or_a_table_and_nothing_else(project: Project) -> None:
+    with pytest.raises(ConfigError, match=re.escape('surfaces.markdown')):
+        source().resolve(str(configured(project, '[surfaces]\nmarkdown = "warning"\n')))
+
+
+def commit_message_in(project: Project, body: str) -> pathlib.Path:
+    project.write(CONFIG_NAME, body)
+    return project.write('.git/COMMIT_EDITMSG', 'Fix it\n')
+
+
+def test_a_commit_message_takes_gits_width_over_the_projects_code_width(project: Project) -> None:
+    target = commit_message_in(project, '[subedit]\nline-width = 120\n')
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(target)).line_width == 72
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(project.write('module.py', '# note\n'))).line_width == 120
+
+
+def test_a_width_set_for_a_surface_wins(project: Project) -> None:
+    target = commit_message_in(
+        project, '[surfaces.commit-messages]\nline-width = 100\n\n[surfaces.comments]\nline-width = 88\n'
+    )
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(target)).line_width == 100
+    assert DEFAULT_CONFIG_SOURCE.resolve(str(project.write('module.py', '# note\n'))).line_width == 88
+
+
+def test_a_surface_switches_a_rule_for_itself_alone(project: Project) -> None:
+    target = commit_message_in(
+        project,
+        '[rules]\nline-too-short = "off"\n\n[surfaces.commit-messages.rules]\nline-too-short = "error"\nmid-clause-break = "off"\n',
+    )
+    rules = DEFAULT_CONFIG_SOURCE.resolve(str(target))
+    commits, comments = rules.for_language('git-commit'), rules.for_language('python')
+    assert (commits.is_enabled('mid-clause-break'), comments.is_enabled('mid-clause-break')) == (False, True)
+    assert (commits.is_enabled('line-too-short'), comments.is_enabled('line-too-short')) == (True, False)
+
+
+def test_a_surface_table_adds_its_options_to_the_projects(project: Project) -> None:
+    target = commit_message_in(
+        project,
+        '[rules.subject-style]\nstyle = "conventional"\n\n'
+        '[surfaces.commit-messages.rules.subject-style]\ntypes = ["feat"]\nseverity = "warning"\n',
+    )
+    settings = DEFAULT_CONFIG_SOURCE.resolve(str(target)).for_language('git-commit').settings_for('subject-style')
+    assert settings.options == {'style': 'conventional', 'types': ('feat',)}
+    assert settings.severity is Severity.WARNING
+
+
+@pytest.mark.parametrize(
+    ('body', 'complaint'),
+    [
+        pytest.param(
+            '[surfaces.cobol]\nline-width = 72\n', 'surfaces.cobol: is not a surface subedit reads', id='surface'
+        ),
+        pytest.param(
+            '[surfaces.markdown.rules]\nstub-fragment = "off"\n',
+            'surfaces.markdown.rules.stub-fragment: is not a rule subedit defines',
+            id='rule',
+        ),
+        pytest.param(
+            '[surfaces.markdown.rules]\nheading-title-case = { style = "ap" }\n',
+            'surfaces.markdown.rules.heading-title-case.style: must be one of apa, chicago',
+            id='option',
+        ),
+    ],
+)
+def test_a_surface_written_wrong_names_its_mistake(project: Project, body: str, complaint: str) -> None:
+    target = commit_message_in(project, body)
+    with pytest.raises(ConfigError, match=re.escape(complaint)):
+        DEFAULT_CONFIG_SOURCE.resolve(str(target))

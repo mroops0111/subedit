@@ -1,3 +1,4 @@
+from .commit_message_parser import COMMIT_MESSAGE, CommitMessageParser
 from .composite_parser import CompositeParser
 from .languages import (
     JAVASCRIPT,
@@ -18,6 +19,7 @@ from .tree_sitter_parser import TreeSitterParser
 
 
 __all__ = [
+    'COMMIT_MESSAGE',
     'JAVASCRIPT',
     'JSON',
     'MARKDOWN',
@@ -26,6 +28,7 @@ __all__ = [
     'TYPESCRIPT',
     'YAML',
     'CommentOnlyProfile',
+    'CommitMessageParser',
     'CompositeParser',
     'GrammarAdapter',
     'LanguageProfile',

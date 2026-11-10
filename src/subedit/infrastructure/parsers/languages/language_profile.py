@@ -7,11 +7,15 @@ import typing
 from tree_sitter import Language, Node
 
 from ....domain.models.comment import CommentForm, SymbolKind, Visibility
-from ....domain.models.comment_layout import LINE_LAYOUT, CommentLayout
 from ....domain.models.file_type import FileType
+from ....domain.models.line_layout import LINE_PREFIX_LAYOUT, LineLayout
 from ....domain.models.prose import PLAIN_MARKUP, ProseMarkup
 from ....domain.ports.language_conventions import DelimiterSplit, LanguageConventions
 from ...config_sources.formatter_width import WidthSetting
+
+
+# Every language a profile reads holds its prose in comments, which a project's config names as one surface.
+COMMENTS = 'comments'
 
 
 class NodeRole(enum.Enum):
@@ -52,7 +56,7 @@ class LanguageProfile(LanguageConventions, GrammarAdapter):
     canonical_extension: str
     # What opens a line comment, such as # or //, which every line of one repeats.
     line_delimiter: re.Pattern[str]
-    doc_layout: CommentLayout = LINE_LAYOUT
+    doc_layout: LineLayout = LINE_PREFIX_LAYOUT
     doc_markup: ProseMarkup = PLAIN_MARKUP
     line_markup: ProseMarkup = PLAIN_MARKUP
     # A docstring lives inside what it documents, while a JSDoc block stands above it.
@@ -74,7 +78,12 @@ class LanguageProfile(LanguageConventions, GrammarAdapter):
     @property
     def file_type(self) -> FileType:
         return FileType(
-            self.language_id, self.extensions, self.canonical_extension, self.vendor_directories, self.generated_names
+            self.language_id,
+            self.extensions,
+            self.canonical_extension,
+            COMMENTS,
+            self.vendor_directories,
+            self.generated_names,
         )
 
     def role_of(self, node_type: str) -> NodeRole:

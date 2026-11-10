@@ -1,22 +1,10 @@
 import dataclasses
 import enum
-import typing
 
-from .comment_layout import LINE_LAYOUT, CommentLayout, CommentLine
+from .laid_out_prose import LaidOutProse
+from .line_layout import LINE_PREFIX_LAYOUT, LineLayout, PrefixedLine
 from .position import SourceRange
-from .prose import LIST_MARKER, PLAIN_MARKUP, Prose, ProseMarkup
-from .prose_unit import ProseLine, ProseUnit
-from .reflow import (
-    BreakPolicy,
-    break_cost,
-    is_legal,
-    keeps_given,
-    line_shared_by,
-    occupied_lines,
-    reflow_sentence,
-    strands_stub,
-)
-from .text import TextEdit
+from .prose import PLAIN_MARKUP, ProseMarkup
 
 
 class CommentForm(enum.Enum):
@@ -55,17 +43,15 @@ class SymbolRef:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class CommentGroup(ProseUnit):
+class CommentGroup(LaidOutProse):
     """Consecutive comment lines that read as one block, with what they document and how they are laid out."""
 
-    surface_name: typing.ClassVar[str] = 'Comments'
-
     range: SourceRange
-    lines: tuple[CommentLine, ...]
+    lines: tuple[PrefixedLine, ...]
     form: CommentForm
     placement: CommentPlacement
     attachment: SymbolRef | None = None
-    layout: CommentLayout = LINE_LAYOUT
+    layout: LineLayout = LINE_PREFIX_LAYOUT
     markup: ProseMarkup = PLAIN_MARKUP
 
     def __post_init__(self) -> None:
@@ -78,190 +64,29 @@ class CommentGroup(ProseUnit):
             )
 
     @property
-    def line_count(self) -> int:
-        return len(self.lines)
-
-    @property
-    def longest_line(self) -> int:
-        return max(line.physical_width for line in self.lines)
-
-    @property
-    def has_summary_line(self) -> bool:
-        """Whether the first sentence is a one-line summary, as a style guide such as PEP 257 asks."""
-        return self.layout.summary_convention is not None
+    def statistics_category(self) -> str:
+        if self.form is CommentForm.DOC:
+            visibility = Visibility.PUBLIC if self.attaches_to_public_symbol else Visibility.INTERNAL
+            return f'doc/{visibility.value}'
+        if self.placement is CommentPlacement.FILE_HEADER:
+            return 'plain/file-header'
+        return f'plain/{self.placement.value}'
 
     @property
     def attaches_to_public_symbol(self) -> bool:
         return self.attachment is not None and self.attachment.visibility is Visibility.PUBLIC
 
-    def prose(self) -> Prose:
-        filled_lines = [line for line in self.lines if line.text.strip()]
-        base = min((len(line.indent) for line in filled_lines), default=0)
-        rendered_lines = [
-            ' ' * max(0, len(line.indent) - base) + line.text.rstrip() if line.text.strip() else ''
-            for line in self.lines
-        ]
-        return Prose('\n'.join(rendered_lines), self.markup)
+    @property
+    def stays_on_its_line(self) -> bool:
+        """A trailing comment shares its line with code, so a second line would have no code to sit beside."""
+        return self.placement is CommentPlacement.TRAILING
 
-    def prose_lines(self) -> tuple[ProseLine, ...]:
-        """The lines of prose, without code, a fence, or a tag section, each with its list marker set apart."""
-        shown_lines = self.prose().physical_lines
-        code_indexes = self.prose().code_line_indexes()
-        skipped: set[int] = set(code_indexes)
-        inside_tags = False
-        for index, shown in enumerate(shown_lines):
-            inside_tags = inside_tags or self.markup.opens_tag_section(shown)
-            if inside_tags or not shown.strip() or shown.lstrip().startswith(('```', '~~~')):
-                skipped.add(index)
-        prose_lines: list[ProseLine] = []
-        for index, line in enumerate(self.lines):
-            if index in skipped:
-                continue
-            marker = LIST_MARKER.match(line.text)
-            marker_length = marker.end() if marker else 0
-            text_start = line.range.start + len((line.indent + line.delimiter).encode('utf-8'))
-            text = line.text[marker_length:]
-            start = text_start + len(line.text[:marker_length].encode('utf-8'))
-            following = index + 1
-            prose_lines.append(
-                ProseLine(
-                    range=SourceRange(start, start + len(text.encode('utf-8'))),
-                    text=text,
-                    opens_item=marker is not None,
-                    ends_paragraph=following >= len(self.lines)
-                    or following in skipped
-                    or LIST_MARKER.match(self.lines[following].text) is not None,
-                    opens_paragraph=index == 0 or index - 1 in skipped,
-                )
-            )
-        return tuple(prose_lines)
+    def keeps_its_layout(self, width: int) -> bool:
+        """A one line docstring that fits is the summary convention, not a block to lay out."""
+        one_line_doc = self.form is CommentForm.DOC and self.line_count == 1 and self.longest_line <= width
+        return self.stays_on_its_line or one_line_doc
 
     @property
     def renders_markup(self) -> bool:
         """A docstring or a JSDoc block is rendered on hover and in generated docs, while a line comment is not."""
         return self.form is CommentForm.DOC
-
-    def editable_ranges(self) -> tuple[SourceRange, ...]:
-        """A trailing comment shares its line with code, so only a comment standing on its own lines is editable."""
-        if self.placement is CommentPlacement.TRAILING:
-            return ()
-        return tuple(line.range for line in self.lines)
-
-    def code_ranges(self) -> tuple[SourceRange, ...]:
-        """Where the lines holding code sit, which a prose checker has no business reading."""
-        return tuple(self.lines[index].range for index in sorted(self.prose().code_line_indexes()))
-
-    def reflow(self, width: int, policy: BreakPolicy = BreakPolicy()) -> 'CommentGroup':
-        # A trailing comment shares its line with code, so a second line would have no code to sit beside.
-        if self.placement is CommentPlacement.TRAILING:
-            return self
-        # A one line docstring that fits is the summary convention, not a block to lay out.
-        if self.form is CommentForm.DOC and self.line_count == 1 and self.longest_line <= width:
-            return self
-        texts = self._reflow_into_texts(width, policy)
-        # Text that ends up on one line closes there too, so the closing quotes need room beside it.
-        closing_width = len(self.closing())
-        if len(texts) == 1 and len(texts[0]) > self.text_budget(width, first_line=True) - closing_width:
-            texts = self._reflow_into_texts(width, policy, closing_width)
-        if not texts:
-            return self
-        rebuilt = dataclasses.replace(self, lines=self.layout.rebuild(self.lines, texts, width))
-        # A sentence with no legal break may come out longer than the author wrapped it,
-        # and a fix that pushes a line past the width trades one finding for another.
-        if rebuilt.longest_line > max(width, self.longest_line):
-            return self
-        return rebuilt
-
-    def sentences_splitting_a_list(self, width: int, policy: BreakPolicy) -> tuple[str, ...]:
-        """The sentences whose layout, once reflowed, breaks beside an item of a list."""
-        splitting: list[str] = []
-        self._reflow_into_texts(width, policy, splitting=splitting)
-        return tuple(splitting)
-
-    def text_budget(self, width: int, *, first_line: bool) -> int:
-        """The characters of text a line holds, which on a docstring's opening line also cede the quotes."""
-        return self.layout.text_budget(self.lines, width, first_line=first_line)
-
-    # A sentence takes as few lines as fit, and the author's layout stays when it is legal.
-    # A sentence whose new layout would strand a stub or still overflow needs its author,
-    # so it keeps the layout they gave it rather than one its own check rejects.
-    # A summary never breaks where the comment's style guide keeps it to one line.
-    def _reflow_into_texts(
-        self, width: int, policy: BreakPolicy, reserve: int = 0, splitting: list[str] | None = None
-    ) -> tuple[str, ...]:
-        body_budget = self.text_budget(width, first_line=False)
-        out: list[str] = []
-        for paragraph_index, (paragraph, is_literal, follows_blank) in enumerate(self._split_into_paragraphs()):
-            if out and (follows_blank or self.layout.parts_every_paragraph):
-                out.append('')
-            if is_literal:
-                out.extend(paragraph)
-                continue
-            lines = tuple(line.strip() for line in paragraph if line.strip())
-            sentences = Prose(' '.join(lines)).sentences(policy.abbreviations)
-            shared_until = 0
-            for sentence_index, sentence in enumerate(sentences):
-                if sentence.offset < shared_until:
-                    continue
-                if sentence_index == 1 and paragraph_index == 0 and self.has_summary_line:
-                    out.append('')
-                first_budget = self.text_budget(width, first_line=not out) - (reserve if not out else 0)
-                is_summary = self.has_summary_line and paragraph_index == 0 and sentence_index == 0
-                shared_line = None if is_summary else line_shared_by(lines, sentences[sentence_index:])
-                if shared_line is not None and len(shared_line) <= first_budget:
-                    out.append(shared_line)
-                    shared_until = sentence.offset + len(shared_line)
-                    continue
-                if is_summary:
-                    best_lines: tuple[str, ...] = (sentence.text,)
-                else:
-                    best_lines = reflow_sentence(sentence.text, body_budget, policy, first_width=first_budget)
-                given_lines = occupied_lines(lines, sentence)
-                budgets = (first_budget, body_budget)
-                if given_lines and keeps_given(given_lines, best_lines, budgets, policy.stub_floor):
-                    laid_out = given_lines
-                elif is_legal(best_lines, budgets, policy.stub_floor):
-                    laid_out = best_lines
-                elif given_lines:
-                    laid_out = given_lines
-                elif strands_stub(best_lines, policy.stub_floor):
-                    return ()
-                else:
-                    laid_out = best_lines
-                if (
-                    splitting is not None
-                    and policy.list_item_words is not None
-                    and break_cost(laid_out, policy.list_item_words)
-                ):
-                    splitting.append(sentence.text)
-                out.extend(laid_out)
-        return tuple(out)
-
-    def _split_into_paragraphs(self) -> tuple[tuple[tuple[str, ...], bool, bool], ...]:
-        """Each paragraph's lines, whether they are literal, and whether a blank line comes before them."""
-        paragraphs: list[tuple[tuple[str, ...], bool, bool]] = []
-        follows_blank = False
-        for segment in self.prose().segments():
-            current_lines: list[str] = []
-            for line in segment.lines:
-                if line.strip():
-                    current_lines.append(line)
-                    continue
-                if current_lines:
-                    paragraphs.append((tuple(current_lines), segment.is_literal, follows_blank))
-                    current_lines = []
-                follows_blank = True
-            if current_lines:
-                paragraphs.append((tuple(current_lines), segment.is_literal, follows_blank))
-                follows_blank = False
-        return tuple(paragraphs)
-
-    def closing(self) -> str:
-        """What closes the comment on its last text line, such as a docstring's quotes."""
-        return self.layout.closing(self.lines)
-
-    def render(self) -> str:
-        return '\n'.join(line.render() for line in self.lines)
-
-    def as_edit(self) -> TextEdit:
-        return TextEdit(self.range, self.render())

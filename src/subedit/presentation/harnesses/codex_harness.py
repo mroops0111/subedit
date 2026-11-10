@@ -2,7 +2,17 @@ import pathlib
 import re
 import typing
 
-from .agent_harness import AgentHarness, HarnessMetadata, Payload, existing_source_files
+from .agent_harness import (
+    SESSION_START,
+    AgentHarness,
+    HarnessMetadata,
+    Payload,
+    ShellCommand,
+    context_output,
+    existing_source_files,
+    session_directory_in,
+    shell_command_in,
+)
 
 
 EDIT_TOOLS = frozenset({'apply_patch'})
@@ -37,6 +47,15 @@ class CodexHarness(AgentHarness):
         return existing_source_files(
             [patched_path for patched_path in patched_paths if patched_path != '/dev/null'], self._extensions
         )
+
+    def shell_command(self, payload: Payload) -> ShellCommand | None:
+        return shell_command_in(payload)
+
+    def session_directory(self, payload: Payload) -> pathlib.Path | None:
+        return session_directory_in(payload)
+
+    def session_context_output(self, context: str) -> str:
+        return context_output(SESSION_START, context)
 
     def _tool_input(self, payload: Payload) -> typing.Mapping[str, object]:
         tool_input = payload.get('tool_input')

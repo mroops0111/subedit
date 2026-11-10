@@ -3,6 +3,7 @@ import json
 import pathlib
 import sys
 
+from .. import __version__
 from ..application import Fixer, Linter, RuleEngine
 from ..domain.models.document import Document
 from ..infrastructure import (
@@ -11,13 +12,22 @@ from ..infrastructure import (
     DEFAULT_PARSER,
     EXTERNAL_LINTERS,
     ConfigError,
+    GitHooks,
+    GitRepository,
     language_id_for,
 )
 from . import report as reporters
-from .harnesses import ALL_HARNESSES, BLOCK_EXIT, Payload, resolve
+from .agent_written_text import AgentWrittenText, EditedFile
+from .harnesses import ALL_HARNESSES, BLOCK_EXIT, AgentHarness, Payload, resolve
+from .shell_readers import ALL_SHELL_READERS
 
 
 _HELP_FLAGS = frozenset({'--help', '-h', '--harnesses'})
+_GIT_HOOK_OFFER = (
+    'This repository configures subedit, but its git hooks do not run it, '
+    'so text written outside this session goes unchecked until an agent edits it. '
+    'Offer the user, once, to run `subedit install-git-hooks`, and run it only if they agree.'
+)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -36,60 +46,27 @@ class HookResult:
 
 
 def run(payload: Payload, *, write: bool = True) -> HookResult:
-    """Fix the files an agent's edit touched, and block the agent only on a finding that needs it."""
+    """Answer one agent payload, whether it opens a session, runs a shell command, or edits files.
+
+    What the agent wrote is fixed in place where the hook can write it, and handed back where it cannot.
+    The agent is blocked only on a finding that needs an author, or on a fix only it can apply.
+    """
+    for harness in ALL_HARNESSES:
+        directory = harness.session_directory(payload)
+        if directory is not None:
+            return _offer_git_hooks(harness, directory)
+        command = harness.shell_command(payload)
+        if command is not None:
+            return _check(
+                harness,
+                tuple(written for reader in ALL_SHELL_READERS for written in reader.written_texts(command)),
+                write,
+            )
     recognition = resolve(payload)
     if recognition is None:
         return HookResult(exit_code=0)
     harness, edited_paths = recognition
-    if not edited_paths:
-        return HookResult(exit_code=0, harness_name=harness.metadata.name)
-
-    fixer = Fixer(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), EXTERNAL_LINTERS)
-    author_messages: list[str] = []
-    advice_messages: list[str] = []
-    repaired_paths: list[str] = []
-
-    for source_path in edited_paths:
-        try:
-            source_text = source_path.read_text(encoding='utf-8')
-        except (OSError, UnicodeDecodeError):
-            continue
-        language_id = language_id_for(source_path)
-        try:
-            # A plugin installed once reaches every project, so only one that configures subedit opts in.
-            if language_id is None or not DEFAULT_CONFIG_SOURCE.is_adopted(str(source_path)):
-                continue
-            rule_set = DEFAULT_CONFIG_SOURCE.resolve(str(source_path))
-        except ConfigError as error:
-            # The project asked for subedit, so a config it cannot read goes back to the agent to fix.
-            author_messages.append(f'subedit: {error}')
-            continue
-        document = Document(uri=source_path.resolve().as_uri(), text=source_text, language_id=language_id)
-        fix_result = fixer.run(document, rule_set)
-        if fix_result.has_changes and write:
-            source_path.write_text(fix_result.document.text, encoding='utf-8')
-            repaired_paths.append(str(source_path))
-        brief_report = reporters.brief(fix_result.document, fix_result.report)
-        if brief_report:
-            author_messages.append(brief_report)
-        advice_report = reporters.advice(fix_result.document, fix_result.report)
-        if advice_report:
-            advice_messages.append(advice_report)
-
-    if not author_messages:
-        return HookResult(
-            exit_code=0,
-            stdout=harness.advisory_output('\n\n'.join(advice_messages)) if advice_messages else '',
-            repaired_paths=tuple(repaired_paths),
-            harness_name=harness.metadata.name,
-        )
-    # A blocked edit is already going back to the model, so its warnings ride along.
-    return HookResult(
-        exit_code=BLOCK_EXIT,
-        stderr='\n\n'.join(author_messages + advice_messages),
-        repaired_paths=tuple(repaired_paths),
-        harness_name=harness.metadata.name,
-    )
+    return _check(harness, tuple(EditedFile(path) for path in edited_paths), write)
 
 
 def edited_files(payload: Payload) -> tuple[pathlib.Path, ...]:
@@ -136,6 +113,75 @@ def main() -> int:
     if hook_result.stderr:
         sys.stderr.write(hook_result.stderr + '\n')
     return hook_result.exit_code
+
+
+def _check(harness: AgentHarness, written_texts: tuple[AgentWrittenText, ...], write: bool) -> HookResult:
+    fixer = Fixer(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), EXTERNAL_LINTERS)
+    author_messages: list[str] = []
+    advice_messages: list[str] = []
+    repaired_paths: list[str] = []
+
+    for written_text in written_texts:
+        source_path = written_text.path
+        source_text = written_text.read()
+        language_id = language_id_for(source_path)
+        if source_text is None or language_id is None:
+            continue
+        try:
+            # A plugin installed once reaches every project, so only one that configures subedit opts in.
+            if not DEFAULT_CONFIG_SOURCE.is_adopted(str(source_path)):
+                continue
+            rule_set = DEFAULT_CONFIG_SOURCE.resolve(str(source_path))
+        except ConfigError as error:
+            # The project asked for subedit, so a config it cannot read goes back to the agent to fix.
+            author_messages.append(f'subedit: {error}')
+            continue
+        document = Document(uri=source_path.resolve().as_uri(), text=source_text, language_id=language_id)
+        fix_result = fixer.run(document, rule_set)
+        brief_report = reporters.brief(fix_result.document, fix_result.report)
+        if brief_report:
+            author_messages.append(brief_report)
+        if fix_result.has_changes and write:
+            unwritten = written_text.write_back(fix_result.document.text)
+            if unwritten is None:
+                repaired_paths.append(str(source_path))
+            else:
+                author_messages.append(unwritten)
+        advice_report = reporters.advice(fix_result.document, fix_result.report)
+        if advice_report:
+            advice_messages.append(advice_report)
+
+    if not author_messages:
+        return HookResult(
+            exit_code=0,
+            stdout=harness.advisory_output('\n\n'.join(advice_messages)) if advice_messages else '',
+            repaired_paths=tuple(repaired_paths),
+            harness_name=harness.metadata.name,
+        )
+    # A blocked write is already going back to the model, so its warnings ride along.
+    return HookResult(
+        exit_code=BLOCK_EXIT,
+        stderr='\n\n'.join(author_messages + advice_messages),
+        repaired_paths=tuple(repaired_paths),
+        harness_name=harness.metadata.name,
+    )
+
+
+# A session that opens in a repository configuring subedit hears once that its git hooks do not run it.
+def _offer_git_hooks(harness: AgentHarness, directory: pathlib.Path) -> HookResult:
+    quiet = HookResult(exit_code=0, harness_name=harness.metadata.name)
+    repository = GitRepository.at(directory)
+    try:
+        if repository is None or not DEFAULT_CONFIG_SOURCE.is_adopted(str(repository.root)):
+            return quiet
+    except ConfigError:
+        # The first edit reports a config subedit cannot read, and nothing has been asked of the agent yet.
+        return quiet
+    if GitHooks(repository, __version__).is_installed():
+        return quiet
+    return HookResult(
+        exit_code=0, stdout=harness.session_context_output(_GIT_HOOK_OFFER), harness_name=harness.metadata.name
+    )
 
 
 if __name__ == '__main__':

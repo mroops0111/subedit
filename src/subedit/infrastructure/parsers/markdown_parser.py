@@ -8,10 +8,11 @@ from ...domain.models.embedded import EmbeddedDocument
 from ...domain.models.file_type import FileType
 from ...domain.models.markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
 from ...domain.models.position import SourceRange
+from ...domain.models.prose_unit import ProseUnit
 from ...domain.ports.source_parser import ParsedDocument, SourceParser
 
 
-MARKDOWN = FileType('markdown', frozenset({'.md', '.markdown'}), '.md')
+MARKDOWN = FileType('markdown', frozenset({'.md', '.markdown'}), '.md', 'markdown')
 
 _MARKDOWN_LANGUAGE = Language(tree_sitter_markdown.language())
 _HEADINGS = frozenset({'atx_heading', 'setext_heading'})
@@ -36,6 +37,10 @@ class MarkdownParser(SourceParser[MarkdownBlock]):
     @property
     def file_types(self) -> tuple[FileType, ...]:
         return (MARKDOWN,)
+
+    @property
+    def unit_types(self) -> tuple[type[ProseUnit], ...]:
+        return (MarkdownBlock,)
 
     def read(self, document: Document) -> ParsedDocument[MarkdownBlock]:
         """Turn a Markdown document into the headings and paragraphs the rules read.

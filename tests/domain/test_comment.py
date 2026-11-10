@@ -5,8 +5,8 @@ import pytest
 from subedit.domain import (
     CommentForm,
     CommentGroup,
-    CommentLine,
     CommentPlacement,
+    PrefixedLine,
     SourceRange,
     SymbolKind,
     SymbolRef,
@@ -14,8 +14,8 @@ from subedit.domain import (
 )
 
 
-def line(text: str, indent: str = '  ', delimiter: str = '// ', start: int = 0) -> CommentLine:
-    return CommentLine(SourceRange(start, start + 1), indent, delimiter, text)
+def line(text: str, indent: str = '  ', delimiter: str = '// ', start: int = 0) -> PrefixedLine:
+    return PrefixedLine(SourceRange(start, start + 1), indent, delimiter, text)
 
 
 def group(*bodies: str, **kwargs: object) -> CommentGroup:
@@ -127,10 +127,10 @@ def test_as_edit_targets_the_block_range() -> None:
 
 def test_prose_preserves_indentation_relative_to_the_block() -> None:
     lines = (
-        CommentLine(SourceRange(0, 1), '    ', '', 'Summary.'),
-        CommentLine(SourceRange(1, 2), '', '', ''),
-        CommentLine(SourceRange(2, 3), '        ', '', 'indented_code()'),
-        CommentLine(SourceRange(3, 4), '    ', '', 'Trailing.'),
+        PrefixedLine(SourceRange(0, 1), '    ', '', 'Summary.'),
+        PrefixedLine(SourceRange(1, 2), '', '', ''),
+        PrefixedLine(SourceRange(2, 3), '        ', '', 'indented_code()'),
+        PrefixedLine(SourceRange(3, 4), '    ', '', 'Trailing.'),
     )
     group = CommentGroup(
         range=SourceRange(0, 4),
@@ -144,7 +144,7 @@ def test_prose_preserves_indentation_relative_to_the_block() -> None:
 
 def test_prose_keeps_uniformly_indented_lines_flush() -> None:
     lines = tuple(
-        CommentLine(SourceRange(index, index + 1), '        ', '# ', text) for index, text in enumerate(('one', 'two'))
+        PrefixedLine(SourceRange(index, index + 1), '        ', '# ', text) for index, text in enumerate(('one', 'two'))
     )
     group = CommentGroup(
         range=SourceRange(0, 2),

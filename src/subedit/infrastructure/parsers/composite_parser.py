@@ -19,6 +19,15 @@ class CompositeParser(SourceParser[ProseUnit]):
     def file_types(self) -> tuple[FileType, ...]:
         return tuple(itertools.chain.from_iterable(parser.file_types for parser in self._parsers))
 
+    @property
+    def unit_types(self) -> tuple[type[ProseUnit], ...]:
+        return tuple(dict.fromkeys(itertools.chain.from_iterable(parser.unit_types for parser in self._parsers)))
+
+    def surfaces_reading(self, unit_type: type[ProseUnit]) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(itertools.chain.from_iterable(parser.surfaces_reading(unit_type) for parser in self._parsers))
+        )
+
     def read(self, document: Document) -> ParsedDocument[ProseUnit]:
         parser = self._parser_for(document.language_id)
         return parser.read(document) if parser else ParsedDocument()

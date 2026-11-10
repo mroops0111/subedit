@@ -20,10 +20,15 @@ from ..domain.rules import (
     ParenthesisStyleRule,
     PlainCommentOnPublicRule,
     SignatureRestatingTagRule,
+    SubjectNotImperativeRule,
+    SubjectRunsIntoBodyRule,
+    SubjectStyleRule,
+    SubjectTooLongRule,
     TableHeaderTitleCaseRule,
     UnbreakableSentenceRule,
 )
 from .config_sources import CONFIG_NAME, ConfigError, FormatterWidths, TomlConfigSource
+from .git import GitHookInstallError, GitHooks, GitRepository
 from .linters import AutoCorrectLinter, ValeLinter
 from .parsers import (
     JAVASCRIPT,
@@ -32,6 +37,7 @@ from .parsers import (
     TSX,
     TYPESCRIPT,
     YAML,
+    CommitMessageParser,
     CompositeParser,
     LanguageProfile,
     MarkdownParser,
@@ -42,13 +48,13 @@ from .parsers import (
 
 LANGUAGES: tuple[LanguageProfile, ...] = (PYTHON, TYPESCRIPT, TSX, JAVASCRIPT, YAML, JSON)
 COMMENT_PARSER = TreeSitterParser(LANGUAGES)
-DEFAULT_PARSER = CompositeParser((COMMENT_PARSER, MarkdownParser()))
+DEFAULT_PARSER = CompositeParser((COMMENT_PARSER, MarkdownParser(), CommitMessageParser()))
 
 FILE_TYPES = DEFAULT_PARSER.file_types
 EXTENSIONS = frozenset(extension for file_type in FILE_TYPES for extension in file_type.extensions)
 VENDOR_DIRECTORIES = frozenset(directory for file_type in FILE_TYPES for directory in file_type.vendor_directories)
 GENERATED_NAMES = frozenset(name for file_type in FILE_TYPES for name in file_type.generated_names)
-SUFFIX_ALIASES = {alias: canonical for file_type in FILE_TYPES for alias, canonical in file_type.aliases.items()}
+PATH_ALIASES = {alias: canonical for file_type in FILE_TYPES for alias, canonical in file_type.aliases.items()}
 
 LAYOUT_RULES = (MidClauseBreakRule(), LineTooLongRule())
 REWRITE_RULES = (LineTooShortRule(), UnbreakableSentenceRule(), MidListBreakRule())
@@ -74,26 +80,30 @@ MARKDOWN_RULES = (
     MissingLeadSentenceRule(),
     HeadingNotNounPhraseRule(),
 )
-ALL_RULES = LAYOUT_RULES + REWRITE_RULES + STRUCTURAL_RULES + WORDING_RULES + MARKDOWN_RULES
+COMMIT_RULES = (SubjectTooLongRule(), SubjectStyleRule(), SubjectNotImperativeRule(), SubjectRunsIntoBodyRule())
+ALL_RULES = LAYOUT_RULES + REWRITE_RULES + STRUCTURAL_RULES + WORDING_RULES + MARKDOWN_RULES + COMMIT_RULES
 
 DEFAULT_CONFIG_SOURCE = TomlConfigSource(
     tuple(rule.metadata for rule in ALL_RULES),
     FormatterWidths(
         {extension: language.width_settings for language in LANGUAGES for extension in language.extensions}
     ),
+    file_types=FILE_TYPES,
 )
 
 
 def language_id_for(path: pathlib.Path) -> str | None:
-    """The language id a document is read as, from the file's extension."""
-    return DEFAULT_PARSER.language_id_for(path.suffix)
+    """The language id a document is read as, from the file's name or extension."""
+    file_type = DEFAULT_PARSER.file_type_for(path)
+    return None if file_type is None else file_type.language_id
 
 
-EXTERNAL_LINTERS = (ValeLinter(suffix_aliases=SUFFIX_ALIASES), AutoCorrectLinter(suffix_aliases=SUFFIX_ALIASES))
+EXTERNAL_LINTERS = (ValeLinter(aliases=PATH_ALIASES), AutoCorrectLinter(aliases=PATH_ALIASES))
 
 __all__ = [
     'ALL_RULES',
     'COMMENT_PARSER',
+    'COMMIT_RULES',
     'CONFIG_NAME',
     'DEFAULT_CONFIG_SOURCE',
     'DEFAULT_PARSER',
@@ -106,10 +116,10 @@ __all__ = [
     'LANGUAGES',
     'LAYOUT_RULES',
     'MARKDOWN_RULES',
+    'PATH_ALIASES',
     'PYTHON',
     'REWRITE_RULES',
     'STRUCTURAL_RULES',
-    'SUFFIX_ALIASES',
     'TSX',
     'TYPESCRIPT',
     'VENDOR_DIRECTORIES',
@@ -118,6 +128,9 @@ __all__ = [
     'AutoCorrectLinter',
     'CompositeParser',
     'ConfigError',
+    'GitHookInstallError',
+    'GitHooks',
+    'GitRepository',
     'LanguageProfile',
     'MarkdownParser',
     'NodeRole',

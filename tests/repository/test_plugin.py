@@ -1,11 +1,13 @@
 import json
 import pathlib
+import re
 import subprocess
 import typing
 
 import pytest
 from factories import REPOSITORY_ROOT, Project
 
+from subedit.presentation.harnesses import SHELL_TOOL
 from subedit.presentation.harnesses.claude_code_harness import EDIT_TOOLS
 
 
@@ -44,10 +46,18 @@ def test_the_hook_matcher_covers_every_tool_the_harness_recognises() -> None:
     assert matched == EDIT_TOOLS, 'a tool the harness reads but the matcher omits never reaches the hook'
 
 
-def test_the_hook_runs_the_wrapper_from_the_plugin_directory() -> None:
-    command = load(HOOKS)['hooks']['PostToolUse'][0]['hooks'][0]['command']
+def test_the_shell_tool_reaches_the_hook_for_commits() -> None:
+    matchers = [entry['matcher'] for entry in load(HOOKS)['hooks']['PostToolUse']]
 
-    assert command == WRAPPER_COMMAND, 'a bare or unquoted path breaks once the plugin is installed elsewhere'
+    assert SHELL_TOOL in matchers, (
+        'a commit an agent makes through the shell is checked only if the shell reaches the hook'
+    )
+
+
+def test_the_hook_runs_the_wrapper_from_the_plugin_directory() -> None:
+    commands = {entry['hooks'][0]['command'] for entry in load(HOOKS)['hooks']['PostToolUse']}
+
+    assert commands == {WRAPPER_COMMAND}, 'a bare or unquoted path breaks once the plugin is installed elsewhere'
 
 
 def test_the_wrapper_is_executable() -> None:
@@ -58,14 +68,14 @@ def test_the_wrapper_is_valid_shell() -> None:
     subprocess.run(['bash', '-n', str(WRAPPER)], check=True, capture_output=True)
 
 
-def run_wrapper(project: pathlib.Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+def run_wrapper(project: pathlib.Path, *arguments: str, payload: str = '') -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ['bash', str(WRAPPER), *arguments],
         check=False,
         capture_output=True,
         text=True,
         env={'PATH': '/usr/bin:/bin', 'CLAUDE_PROJECT_DIR': str(project)},
-        input='',
+        input=payload,
     )
 
 
@@ -96,6 +106,36 @@ def test_the_wrapper_acts_in_a_subdirectory_of_a_configured_project(project: Pro
     (project.root / 'packages').mkdir()
 
     assert 'astral.sh/uv' in run_wrapper(project.root / 'packages').stderr
+
+
+def test_the_wrapper_lets_a_shell_command_that_commits_nothing_pass_before_starting_subedit(project: Project) -> None:
+    project.write('subedit.toml', '[subedit]\n')
+    shell_payload = json.dumps({'tool_name': 'Bash', 'tool_input': {'command': 'ls'}})
+
+    completed = run_wrapper(project.root, payload=shell_payload)
+
+    assert (completed.returncode, completed.stderr) == (0, ''), 'without uv on PATH, reaching uvx would fail'
+
+
+def test_the_wrapper_lets_through_the_keyword_of_every_shell_reader() -> None:
+    from subedit.presentation.shell_readers import ALL_SHELL_READERS
+
+    line = next(
+        line for line in WRAPPER.read_text(encoding='utf-8').splitlines() if line.startswith('COMMAND_KEYWORDS=')
+    )
+    keywords = set(line.split('=', 1)[1].strip("'").split())
+
+    assert keywords == {reader.keyword for reader in ALL_SHELL_READERS}, 'a reader whose keyword is missing never runs'
+
+
+def test_the_pre_commit_hook_reads_every_extension_subedit_reads() -> None:
+    from subedit.infrastructure import EXTENSIONS
+
+    hooks = (REPOSITORY_ROOT / '.pre-commit-hooks.yaml').read_text(encoding='utf-8')
+    pattern = next(line.split('files:', 1)[1].strip() for line in hooks.splitlines() if 'files:' in line)
+    listed = set(re.fullmatch(r'\\\.\((.+)\)\$', pattern).group(1).split('|'))  # type: ignore[union-attr]
+
+    assert listed == {extension.lstrip('.') for extension in EXTENSIONS}
 
 
 def test_the_wrapper_runs_the_released_version() -> None:

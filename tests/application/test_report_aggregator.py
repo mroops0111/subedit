@@ -20,7 +20,7 @@ from subedit.domain import (
     SourceRange,
     apply_edits,
 )
-from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, SUFFIX_ALIASES, AutoCorrectLinter, ValeLinter
+from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER, PATH_ALIASES, AutoCorrectLinter, ValeLinter
 
 
 MIS_WRAPPED = (
@@ -202,7 +202,7 @@ def test_vale_findings_inside_an_example_block_are_dropped(tmp_path: pathlib.Pat
 @pytest.mark.parametrize('suffix', ['.ts', '.mts', '.cts'])
 def test_vale_reads_only_the_comments_of_a_typescript_module(tmp_path: pathlib.Path, suffix: str) -> None:
     text = 'const a = "x; y"; // a note; with a semicolon\n'
-    linter = ValeLinter(suffix_aliases=SUFFIX_ALIASES)
+    linter = ValeLinter(aliases=PATH_ALIASES)
     found = linter.run(Document(uri=(tmp_path / f'a{suffix}').as_uri(), text=text, language_id='typescript'))
     assert [text[item.range.start] for item in found if 'Semicolon' in item.rule_id] == [';']
 
@@ -272,9 +272,7 @@ def test_autocorrect_edits_the_line_it_corrected_past_a_record_separator() -> No
 def test_vale_leaves_a_directive_alone_as_the_native_rules_do(
     tmp_path: pathlib.Path, text: str, language_id: str, suffix: str
 ) -> None:
-    linter = ReportAggregator(
-        Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (ValeLinter(suffix_aliases=SUFFIX_ALIASES),)
-    )
+    linter = ReportAggregator(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES)), (ValeLinter(aliases=PATH_ALIASES),))
     report = linter.run(
         Document(uri=(tmp_path / f'a{suffix}').as_uri(), text=text, language_id=language_id),
         rule_set(),
@@ -288,7 +286,7 @@ def test_vale_reads_a_code_block_as_its_own_language(tmp_path: pathlib.Path) -> 
     report = lint(
         Document(uri=(tmp_path / 'notes.md').as_uri(), text=text, language_id='markdown'),
         dataclasses.replace(rule_set(), reads_embedded=True),
-        checkers=(ValeLinter(suffix_aliases=SUFFIX_ALIASES),),
+        checkers=(ValeLinter(aliases=PATH_ALIASES),),
     )
     assert [(item.rule_id, item.range.start) for item in report.diagnostics] == [
         ('subedit.Semicolon', text.index(';'))

@@ -1,22 +1,43 @@
 import pytest
+from factories import commit_message, markdown
 
-from subedit.application import CorpusMeter, Distribution
+from subedit.application import CorpusMeter, CorpusStatistics, Distribution, SurfaceStatistics
 from subedit.domain import Document
-from subedit.infrastructure import COMMENT_PARSER
+from subedit.infrastructure import DEFAULT_PARSER
 
 
-def measure(*sources: str):
+def measure_all(*documents: Document) -> CorpusStatistics:
+    return CorpusMeter(DEFAULT_PARSER).run(documents)
+
+
+def measure(*sources: str) -> SurfaceStatistics:
     documents = tuple(
         Document(uri=f'file:///a{index}.py', text=source, language_id='python') for index, source in enumerate(sources)
     )
-    return CorpusMeter(COMMENT_PARSER).run(documents)
+    measured = measure_all(*documents).for_surface('comments')
+    assert measured is not None
+    return measured
 
 
 def test_an_empty_corpus_reports_nothing() -> None:
-    report = measure()
-    assert report.document_count == 0
-    assert report.group_count == 0
-    assert report.physical_widths.count == 0
+    assert measure_all().surfaces == ()
+
+
+def test_each_surface_is_measured_apart() -> None:
+    measured = measure_all(
+        Document(uri='file:///a.py', text='# note.\n', language_id='python'),
+        markdown('# Notes\n\nA paragraph of two sentences. It ends here.\n'),
+        commit_message('Add the parser\n\nIt reads the subject.\n'),
+    )
+
+    assert [surface.surface for surface in measured.surfaces] == ['comments', 'markdown', 'commit-messages']
+    prose = measured.for_surface('markdown')
+    assert prose is not None
+    assert prose.sentence_lengths.count >= 2
+    assert prose.line_counts == (), 'a Markdown block is not laid out in lines, so it has no line count'
+    body = measured.for_surface('commit-messages')
+    assert body is not None
+    assert [distribution.label for distribution in body.line_counts] == ['all']
 
 
 def test_percentiles_on_an_empty_distribution_are_zero() -> None:
