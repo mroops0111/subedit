@@ -111,17 +111,18 @@ uv tool install subedit           # without Vale, the native rules and AutoCorre
 
 ### Quick Start
 
-Every command takes files or directories, and a directory walk skips dotted and vendor directories such as `.venv` and `node_modules`.
+`check` and `fix` read files or directories, the files git has staged, or a draft on stdin, one of the three at a time. A directory walk skips dotted and vendor directories such as `.venv` and `node_modules`.
 
 | Command | What It Does |
 | --- | --- |
 | `subedit check src/` | Reports every finding |
 | `subedit check src/ --output=actionable` | Reports only the findings that need rewriting |
 | `subedit check src/ --output=json` | Reports every finding as JSON, for other tools |
+| `subedit check --staged` | Reports the findings in the files git has staged |
+| `subedit check - --stdin-filename issue.md` | Checks a draft read from stdin, as the file it names |
 | `subedit fix src/` | Shows the autofixes as a diff |
 | `subedit fix src/ --write` | Applies the autofixes in place |
 | `subedit fix --staged --write` | Applies the autofixes to the files git has staged |
-| `subedit check - --stdin-filename issue.md` | Checks a draft read from stdin, as the file it names |
 | `subedit fix - --stdin-filename issue.md` | Prints a draft from stdin with its autofixes, and its findings on stderr |
 | `subedit stats src/` | Measures each surface's lengths and widths, to set thresholds from data |
 | `subedit rules` | Lists every native rule with the surfaces it reads, its fix kind, and its default level |
@@ -250,7 +251,7 @@ Rules never see a syntax tree. A parser turns the file into prose units, such as
 
 #### Claude Code
 
-The [plugin](#claude-code-plugin) registers the hook for you. It also ships the `subedit:judging-findings` skill, which gives the model the criteria for every finding a tool cannot fix, such as when a spec identifier stays and a ticket number goes. Criteria in your `CLAUDE.md`, `AGENTS.md`, or a skill of your own come first.
+The [plugin](#claude-code-plugin) registers the hook for you. It also ships the `subedit:judging-findings` skill, which gives the model the criteria for every finding a tool cannot fix, such as when a spec identifier stays and a ticket number goes. Criteria in your `CLAUDE.md`, `AGENTS.md`, or a skill of your own come first. The `subedit:checking-drafts` skill has the model pipe text the hook never reads, such as a pull request body, through `subedit fix -` before it is posted.
 
 <details>
 <summary><b>Manual Hook Registration</b>: without the plugin</summary>
