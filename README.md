@@ -251,7 +251,7 @@ Rules never see a syntax tree. A parser turns the file into prose units, such as
 
 #### Claude Code
 
-The [plugin](#claude-code-plugin) registers the hook for you. It also ships the `subedit:judging-findings` skill, which gives the model the criteria for every finding a tool cannot fix, such as when a spec identifier stays and a ticket number goes. Criteria in your `CLAUDE.md`, `AGENTS.md`, or a skill of your own come first. The `subedit:checking-drafts` skill has the model pipe text the hook never reads, such as a pull request body, through `subedit fix -` before it is posted.
+The [plugin](#claude-code-plugin) registers the hook for you. It also ships the `subedit:finding-criteria` skill, which gives the model the criteria for every finding a tool cannot fix, such as when a spec identifier stays and a ticket number goes. Criteria in your `CLAUDE.md`, `AGENTS.md`, or a skill of your own come first. The `subedit:draft-checks` skill has the model pipe text the hook never reads, such as a pull request body, through `subedit fix -` before it is posted.
 
 <details>
 <summary><b>Manual Hook Registration</b>: without the plugin</summary>

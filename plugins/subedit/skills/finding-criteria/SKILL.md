@@ -1,13 +1,13 @@
 ---
-name: judging-findings
+name: finding-criteria
 description: Decide what to do with a subedit finding that no tool can fix, such as subedit.ExternalRef, mid-sentence-colon, comment-too-long, heading-not-noun-phrase, subject-not-imperative, or unbreakable-sentence. Use when a subedit hook, `subedit check`, or `subedit fix` reports a finding that needs rewriting or a warning that is a judgment call.
 ---
 
-# Judge subedit Findings
+# subedit Finding Criteria
 
 subedit repairs layout on its own, in comments, Markdown, and commit messages alike. What reaches you is either an error, which blocks until the text is rewritten, or a warning, which asks for a judgment and blocks nothing. For each finding, read the flagged text, apply the criteria below, and either rewrite the text or leave it as it is.
 
-## Project Criteria Come First
+## Project Criteria
 
 A project or its people can judge differently. Look for their criteria before applying these, and follow theirs where the two disagree:
 
@@ -22,9 +22,9 @@ Rewrite in place, keep the meaning, and keep a comment to the constraint the cod
 
 A commit message comes back from the hook with its findings and its text laid out, since the commit is already made. Amend it with `git commit --amend --only -F -` only while the commit is not pushed. A pushed commit stays as it is.
 
-## Warnings
+## Judgment Calls
 
-A warning passes when the text meets its criterion. Leave such text exactly as it is, and say so in one line if anyone asks.
+A warning passes when the text meets its criterion, and so does `heading-not-noun-phrase`, an error that can mistake a noun for a verb. Leave such text exactly as it is, and say so in one line if anyone asks.
 
 | Rule | Keep the Text When | Rewrite It When |
 | --- | --- | --- |
