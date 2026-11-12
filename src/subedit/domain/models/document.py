@@ -1,17 +1,22 @@
 import dataclasses
 import functools
 
+from .baseline import Baseline
 from .position import PositionMap
 
 
 @dataclasses.dataclass(frozen=True)
 class Document:
-    """A file in memory, whose version counts the edits applied to it."""
+    """A file in memory, whose version counts the edits applied to it.
+
+    A document with a baseline is under review as a change, so a check reads only the prose the change touched.
+    """
 
     uri: str
     text: str
     language_id: str
     version: int = 0
+    baseline: Baseline | None = None
 
     @functools.cached_property
     def positions(self) -> PositionMap:

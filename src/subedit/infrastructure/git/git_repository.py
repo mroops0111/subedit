@@ -29,10 +29,23 @@ class GitRepository:
         relative = _git(self.root, 'rev-parse', '--git-path', name) or f'.git/{name}'
         return (self.root / relative).resolve()
 
-    def staged_files(self) -> tuple[pathlib.Path, ...]:
-        """The files staged for the next commit that still exist, as added, copied, modified, or renamed."""
-        listed = _git(self.root, 'diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z', strip=False) or ''
-        return tuple(self.root / name for name in listed.split('\0') if name)
+    def commit_named(self, revision: str) -> str | None:
+        """The commit a revision names, or None when it names none.
+
+        A range such as origin/master...HEAD names where its two sides meet, as git diff reads it.
+        """
+        if '...' in revision:
+            left, _, right = revision.partition('...')
+            return _git(self.root, 'merge-base', left or 'HEAD', right or 'HEAD')
+        return _git(self.root, 'rev-parse', '--verify', '--quiet', f'{revision}^{{commit}}')
+
+    def text_at(self, commit: str, path: pathlib.Path) -> str | None:
+        """The text a file had at a commit, or None when the commit held no such file, or it lies outside the tree."""
+        try:
+            relative = path.resolve().relative_to(self.root.resolve()).as_posix()
+        except ValueError:
+            return None
+        return _git(self.root, 'show', f'{commit}:{relative}', strip=False)
 
     def recent_commit_message(self) -> str | None:
         """The message of a commit made in the last few minutes, or None when HEAD last moved for another reason."""

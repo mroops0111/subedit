@@ -3,6 +3,7 @@ from .models import (
     PLAIN_MARKUP,
     QUOTED_DOC_LAYOUT,
     SEVERITY_BY_NAME,
+    Baseline,
     ChoiceOption,
     CommentForm,
     CommentGroup,
@@ -50,6 +51,7 @@ from .models import (
     apply_edits,
 )
 from .ports import (
+    BaselineSource,
     DelimiterSplit,
     ExternalLinter,
     LanguageConventions,
@@ -65,6 +67,8 @@ __all__ = [
     'PLAIN_MARKUP',
     'QUOTED_DOC_LAYOUT',
     'SEVERITY_BY_NAME',
+    'Baseline',
+    'BaselineSource',
     'ChoiceOption',
     'CommentForm',
     'CommentGroup',

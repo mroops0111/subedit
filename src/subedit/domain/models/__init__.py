@@ -1,3 +1,4 @@
+from .baseline import Baseline
 from .comment import (
     CommentForm,
     CommentGroup,
@@ -29,6 +30,7 @@ __all__ = [
     'PLAIN_MARKUP',
     'QUOTED_DOC_LAYOUT',
     'SEVERITY_BY_NAME',
+    'Baseline',
     'ChoiceOption',
     'CommentForm',
     'CommentGroup',

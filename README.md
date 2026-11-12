@@ -111,22 +111,22 @@ uv tool install subedit           # without Vale, the native rules and AutoCorre
 
 ### Quick Start
 
-`check` and `fix` read files or directories, the files git has staged, or a draft on stdin, one of the three at a time. A directory walk skips dotted and vendor directories such as `.venv` and `node_modules`.
+`check` and `fix` read files or directories, or a draft on stdin, and `--since` narrows either to the prose changed since a start. A directory walk skips dotted and vendor directories such as `.venv` and `node_modules`.
 
 | Command | What It Does |
 | --- | --- |
 | `subedit check src/` | Reports every finding |
 | `subedit check src/ --output=actionable` | Reports only the findings that need rewriting |
 | `subedit check src/ --output=json` | Reports every finding as JSON, for other tools |
-| `subedit check --staged` | Reports the findings in the files git has staged |
+| `subedit check src/ --since HEAD` | Reports the findings in prose changed since the last commit |
 | `subedit check - --stdin-filename issue.md` | Checks a draft read from stdin, as the file it names |
 | `subedit fix src/` | Shows the autofixes as a diff |
 | `subedit fix src/ --write` | Applies the autofixes in place |
-| `subedit fix --staged --write` | Applies the autofixes to the files git has staged |
+| `subedit fix src/ --write --since HEAD` | Applies the autofixes to prose changed since the last commit |
 | `subedit fix - --stdin-filename issue.md` | Prints a draft from stdin with its autofixes, and its findings on stderr |
 | `subedit stats src/` | Measures each surface's lengths and widths, to set thresholds from data |
 | `subedit rules` | Lists every native rule with the surfaces it reads, its fix kind, and its default level |
-| `subedit install-git-hooks` | Installs git hooks that lay out the staged files and the commit message |
+| `subedit install-git-hooks` | Installs git hooks that lay out the prose a commit changes and its message |
 
 To adopt `subedit`, add an empty `subedit.toml` at the project root, run `fix --write` once, and read what `check` still reports. `check` exits 1 on any `error` finding, and `fix` exits 1 while an `error` rewrite remains, so both drop into CI, and [Git Hooks](#git-hooks) runs them on each commit. `--no-delegate` skips Vale and AutoCorrect.
 
@@ -136,8 +136,14 @@ A draft that never lands in a file, such as an issue body or a Notion page, reac
 git log -1 --format=%B | subedit fix - --stdin-filename .git/COMMIT_EDITMSG
 ```
 
+In a repository with text of its own, read only your change. `--since` names where it began, a git revision or a file, and reads only the comment groups and paragraphs changed since then, whole, since a layout fix reads them whole.
+
+- **A Revision**: `HEAD` for what is not yet committed, or `origin/master...` for a branch since it left `origin/master`. Before the first commit, `HEAD` reads everything as new.
+- **A File**: `./old.md`, with no git, such as a draft on stdin read since the page it will replace.
+- **Both**: a name that is both, such as a file called `HEAD`, is refused. Write `./HEAD` for the file, or `HEAD^0` for the commit.
+
 <details>
-<summary><b>CI Workflow</b>: a GitHub Actions job</summary>
+<summary><b>CI Workflow</b>: a GitHub Actions job on each pull request</summary>
 
 <br>
 
@@ -148,8 +154,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
-      - run: uvx --from 'subedit[vale]' subedit check src/
+      - run: uvx --from 'subedit[vale]' subedit check src/ --since "origin/${{ github.base_ref }}..."
 ```
 
 </details>
@@ -244,7 +252,7 @@ Rules never see a syntax tree. A parser turns the file into prose units, such as
 
 `subedit-hook` checks what an agent writes, on every surface alike, in a project that opts in with a `subedit.toml` or a `[tool.subedit]` table. Elsewhere it exits 0 and changes nothing.
 
-- **Edits**: after each file the agent edits, the hook applies the autofixes in place, and exits 2 only when a sentence needs rewriting, which hands the message back to the model.
+- **Edits**: after each file the agent edits, the hook applies the autofixes in place, and exits 2 only when a sentence needs rewriting, which hands the message back to the model. In a git repository it reads only the prose changed since the last commit, as `--since HEAD` does.
 - **Commits**: after a `git commit`, the hook hands the laid out message back, since amending history is the agent's call, for a commit not yet pushed.
 - **Warnings**: a warning reaches the model as context beside the tool result, without blocking.
 - **Sessions**: a session in a repository whose [git hooks](#git-hooks) do not run subedit hears once that `subedit install-git-hooks` would add them, and the agent runs it only if you agree.
@@ -302,10 +310,10 @@ Registering the hook with both agents is fine, since each payload identifies its
 
 Text written outside an agent, by a person or another tool, is checked when it is committed. `subedit install-git-hooks` installs two git hooks, and leaves a hook another tool holds alone.
 
-- **pre-commit**: lays out the staged files of every surface, and stops the commit until the laid out files are staged again, or on what needs rewriting.
+- **pre-commit**: lays out the prose the staged files changed since the last commit, on every surface, and stops the commit until the laid out files are staged again, or on what needs rewriting.
 - **commit-msg**: lays out the commit message in place, and stops the commit on what needs rewriting.
 
-Both run `subedit fix --write`, on the staged files with `--staged` and on the message file git names. A project on [pre-commit](https://pre-commit.com) lists them as entries instead, which `subedit install-git-hooks` prints for it.
+Both run `subedit fix --write`, on the staged files with `--since HEAD` and on the message file git names. A project on [pre-commit](https://pre-commit.com) lists them as entries instead, which `subedit install-git-hooks` prints for it.
 
 <details>
 <summary><b>pre-commit</b>: the entries to add</summary>

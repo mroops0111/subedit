@@ -27,6 +27,7 @@ from ..domain.rules import (
     TableHeaderTitleCaseRule,
     UnbreakableSentenceRule,
 )
+from .baselines import FileBaseline, GitRevisionBaseline
 from .config_sources import CONFIG_NAME, ConfigError, FormatterWidths, TomlConfigSource
 from .git import GitHookInstallError, GitHooks, GitRepository
 from .linters import AutoCorrectLinter, ValeLinter
@@ -128,9 +129,11 @@ __all__ = [
     'AutoCorrectLinter',
     'CompositeParser',
     'ConfigError',
+    'FileBaseline',
     'GitHookInstallError',
     'GitHooks',
     'GitRepository',
+    'GitRevisionBaseline',
     'LanguageProfile',
     'MarkdownParser',
     'NodeRole',

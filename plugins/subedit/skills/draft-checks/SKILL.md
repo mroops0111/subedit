@@ -13,8 +13,9 @@ Pipe the draft through `subedit fix -`, and post what comes back.
 
 1. Write the draft, then run `subedit fix - --stdin-filename <name>` on it. Run it from the repository, so the draft takes the repository's config.
 2. Name the draft by the surface it is read as. A body or a note is Markdown, such as `pr.md`, and a title becomes a commit subject when the pull request is squashed, so it is `.git/COMMIT_EDITMSG`.
-3. Read the findings on stderr. Rewrite what needs an author, and judge each warning with the `finding-criteria` skill.
-4. Post the fixed text from stdout, such as through `gh pr create --body-file -`, once no finding needs an author.
+3. When the draft revises text that is already published, such as a page or a pull request body, save the published text to a file and add `--since ./<that file>`, so only the prose you changed is checked.
+4. Read the findings on stderr. Rewrite what needs an author, and judge each warning with the `finding-criteria` skill.
+5. Post the fixed text from stdout, such as through `gh pr create --body-file -`, once no finding needs an author.
 
 ```sh
 subedit fix - --stdin-filename pr.md < pr.md | gh pr edit 42 --body-file -
