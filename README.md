@@ -281,7 +281,7 @@ Rules never see a syntax tree. A parser turns the file into prose units, such as
 
 #### Claude Code
 
-The [plugin](#claude-code-plugin) registers the hook for you. It also ships the `subedit:rewrites` skill, which gives the model the criteria for every finding a tool cannot fix, such as when a spec identifier stays and a ticket number goes. Criteria in your `CLAUDE.md`, `AGENTS.md`, or a skill of your own come first. The `subedit:drafts` skill has the model pipe text the hook never reads, such as a pull request body, through `subedit fix -` before it is posted.
+The [plugin](#claude-code-plugin) registers the hook for you. It also ships the `subedit:rewrites` skill, which gives the model the criteria for every finding a tool cannot fix, such as when a spec identifier stays and a ticket number goes. Criteria in your `CLAUDE.md`, `AGENTS.md`, or a skill of your own come first. The `subedit:drafts` skill has the model pipe text the hook never reads, such as a pull request body, through `subedit fix -` before it is posted. The `subedit:settings` skill sets a project up, measuring what its repository already writes with `subedit stats`, then settling each limit, convention, and level with you, one category at a time.
 
 <details>
 <summary><b>Manual Hook Registration</b>: without the plugin</summary>
