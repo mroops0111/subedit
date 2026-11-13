@@ -5,7 +5,7 @@ from ...domain.ports.baseline_source import BaselineSource
 from ..git import GitRepository
 
 
-class GitRevisionBaseline(BaselineSource):
+class GitRevisionBaselineSource(BaselineSource):
     """The text each file had at one commit, so a check reads the prose changed since then.
 
     With no commit, as in a repository that has none yet, every file is new.
@@ -16,7 +16,7 @@ class GitRevisionBaseline(BaselineSource):
         self._commit = commit
 
     @classmethod
-    def at_head(cls, repository: GitRepository) -> 'GitRevisionBaseline':
+    def at_head(cls, repository: GitRepository) -> 'GitRevisionBaselineSource':
         """The text as last committed, which a first commit has nothing of."""
         return cls(repository, repository.commit_named('HEAD'))
 

@@ -63,9 +63,9 @@ class ReportAggregator:
 
 # A change to one line of a unit reflows the whole unit, so a unit the change touches is read whole.
 # A finding outside every unit, such as in a code block a Markdown file embeds, is kept where its own lines changed.
-def _within_change(report: Report, prose_map: ProseMap, changed: tuple[SourceRange, ...]) -> Report:
-    touched = tuple(unit for unit in prose_map.prose if any(unit.overlaps(line) for line in changed))
-    regions = touched + changed
+def _within_change(report: Report, prose_map: ProseMap, changed_lines: tuple[SourceRange, ...]) -> Report:
+    touched = tuple(unit for unit in prose_map.prose if any(unit.overlaps(line) for line in changed_lines))
+    regions = touched + changed_lines
     kept = tuple(
         diagnostic for diagnostic in report.diagnostics if any(_reaches(diagnostic.range, region) for region in regions)
     )

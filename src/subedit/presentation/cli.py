@@ -30,11 +30,11 @@ from ..infrastructure import (
     GENERATED_NAMES,
     VENDOR_DIRECTORIES,
     ConfigError,
-    FileBaseline,
+    FileBaselineSource,
     GitHookInstallError,
     GitHooks,
     GitRepository,
-    GitRevisionBaseline,
+    GitRevisionBaselineSource,
     language_id_for,
 )
 from . import report as reporters
@@ -76,7 +76,7 @@ def check(
     since: str | None = _SINCE,
 ) -> None:
     """Report findings, and exit non-zero when any is an error."""
-    documents = _since(_documents_to_read(paths, stdin_filename=stdin_filename), since)
+    documents = _with_baselines(_documents_to_read(paths, stdin_filename=stdin_filename), since)
     formatter = _FORMATTERS.get(output)
     if formatter is None:
         typer.echo(f'Unknown output format {output!r}. Choose full, actionable, or json.', err=True)
@@ -105,7 +105,7 @@ def fix(
 
     A draft read from stdin comes back fixed on stdout, with the findings on stderr, so a pipe keeps only the text.
     """
-    documents = _since(_documents_to_read(paths, stdin_filename=stdin_filename), since)
+    documents = _with_baselines(_documents_to_read(paths, stdin_filename=stdin_filename), since)
     from_stdin = stdin_filename is not None
     if from_stdin and write:
         _usage_error('--write has no file to write when the draft comes from stdin.')
@@ -274,7 +274,7 @@ def _draft_on_stdin(paths: tuple[pathlib.Path, ...], stdin_filename: pathlib.Pat
     return Document(uri=stdin_filename.resolve().as_uri(), text=sys.stdin.read(), language_id=language_id)
 
 
-def _since(documents: tuple[Document, ...], since: str | None) -> tuple[Document, ...]:
+def _with_baselines(documents: tuple[Document, ...], since: str | None) -> tuple[Document, ...]:
     if since is None:
         return documents
     source = _baseline_source(since, documents)
@@ -288,20 +288,20 @@ def _since(documents: tuple[Document, ...], since: str | None) -> tuple[Document
 # ./ marks a file, since no revision starts with a dot, and ^0 marks a commit.
 def _baseline_source(since: str, documents: tuple[Document, ...]) -> BaselineSource:
     repository = GitRepository.at(pathlib.Path.cwd())
-    revision = _revision_named(repository, since)
-    file = pathlib.Path(since)
-    if file.is_file() and revision is not None:
+    revision_source = _revision_source(repository, since)
+    named_file = pathlib.Path(since)
+    if named_file.is_file() and revision_source is not None:
         _usage_error(
             f'--since {since} names both a file and a git revision. '
-            f'Write ./{file.as_posix()} for the file, or {since}^0 for the commit.'
+            f'Write ./{named_file.as_posix()} for the file, or {since}^0 for the commit.'
         )
-    if revision is not None:
-        return revision
-    if file.is_file():
+    if revision_source is not None:
+        return revision_source
+    if named_file.is_file():
         if len(documents) != 1:
             _usage_error('--since a file compares one file or draft with it, so it takes a single input.')
         try:
-            return FileBaseline(file.read_text(encoding='utf-8'))
+            return FileBaselineSource(named_file.read_text(encoding='utf-8'))
         except (OSError, UnicodeDecodeError):
             _usage_error(f'--since cannot read {since}.')
     if repository is None:
@@ -313,13 +313,13 @@ def _baseline_source(since: str, documents: tuple[Document, ...]) -> BaselineSou
 
 
 # HEAD names the last commit, and in a repository with none yet, a start before every file.
-def _revision_named(repository: GitRepository | None, since: str) -> GitRevisionBaseline | None:
+def _revision_source(repository: GitRepository | None, since: str) -> GitRevisionBaselineSource | None:
     if repository is None:
         return None
     if since == 'HEAD':
-        return GitRevisionBaseline.at_head(repository)
+        return GitRevisionBaselineSource.at_head(repository)
     commit = repository.commit_named(since)
-    return GitRevisionBaseline(repository, commit) if commit is not None else None
+    return GitRevisionBaselineSource(repository, commit) if commit is not None else None
 
 
 def _require(documents: tuple[Document, ...]) -> None:

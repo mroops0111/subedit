@@ -4,7 +4,7 @@ from ...domain.models.baseline import Baseline
 from ...domain.ports.baseline_source import BaselineSource
 
 
-class FileBaseline(BaselineSource):
+class FileBaselineSource(BaselineSource):
     """The text of one file, which a single draft or file is compared against, with no git involved."""
 
     def __init__(self, text: str) -> None:

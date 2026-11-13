@@ -293,7 +293,7 @@ def test_a_session_in_a_repository_without_the_git_hook_hears_the_offer(reposito
 
 def test_a_session_hears_no_offer_once_the_git_hooks_run_subedit(repository: Project) -> None:
     repository.write('subedit.toml', ADOPTED)
-    repository.write('.git/hooks/pre-commit', '#!/bin/sh\nexec subedit fix --write --staged\n')
+    repository.write('.git/hooks/pre-commit', '#!/bin/sh\nexec subedit fix --write --since HEAD\n')
     repository.write('.git/hooks/commit-msg', '#!/bin/sh\nexec subedit fix --write "$1"\n')
 
     assert hook.run(session_payload(repository)).stdout == ''

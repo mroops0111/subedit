@@ -135,7 +135,7 @@ def test_pre_commit_running_the_listed_hooks_counts_as_installed(repository: Pro
     assert hooks_for(repository).is_installed()
 
 
-OLD_PARAGRAPH = 'Cap the size so the mmap does not\nblow past it, an unbounded value faults.\n'
+BROKEN_PARAGRAPH = 'Cap the size so the mmap does not\nblow past it, an unbounded value faults.\n'
 NEW_PARAGRAPH = 'Keep the cache warm so a restart does not\nreload it, a cold read stalls.\n'
 
 
@@ -143,19 +143,19 @@ def test_the_pre_commit_hook_lays_out_only_the_staged_change_and_waits_for_it_to
     repository: Project,
 ) -> None:
     repository.write('subedit.toml', '[subedit]\n')
-    notes = repository.write('notes.md', OLD_PARAGRAPH)
+    notes = repository.write('notes.md', BROKEN_PARAGRAPH)
     repository.write('image.png', 'not prose')
     repository.git('add', '.')
     repository.git('commit', '-q', '--no-verify', '-m', 'Add notes')
     hooks_for(repository).install()
-    notes.write_text(OLD_PARAGRAPH + '\n' + NEW_PARAGRAPH, encoding='utf-8')
+    notes.write_text(BROKEN_PARAGRAPH + '\n' + NEW_PARAGRAPH, encoding='utf-8')
     repository.git('add', 'notes.md')
 
     with pytest.raises(subprocess.CalledProcessError) as raised:
         repository.git('commit', '-q', '-m', 'Add a paragraph')
     assert 'stage them and commit again' in raised.value.stderr
     assert notes.read_text(encoding='utf-8') == (
-        OLD_PARAGRAPH + '\nKeep the cache warm so a restart does not reload it, a cold read stalls.\n'
+        BROKEN_PARAGRAPH + '\nKeep the cache warm so a restart does not reload it, a cold read stalls.\n'
     ), "the committed paragraph is someone else's to lay out"
 
     repository.git('add', 'notes.md')

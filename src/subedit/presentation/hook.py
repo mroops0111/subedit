@@ -16,7 +16,7 @@ from ..infrastructure import (
     ConfigError,
     GitHooks,
     GitRepository,
-    GitRevisionBaseline,
+    GitRevisionBaselineSource,
     language_id_for,
 )
 from . import report as reporters
@@ -181,7 +181,7 @@ def _baseline_for(path: pathlib.Path) -> Baseline | None:
     repository = GitRepository.at(path.parent)
     if repository is None:
         return None
-    return GitRevisionBaseline.at_head(repository).baseline_for(path)
+    return GitRevisionBaselineSource.at_head(repository).baseline_for(path)
 
 
 # A session that opens in a repository configuring subedit hears once that its git hooks do not run it.

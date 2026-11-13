@@ -40,17 +40,17 @@ class GitHookStage:
 GIT_HOOK_STAGES = (
     GitHookStage(
         'pre-commit',
-        'unstaged=$(git diff | git hash-object --stdin)\n'
+        'unstaged_before=$(git diff | git hash-object --stdin)\n'
         'git diff --cached --name-only -z --diff-filter=ACMR -- {pathspecs} '
         '| xargs -0 -r {subedit} fix --write --since HEAD\n'
         'status=$?\n'
-        'if [ "$(git diff | git hash-object --stdin)" != "$unstaged" ]; then\n'
+        'if [ "$(git diff | git hash-object --stdin)" != "$unstaged_before" ]; then\n'
         "    echo 'subedit laid out the staged files, so stage them and commit again.' >&2\n"
         '    exit 1\n'
         'fi\n'
         'exit $status',
         'subedit',
-        'It lays out the prose a staged change touched and stops on what needs rewriting.',
+        'It lays out the prose the staged files changed since the last commit and stops on what needs rewriting.',
     ),
     GitHookStage(
         'commit-msg',
