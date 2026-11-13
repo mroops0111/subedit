@@ -9,12 +9,10 @@ import typer
 from .. import __version__
 from ..application import (
     CorpusMeter,
-    CorpusStatistics,
     Fixer,
     Linter,
     ReportAggregator,
     RuleEngine,
-    SurfaceStatistics,
 )
 from ..domain.models.document import Document
 from ..domain.models.rule_set import RuleSet
@@ -38,7 +36,7 @@ from ..infrastructure import (
     language_id_for,
 )
 from . import report as reporters
-from . import rule_reference
+from . import rule_reference, statistics_report
 
 
 app = typer.Typer(
@@ -50,7 +48,7 @@ _FORMATTERS = {
     'actionable': reporters.actionable,
     'json': reporters.as_json,
 }
-_PERCENTILES = (0.5, 0.75, 0.9, 0.95, 0.99)
+_STATISTICS_FORMATTERS = {'text': statistics_report.text, 'json': statistics_report.as_json}
 # A path of - reads one draft from stdin, as ruff, Prettier, and ESLint take it.
 _STDIN = pathlib.Path('-')
 _STDIN_FILENAME = typer.Option(
@@ -140,11 +138,23 @@ def fix(
 
 
 @app.command()
-def stats(paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to measure.')) -> None:
-    """Measure the prose of each surface, to set limits from what the codebase already holds."""
-    documents = _load(tuple(paths))
+def stats(
+    paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to measure.'),
+    commits: int = typer.Option(
+        0, '--commits', min=0, help='Also measure the messages of this many recent commits in the repository.'
+    ),
+    output: str = typer.Option('text', '--output', help='text or json.'),
+) -> None:
+    """Measure the prose of each surface, to set limits from what the repository already holds.
+
+    Each count a rule takes is measured beside the value the project sets for it, under the project's config.
+    """
+    formatter = _STATISTICS_FORMATTERS.get(output)
+    if formatter is None:
+        _usage_error(f'Unknown output format {output!r}. Choose text or json.')
+    documents = _load(tuple(paths)) + _commit_messages(paths[0], commits)
     _require(documents)
-    typer.echo(_render(CorpusMeter(DEFAULT_PARSER).run(documents)))
+    typer.echo(formatter(CorpusMeter(DEFAULT_PARSER, ALL_RULES).run(documents, _rules_for)))
 
 
 @app.command()
@@ -322,6 +332,22 @@ def _revision_source(repository: GitRepository | None, since: str) -> GitRevisio
     return GitRevisionBaselineSource(repository, commit) if commit is not None else None
 
 
+def _commit_messages(path: pathlib.Path, count: int) -> tuple[Document, ...]:
+    if not count:
+        return ()
+    repository = GitRepository.at(path if path.is_dir() else path.parent)
+    if repository is None:
+        _usage_error(f'--commits reads the history of a git repository, and {path} is in none.')
+    message_file = repository.git_path('COMMIT_EDITMSG')
+    language_id = language_id_for(message_file)
+    if language_id is None:
+        return ()
+    return tuple(
+        Document(uri=message_file.as_uri(), text=message, language_id=language_id)
+        for message in repository.commit_messages(count)
+    )
+
+
 def _require(documents: tuple[Document, ...]) -> None:
     if not documents:
         typer.echo('No readable source files found.', err=True)
@@ -365,36 +391,6 @@ def _diff(before: Document, after: Document) -> str:
             tofile=path,
         )
     ).rstrip('\n')
-
-
-def _render(statistics: CorpusStatistics) -> str:
-    return '\n\n'.join(_render_surface(measured) for measured in statistics.surfaces)
-
-
-def _render_surface(measured: SurfaceStatistics) -> str:
-    heading = (
-        f'{"group":24s} {"n":>6s} {"med":>5s} '
-        + ' '.join(f'p{int(fraction * 100):<3d}' for fraction in _PERCENTILES)
-        + '  max'
-    )
-    lines = [f'{measured.surface}: {measured.document_count} documents, {measured.unit_count} units']
-    if measured.line_counts:
-        lines.extend(['', 'unit line counts', heading])
-        lines.extend(_row(distribution.label, distribution) for distribution in measured.line_counts)
-    distributions = (measured.physical_widths, measured.sentence_lengths)
-    for distribution in (distribution for distribution in distributions if distribution.count):
-        lines.extend(['', distribution.label, _row('', distribution)])
-    lines.extend(['', 'sentences over width with no comma to break at'])
-    for width, sentence_count in measured.unbreakable_counts_by_width:
-        sentence_total = measured.sentence_lengths.count
-        percentage = sentence_count / sentence_total * 100 if sentence_total else 0.0
-        lines.append(f'  width {width:3d}  {sentence_count:5d} sentences  {percentage:5.2f}%')
-    return '\n'.join(lines)
-
-
-def _row(label: str, distribution: typing.Any) -> str:
-    cells = ' '.join(f'{distribution.percentile(fraction):<4d}' for fraction in _PERCENTILES)
-    return f'{label:24s} {distribution.count:6d} {distribution.median:5d} {cells} {distribution.maximum:4d}'
 
 
 if __name__ == '__main__':

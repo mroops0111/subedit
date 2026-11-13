@@ -131,7 +131,8 @@ uv tool install subedit           # without Vale, the native rules and AutoCorre
 | `subedit fix src/ --write` | Applies the autofixes in place |
 | `subedit fix src/ --write --since HEAD` | Applies the autofixes to prose changed since the last commit |
 | `subedit fix - --stdin-filename issue.md` | Prints a draft from stdin with its autofixes, and its findings on stderr |
-| `subedit stats src/` | Measures each surface's lengths and widths, to set thresholds from data |
+| `subedit stats src/` | Measures each surface's lengths and widths, and what each rule's counts limit, beside the values set now |
+| `subedit stats . --commits 200 --output=json` | Also measures the last 200 commit messages, as JSON, for other tools |
 | `subedit rules` | Lists every native rule with the surfaces it reads, its fix kind, and its default level |
 | `subedit install-git-hooks` | Installs git hooks that lay out the prose a commit changes and its message |
 
@@ -280,7 +281,7 @@ Rules never see a syntax tree. A parser turns the file into prose units, such as
 
 #### Claude Code
 
-The [plugin](#claude-code-plugin) registers the hook for you. It also ships the `subedit:rewrites` skill, which gives the model the criteria for every finding a tool cannot fix, such as when a spec identifier stays and a ticket number goes. Criteria in your `CLAUDE.md`, `AGENTS.md`, or a skill of your own come first. The `subedit:drafts` skill has the model pipe text the hook never reads, such as a pull request body, through `subedit fix -` before it is posted.
+The [plugin](#claude-code-plugin) registers the hook for you. It also ships the `subedit:rewrites` skill, which gives the model the criteria for every finding a tool cannot fix, such as when a spec identifier stays and a ticket number goes, and for what no pattern catches, such as a comment that restates the code. Criteria in your `CLAUDE.md`, `AGENTS.md`, or a skill of your own come first. The `subedit:drafts` skill has the model pipe text the hook never reads, such as a pull request body, through `subedit fix -` before it is posted. The `subedit:settings` skill sets a project up, measuring what its repository already writes with `subedit stats`, then settling each limit, convention, and level with you, one category at a time.
 
 <details>
 <summary><b>Manual Hook Registration</b>: without the plugin</summary>

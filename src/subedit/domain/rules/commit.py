@@ -3,10 +3,11 @@ import typing
 
 from ..models.commit_message import CommitSubject
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.measurement import Measurement
 from ..models.position import SourceRange
 from ..models.rule_option import ChoiceOption, CountOption, WordsOption
 from ..models.text import TextEdit
-from ..ports.rule import Rule, RuleContext
+from ..ports.rule import MeasuredRule, Rule, RuleContext
 
 
 # The types @commitlint/config-conventional allows, which most projects on Conventional Commits take.
@@ -25,7 +26,7 @@ _FIRST_WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
 _BASE_FORMS = frozenset({'embed', 'feed', 'need', 'proceed', 'seed', 'shed', 'speed', 'succeed', 'exceed', 'focus'})
 
 
-class SubjectTooLongRule(Rule[CommitSubject]):
+class SubjectTooLongRule(MeasuredRule[CommitSubject]):
     metadata = RuleMetadata(
         rule_id='subject-too-long',
         summary='A commit subject fits the width git log and GitHub show it in.',
@@ -48,6 +49,9 @@ class SubjectTooLongRule(Rule[CommitSubject]):
             ),
             fix=Fix.rewrite(),
         )
+
+    def measure(self, unit: CommitSubject, context: RuleContext) -> typing.Iterable[Measurement]:
+        yield Measurement(_MAX_SUBJECT_CHARACTERS, len(unit.text))
 
 
 class SubjectStyleRule(Rule[CommitSubject]):
