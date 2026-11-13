@@ -1,11 +1,11 @@
 ---
 name: rewrites
-description: Decide what to do with a subedit finding that no tool can fix, such as subedit.ExternalRef, mid-sentence-colon, comment-too-long, heading-not-noun-phrase, subject-not-imperative, or unbreakable-sentence. Use when a subedit hook, `subedit check`, or `subedit fix` reports a finding that needs rewriting or a warning that is a judgment call.
+description: Decide what to do with a subedit finding that no tool can fix, such as subedit.ExternalRef, mid-sentence-colon, comment-too-long, heading-not-noun-phrase, subject-not-imperative, or unbreakable-sentence, and read new prose for what no pattern catches. Use when a subedit hook, `subedit check`, or `subedit fix` reports a finding that needs rewriting or a warning that is a judgment call, and after writing or revising comments, docs, or a commit message in a repository that configures subedit.
 ---
 
 # subedit Rewrites
 
-subedit repairs layout on its own, in comments, Markdown, and commit messages alike. What reaches you is either an error, which blocks until the text is rewritten, or a warning, which asks for a judgment and blocks nothing. For each finding, read the flagged text, apply the criteria below, and either rewrite the text or leave it as it is.
+subedit repairs layout on its own, in comments, Markdown, and commit messages alike. What reaches you is either an error, which blocks until the text is rewritten, or a warning, which asks for a judgment and blocks nothing. For each finding, read the flagged text, apply the criteria below, and either rewrite the text or leave it as it is. Some problems no pattern can find, so once the findings are settled, read what you wrote against the criteria in [Beyond the Linter](#beyond-the-linter).
 
 ## Project Criteria
 
@@ -52,3 +52,17 @@ An error always needs a rewrite. The message states the fix, and these notes cov
 - **`subject-too-long`**: keep what the change does in the subject, and move why and how into the body.
 - **`subject-style`** (no type): open the subject with one of the types the project lists, as in `fix: handle empty input`.
 - **`subedit.Semicolon`, `subedit.EmDash`**: split into two sentences, or use a comma or parentheses.
+
+## Beyond the Linter
+
+A pattern catches only the wording it lists, so the same problem written another way passes. After the hook or `subedit check` passes on prose you wrote or revised, read each new or changed sentence once against these criteria. Leave alone every sentence subedit reported, since the sections above settle those.
+
+| Criterion | What a Pattern Misses | Rewrite It As |
+| --- | --- | --- |
+| Edit history | A sentence that tells what changed or why it used to differ, with no word such as *now* or *no longer*, as in "After the migration, the parser reads the header first." | The behavior or constraint that holds now. |
+| Private context | A reference only its author can follow, such as a conversation, a review, a person, or a local path, as in "as the reviewer asked". | The constraint that context recorded. |
+| Restated code | A comment that says what the next lines do, which a reader sees in the code. | Only what the code cannot show, such as why, or nothing. |
+| Process report | A commit body or pull request that recounts the steps taken, as in "First I added the test, then I ran it". | What the change does and why, in the present tense. |
+| Stale prose | A sentence elsewhere that the same change made untrue, such as a README line that names a renamed flag. | The fact as it stands after the change, in each place that states it. |
+
+Rewrite what fails a criterion in place, as [Rewriting](#rewriting) says, and run the check again. When a sentence meets every criterion, leave it, and do not reword it to look reviewed.
