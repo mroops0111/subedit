@@ -39,6 +39,11 @@ def reflow(comment: Comment, width: int) -> Comment:
     return comment.reflow(width)
 ```
 
+<details>
+<summary><b>Markdown and Commit Messages</b>: the same command on the other surfaces</summary>
+
+<br>
+
 Markdown has no column limit, yet an agent often wraps a paragraph by hand, and GitHub, Notion, and Heptabase may show each of those newlines as a break.
 
 ```markdown
@@ -72,6 +77,8 @@ Add the cache layer
 The cache keeps one entry per file and drops it when the file changes,
 so a second run reads only what moved.
 ```
+
+</details>
 
 A sentence in a comment that runs past the width with no comma has nowhere legal to break, and only its author knows where the meaning divides, so it goes back to the agent that wrote it.
 
@@ -130,17 +137,31 @@ uv tool install subedit           # without Vale, the native rules and AutoCorre
 
 To adopt `subedit`, add an empty `subedit.toml` at the project root, run `fix --write` once, and read what `check` still reports. `check` exits 1 on any `error` finding, and `fix` exits 1 while an `error` rewrite remains, so both drop into CI, and [Git Hooks](#git-hooks) runs them on each commit. `--no-delegate` skips Vale and AutoCorrect.
 
-A draft that never lands in a file, such as an issue body or a Notion page, reaches subedit on stdin. `--stdin-filename` names the file it stands for, which picks its surface and the config found from it, so `gh issue create --body-file` can take the fixed text straight from `subedit fix -`. A commit message named as `.git/COMMIT_EDITMSG` is read as one:
+<details>
+<summary><b>Changed Prose</b>: only what you wrote, since a commit or a file</summary>
 
-```sh
-git log -1 --format=%B | subedit fix - --stdin-filename .git/COMMIT_EDITMSG
-```
+<br>
 
 In a repository with text of its own, read only your change. `--since` names where it began, a git revision or a file, and reads only the comment groups and paragraphs changed since then, whole, since a layout fix reads them whole.
 
 - **A Revision**: `HEAD` for what is not yet committed, or `origin/master...` for a branch since it left `origin/master`. Before the first commit, `HEAD` reads everything as new.
 - **A File**: `./old.md`, with no git, such as a draft on stdin read since the page it will replace.
 - **Both**: a name that is both, such as a file called `HEAD`, is refused. Write `./HEAD` for the file, or `HEAD^0` for the commit.
+
+</details>
+
+<details>
+<summary><b>Drafts</b>: text read from stdin, such as an issue body</summary>
+
+<br>
+
+A draft that never lands in a file, such as an issue body or a Notion page, reaches subedit on stdin. `--stdin-filename` names the file it stands for, which picks its surface and the config found from it, so `gh issue create --body-file` can take the fixed text straight from `subedit fix -`. A commit message named as `.git/COMMIT_EDITMSG` is read as one:
+
+```sh
+git log -1 --format=%B | subedit fix - --stdin-filename .git/COMMIT_EDITMSG
+```
+
+</details>
 
 <details>
 <summary><b>CI Workflow</b>: a GitHub Actions job on each pull request</summary>
@@ -411,6 +432,11 @@ A surface's own width applies unless the project sets one. A width chosen for co
 
 The surfaces share one house style, and differ where their forms differ. A comment and a commit message are laid out against a width, while Markdown has none and is built from paragraphs and headings. A comment sits beside the code it explains, and a commit message tells a change.
 
+<details>
+<summary><b>Concerns</b>: what each surface is held to</summary>
+
+<br>
+
 | Concern | `comments` | `markdown` | `commit-messages` | Rules |
 | --- | --- | --- | --- | --- |
 | Punctuation | No mid-sentence colon, semicolon, dash, or arrow | Same | Same | [Style](docs/rules.md#style), [Wording](docs/rules.md#wording) |
@@ -423,6 +449,8 @@ The surfaces share one house style, and differ where their forms differ. A comme
 | Structure | A docstring on each public symbol, no banner, no restated signature, and a short block | A lead sentence under each heading that opens a list | Not checked | [Structure](docs/rules.md#structure) |
 | Titles | None | Headings and table headers in Title Case, not bold, and a noun phrase | A subject that fits, follows the project convention, ends with no period, and gives an instruction | [Titles](docs/rules.md#titles) |
 | Stale References | No change narration, ticket number, or date | Not checked, since a note may tell a history | Not checked, since a commit tells one | [Wording](docs/rules.md#wording) |
+
+</details>
 
 The [rule reference](docs/rules.md) lists every rule by concern, with the surfaces it reads, what it catches, its default level, and its options.
 
