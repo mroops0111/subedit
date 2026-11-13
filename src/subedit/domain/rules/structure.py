@@ -3,9 +3,10 @@ import typing
 
 from ..models.comment import CommentForm, CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.measurement import Measurement
 from ..models.rule_option import CountOption
 from ..ports.language_conventions import LanguageConventions
-from ..ports.rule import Rule, RuleContext
+from ..ports.rule import MeasuredRule, Rule, RuleContext
 
 
 # Set from the p95 of a measured corpus, which subedit stats reports.
@@ -123,7 +124,7 @@ class SignatureRestatingTagRule(Rule[CommentGroup]):
         return None
 
 
-class CommentTooLongRule(Rule[CommentGroup]):
+class CommentTooLongRule(MeasuredRule[CommentGroup]):
     metadata = RuleMetadata(
         rule_id='comment-too-long',
         summary='A comment block long enough to restate the code has stopped earning its place.',
@@ -148,6 +149,9 @@ class CommentTooLongRule(Rule[CommentGroup]):
             ),
             fix=Fix.rewrite(),
         )
+
+    def measure(self, group: CommentGroup, context: RuleContext) -> typing.Iterable[Measurement]:
+        yield Measurement(_LIMITS[self._category(group)], group.line_count)
 
     def _category(self, group: CommentGroup) -> str:
         if group.form is not CommentForm.DOC:

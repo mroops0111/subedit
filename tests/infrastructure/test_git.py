@@ -160,3 +160,12 @@ def test_the_pre_commit_hook_lays_out_only_the_staged_change_and_waits_for_it_to
 
     repository.git('add', 'notes.md')
     repository.git('commit', '-q', '-m', 'Add a paragraph')
+
+
+def test_commit_messages_are_the_newest_whole_messages(repository: Project) -> None:
+    repository.git('commit', '-q', '--allow-empty', '-m', 'Add the parser', '-m', 'It reads the subject.')
+
+    assert opened(repository.root).commit_messages(5) == (
+        'Add the parser\n\nIt reads the subject.\n',
+        'Start the repository\n',
+    )

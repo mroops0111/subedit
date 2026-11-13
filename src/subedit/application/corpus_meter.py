@@ -1,10 +1,18 @@
 import dataclasses
 import statistics
+import typing
 
 from ..domain.models.document import Document
 from ..domain.models.laid_out_prose import LaidOutProse
 from ..domain.models.prose_unit import ProseUnit
+from ..domain.models.rule_option import CountOption
+from ..domain.models.rule_set import RuleSet
 from ..domain.ports import SourceParser
+from ..domain.ports.rule import MeasuredRule, Rule, RuleContext
+
+
+# A run given no project config reads every document under the defaults.
+_DEFAULTS = RuleSet(frozenset())
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -24,12 +32,27 @@ class Distribution:
         return sorted_values[position]
 
     @property
+    def minimum(self) -> int:
+        return min(self.measurements, default=0)
+
+    @property
     def maximum(self) -> int:
         return max(self.measurements, default=0)
 
     @property
     def median(self) -> int:
         return round(statistics.median(self.measurements)) if self.measurements else 0
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class OptionStatistics:
+    """What a project's prose holds for one rule's count option, beside the value the project sets for it."""
+
+    rule_id: str
+    option: CountOption
+    # The project's value, or the default where it sets none.
+    setting: int
+    distribution: Distribution
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -43,6 +66,8 @@ class SurfaceStatistics:
     physical_widths: Distribution
     sentence_lengths: Distribution
     unbreakable_counts_by_width: tuple[tuple[int, int], ...]
+    # Each count option of a rule that read the surface, measured even when its rule is off.
+    options: tuple[OptionStatistics, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -57,12 +82,19 @@ class CorpusMeter:
     """Measures how long the prose of each surface runs across a corpus, which is where the default limits come from."""
 
     def __init__(
-        self, parser: SourceParser[ProseUnit], candidate_widths: tuple[int, ...] = (72, 80, 88, 100, 120)
+        self,
+        parser: SourceParser[ProseUnit],
+        rules: tuple[Rule[typing.Any], ...] = (),
+        candidate_widths: tuple[int, ...] = (72, 80, 88, 100, 120),
     ) -> None:
         self._parser = parser
+        self._measured_rules = tuple(rule for rule in rules if isinstance(rule, MeasuredRule))
         self._candidate_widths = candidate_widths
 
-    def run(self, documents: tuple[Document, ...]) -> CorpusStatistics:
+    def run(
+        self, documents: tuple[Document, ...], rule_set_for: typing.Callable[[Document], RuleSet] = lambda _: _DEFAULTS
+    ) -> CorpusStatistics:
+        """Measure each surface, reading each document under the rule set it is checked under."""
         by_surface: dict[str, list[Document]] = {}
         for document in documents:
             file_type = next(
@@ -72,19 +104,28 @@ class CorpusMeter:
             if file_type is not None:
                 by_surface.setdefault(file_type.surface, []).append(document)
         return CorpusStatistics(
-            tuple(self._measure(surface, tuple(surface_documents)) for surface, surface_documents in by_surface.items())
+            tuple(
+                self._measure(surface, tuple(surface_documents), rule_set_for)
+                for surface, surface_documents in by_surface.items()
+            )
         )
 
-    def _measure(self, surface: str, documents: tuple[Document, ...]) -> SurfaceStatistics:
+    def _measure(
+        self, surface: str, documents: tuple[Document, ...], rule_set_for: typing.Callable[[Document], RuleSet]
+    ) -> SurfaceStatistics:
         grouped_line_counts: dict[str, list[int]] = {}
         physical_widths: list[int] = []
         sentence_lengths: list[int] = []
         unbreakable_counts = dict.fromkeys(self._candidate_widths, 0)
         unit_count = 0
+        option_values: dict[tuple[MeasuredRule[typing.Any], CountOption], list[int]] = {}
+        rule_set = rule_set_for(documents[0]).for_language(documents[0].language_id)
 
         for document in documents:
+            context = RuleContext(document, rule_set_for(document).for_language(document.language_id))
             for unit in self._parser.parse(document):
                 unit_count += 1
+                self._measure_options(unit, context, option_values)
                 for sentence in unit.prose().sentences():
                     sentence_lengths.append(len(sentence.text))
                     for width in self._candidate_widths:
@@ -105,7 +146,32 @@ class CorpusMeter:
             physical_widths=Distribution('physical-width', tuple(physical_widths)),
             sentence_lengths=Distribution('sentence-length', tuple(sentence_lengths)),
             unbreakable_counts_by_width=tuple(sorted(unbreakable_counts.items())),
+            options=tuple(
+                OptionStatistics(
+                    rule.metadata.rule_id,
+                    option,
+                    rule_set.settings_for(rule.metadata.rule_id).value(option),
+                    Distribution(option.name, tuple(values)),
+                )
+                for (rule, option), values in option_values.items()
+            ),
         )
+
+    # An option of a rule that reads the unit is listed even when nothing is measured, so no label shows as zero labels.
+    def _measure_options(
+        self,
+        unit: ProseUnit,
+        context: RuleContext,
+        option_values: dict[tuple[MeasuredRule[typing.Any], CountOption], list[int]],
+    ) -> None:
+        for rule in self._measured_rules:
+            if not rule.reads(unit):
+                continue
+            for option in rule.metadata.options:
+                if isinstance(option, CountOption):
+                    option_values.setdefault((rule, option), [])
+            for measurement in rule.measure(unit, context):
+                option_values.setdefault((rule, measurement.option), []).append(measurement.value)
 
     def _is_unbreakable(self, sentence: str, width: int) -> bool:
         return len(sentence) > width and ',' not in sentence

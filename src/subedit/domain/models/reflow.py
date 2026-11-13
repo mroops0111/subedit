@@ -220,6 +220,19 @@ def _best_layout(
     return None if found is None else found[1]
 
 
+def serial_item_words(sentence: str) -> tuple[int, ...]:
+    """How many words each item of a serial list runs to, as in "a parser, a linter, and a fixer".
+
+    The items are the pieces between two commas ahead of the piece that closes the run on and or or,
+    leaving out a piece that opens a clause.
+    """
+    pieces = _comma_pieces(sentence)
+    closers = [index for index, piece in enumerate(pieces) if index >= 2 and _closes_a_run(piece)]
+    if not closers:
+        return ()
+    return tuple(len(pieces[index].split()) for index in range(1, closers[-1]) if not _opens_a_clause(pieces[index]))
+
+
 def _splits_a_list(pieces: tuple[str, ...], index: int, item_words: int) -> bool:
     """Whether a break before ``pieces[index]`` falls beside an item of a list rather than between clauses."""
     if _opens_a_list(pieces[index]):

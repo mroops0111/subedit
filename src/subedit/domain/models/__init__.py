@@ -16,6 +16,7 @@ from .file_type import FileType
 from .laid_out_prose import LaidOutProse
 from .line_layout import LINE_PREFIX_LAYOUT, LineLayout, LinePrefixLayout, PrefixedLine
 from .markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
+from .measurement import Measurement
 from .position import Encoding, Position, PositionMap, SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence
 from .prose_map import ProseMap
@@ -53,6 +54,7 @@ __all__ = [
     'MarkdownBlock',
     'MarkdownBlockKind',
     'MarkdownLine',
+    'Measurement',
     'Position',
     'PositionMap',
     'PrefixedLine',

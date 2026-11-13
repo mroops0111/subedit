@@ -131,7 +131,8 @@ uv tool install subedit           # without Vale, the native rules and AutoCorre
 | `subedit fix src/ --write` | Applies the autofixes in place |
 | `subedit fix src/ --write --since HEAD` | Applies the autofixes to prose changed since the last commit |
 | `subedit fix - --stdin-filename issue.md` | Prints a draft from stdin with its autofixes, and its findings on stderr |
-| `subedit stats src/` | Measures each surface's lengths and widths, to set thresholds from data |
+| `subedit stats src/` | Measures each surface's lengths and widths, and what each rule's counts limit, beside the values set now |
+| `subedit stats . --commits 200 --output=json` | Also measures the last 200 commit messages, as JSON, for other tools |
 | `subedit rules` | Lists every native rule with the surfaces it reads, its fix kind, and its default level |
 | `subedit install-git-hooks` | Installs git hooks that lay out the prose a commit changes and its message |
 

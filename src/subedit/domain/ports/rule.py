@@ -4,6 +4,7 @@ import typing
 
 from ..models.diagnostic import Diagnostic, RuleMetadata
 from ..models.document import Document
+from ..models.measurement import Measurement
 from ..models.prose_unit import ProseUnit
 from ..models.rule_set import RuleSet, RuleSettings
 
@@ -37,3 +38,13 @@ class Rule(abc.ABC, typing.Generic[UnitT]):
 
     @abc.abstractmethod
     def check(self, unit: UnitT, context: RuleContext) -> typing.Iterable[Diagnostic]: ...
+
+
+class MeasuredRule(Rule[UnitT]):
+    """A rule with a count a project may set, which measures what the count limits in the project's own prose.
+
+    Each count option the rule declares is measured, whether or not the project runs the rule.
+    """
+
+    @abc.abstractmethod
+    def measure(self, unit: UnitT, context: RuleContext) -> typing.Iterable[Measurement]: ...

@@ -3,11 +3,12 @@ import re
 import typing
 
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
+from ..models.measurement import Measurement
 from ..models.prose import is_protected, is_wide, protected_spans, words_pattern
 from ..models.prose_unit import ProseLine, ProseUnit
 from ..models.rule_option import ChoiceOption, CountOption, ReplacementsOption
 from ..models.title_case import title_case
-from ..ports.rule import Rule, RuleContext
+from ..ports.rule import MeasuredRule, Rule, RuleContext
 from .markdown import title_case_settings
 
 
@@ -75,7 +76,7 @@ _LABEL_MESSAGE = (
 )
 
 
-class MidSentenceColonRule(Rule[ProseUnit]):
+class MidSentenceColonRule(MeasuredRule[ProseUnit]):
     metadata = RuleMetadata(
         rule_id='mid-sentence-colon',
         summary='A colon stands only in a heading, after a label, or at the end of a line leading into a list or block.',
@@ -108,6 +109,14 @@ class MidSentenceColonRule(Rule[ProseUnit]):
                     # Whether the words before a colon name the item or open a sentence is a guess.
                     tentative=offset == unsure_label,
                 )
+
+    def measure(self, unit: ProseUnit, context: RuleContext) -> typing.Iterable[Measurement]:
+        if unit.is_heading or not unit.is_own_prose:
+            return
+        for line in unit.prose_lines():
+            measured = _label_length(line)
+            if measured is not None:
+                yield measured
 
 
 class ParenthesisStyleRule(Rule[ProseUnit]):
@@ -338,6 +347,24 @@ def _label_colon(line: ProseLine, limits: _LabelLimits) -> _LabelColon | None:
     if line.opens_item:
         return _LabelColon(colon, is_sure=_is_label(text, limits))
     return _LabelColon(colon, is_sure=True) if _is_label(text, limits) and _is_tag(text, limits) else None
+
+
+# Each kind of label has its own limit, and words carrying a verb such as is form a clause, never a label.
+def _label_length(line: ProseLine) -> Measurement | None:
+    label = _LABEL.match(line.text) if line.opens_item or line.opens_paragraph else None
+    if label is None:
+        return None
+    text = label.group('label')
+    words = text.split()
+    if label.group('open'):
+        return Measurement(_MAX_BOLD_LABEL_WORDS, len(words))
+    if any(map(is_wide, text)):
+        return Measurement(_MAX_FULL_WIDTH_LABEL_CHARACTERS, len(text.strip()))
+    if any(word.lower() in _AUXILIARIES for word in words) or text.rstrip().endswith(('http', 'https')):
+        return None
+    if line.opens_item:
+        return Measurement(_MAX_LABEL_WORDS, len(words))
+    return Measurement(_MAX_TAG_WORDS, len(words)) if all(word[:1].isupper() for word in words) else None
 
 
 def _is_label(text: str, limits: _LabelLimits) -> bool:

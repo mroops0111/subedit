@@ -47,6 +47,11 @@ class GitRepository:
             return None
         return _git(self.root, 'show', f'{commit}:{relative}', strip=False)
 
+    def commit_messages(self, count: int) -> tuple[str, ...]:
+        """The messages of the newest commits from HEAD, leaving out merges, whose messages git writes."""
+        log = _git(self.root, 'log', f'--max-count={count}', '--no-merges', '--format=%B%x00', strip=False)
+        return tuple(f'{message.strip()}\n' for message in (log or '').split('\0') if message.strip())
+
     def recent_commit_message(self) -> str | None:
         """The message of a commit made in the last few minutes, or None when HEAD last moved for another reason."""
         entry = _git(self.root, 'reflog', '-1', '--date=unix', '--format=%gd %gs')
