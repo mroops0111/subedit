@@ -14,7 +14,8 @@ Collect everything the discussion draws on before asking anything. Run each comm
 1. **Measurements**: `subedit stats . --commits 200 --output json`. Each surface lists its widths, its sentences that cannot break at each candidate width, and an `options` entry for every count a rule takes, with its `default`, the project's `setting`, and the distribution of what the repository holds.
 2. **Findings**: `subedit check . --no-delegate --output json`, which prints one JSON object per file. Count the findings by `rule`, and keep the count that needs an author apart, where `mechanical` is false.
 3. **Existing Config**: read `subedit.toml`, or `[tool.subedit]` in `pyproject.toml`. Read the width other tools set too, such as ruff's `line-length`, Prettier's `printWidth`, and `max_line_length` in `.editorconfig`.
-4. **Surfaces**: note which of `comments`, `markdown`, and `commit-messages` the measurements hold. Leave out every setting of a surface the repository does not have.
+4. **Stated Preferences**: read `CLAUDE.md` and `AGENTS.md` in the repository, and any style guide they point to. A preference written there, such as Title Case or a commit convention, answers its question, so show it in the round as the author's answer rather than ask it again.
+5. **Surfaces**: note which of `comments`, `markdown`, and `commit-messages` the measurements hold. Leave out every setting of a surface the repository does not have.
 
 Drop `--commits` outside a git repository. Run `subedit rules` when a rule's purpose is unclear.
 

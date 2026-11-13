@@ -18,9 +18,9 @@ A project or its people can judge differently. Look for their criteria before ap
 
 ## Rewriting
 
-Rewrite in place, keep the meaning, and keep a comment to the constraint the code cannot show. Never add a suppression comment, and never reword a sentence only to dodge a pattern while keeping what the rule objects to.
+Rewrite in place, keep the meaning, and keep a comment to the constraint the code cannot show.
 
-A commit message comes back from the hook with its findings and its text laid out, since the commit is already made. Amend it with `git commit --amend --only -F -` only while the commit is not pushed. A pushed commit stays as it is.
+A commit message comes back from the hook with its findings and its text laid out, since the commit is already made. Amend it with `git commit --amend --only -F -` while the commit is not pushed.
 
 ## Judgment Calls
 
@@ -65,4 +65,13 @@ A pattern catches only the wording it lists, so the same problem written another
 | Process report | A commit body or pull request that recounts the steps taken, as in "First I added the test, then I ran it". | What the change does and why, in the present tense. |
 | Stale prose | A sentence elsewhere that the same change made untrue, such as a README line that names a renamed flag. | The fact as it stands after the change, in each place that states it. |
 
-Rewrite what fails a criterion in place, as [Rewriting](#rewriting) says, and run the check again. When a sentence meets every criterion, leave it, and do not reword it to look reviewed.
+Rewrite what fails a criterion in place, as [Rewriting](#rewriting) says, and run the check again. When a sentence meets every criterion, leave it.
+
+## Boundaries
+
+A rewrite answers what a rule or a criterion objects to, and nothing else.
+
+- **Suppression**: never add a suppression comment. A rule a project wants left alone for good is set to `"off"` in its config.
+- **Dodging**: never reword a sentence only to dodge a pattern while keeping what the rule objects to.
+- **Pushed Commits**: a commit already pushed keeps its message, since amending it rewrites shared history.
+- **Passing Prose**: leave a sentence that meets every criterion as it is, and do not reword it to look reviewed.
