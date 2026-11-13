@@ -1,0 +1,15 @@
+# The repository checks itself with its own checkout, so a change to subedit runs on the commit that makes it.
+repos:
+  - repo: local
+    hooks:
+      - id: subedit
+        name: subedit
+        entry: uv run subedit fix --write --since HEAD
+        language: system
+        files: \.(cjs|cts|js|json|jsonc|jsx|markdown|md|mjs|mts|py|pyi|ts|tsx|yaml|yml)$
+        stages: [pre-commit]
+      - id: subedit-commit-msg
+        name: subedit commit message
+        entry: uv run subedit fix --write
+        language: system
+        stages: [commit-msg]

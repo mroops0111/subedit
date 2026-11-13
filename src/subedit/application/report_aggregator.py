@@ -2,6 +2,7 @@ import dataclasses
 
 from ..domain.models.diagnostic import Diagnostic, Report
 from ..domain.models.document import Document
+from ..domain.models.position import SourceRange
 from ..domain.models.prose_map import ProseMap
 from ..domain.models.rule_set import RuleSet
 from ..domain.ports.external_linter import ExternalLinter
@@ -31,7 +32,9 @@ class ReportAggregator:
             embedded_report = self._run(embedding.document, project_rules, fragment=True)
             mapped = tuple(embedding.embedded.host_diagnostic(item) for item in embedded_report.diagnostics)
             report = report.merged_with(Report(mapped, embedded_report.unavailable_sources))
-        return report
+        if document.baseline is None:
+            return report
+        return _within_change(report, inspection.prose_map, document.baseline.changed_ranges(document.text))
 
     def _external_report(self, document: Document, prose_map: ProseMap, rule_set: RuleSet) -> Report:
         # A checker keeps only what it finds in prose, so a file with none, such as a lock file, skips them all.
@@ -56,3 +59,18 @@ class ReportAggregator:
             severity = rule_set.settings_for(diagnostic.rule_id).severity
             configured.append(dataclasses.replace(diagnostic, severity=severity) if severity else diagnostic)
         return tuple(configured)
+
+
+# A change to one line of a unit reflows the whole unit, so a unit the change touches is read whole.
+# A finding outside every unit, such as in a code block a Markdown file embeds, is kept where its own lines changed.
+def _within_change(report: Report, prose_map: ProseMap, changed_lines: tuple[SourceRange, ...]) -> Report:
+    touched = tuple(unit for unit in prose_map.prose if any(unit.overlaps(line) for line in changed_lines))
+    regions = touched + changed_lines
+    kept = tuple(
+        diagnostic for diagnostic in report.diagnostics if any(_reaches(diagnostic.range, region) for region in regions)
+    )
+    return dataclasses.replace(report, diagnostics=kept)
+
+
+def _reaches(found: SourceRange, region: SourceRange) -> bool:
+    return found.overlaps(region) or region.start <= found.start < region.end

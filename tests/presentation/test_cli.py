@@ -1,3 +1,4 @@
+import io
 import pathlib
 
 import pytest
@@ -6,6 +7,10 @@ from factories import Project
 from subedit.domain import Diagnostic, Document, ExternalLinter
 from subedit.presentation import cli
 from subedit.presentation.cli import app
+
+
+# A Markdown paragraph broken across two source lines, which fix joins into one.
+BROKEN_PARAGRAPH = 'Cap the size so the mmap does not\nblow past it, an unbounded value faults.\n'
 
 
 def test_version_prints_the_package_version(capsys: pytest.CaptureFixture[str]) -> None:
@@ -210,6 +215,71 @@ def test_fix_write_lays_out_the_message_a_commit_msg_hook_hands_it(project: Proj
     assert message.read_text(encoding='utf-8') == 'Fix the parser\n\nIt dropped a line.\n'
 
 
+def run_on_stdin(monkeypatch: pytest.MonkeyPatch, text: str, *arguments: str) -> int | str | None:
+    monkeypatch.setattr('sys.stdin', io.StringIO(text))
+    with pytest.raises(SystemExit) as exit_info:
+        app(list(arguments))
+    return exit_info.value.code
+
+
+def test_check_reads_a_draft_from_stdin_as_the_file_it_names(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The config beside the named file, not the working directory's, sets the severity.
+    project.write('subedit.toml', '[rules]\nparagraph-line-break = "warning"\n')
+    draft = project.root / 'drafts' / 'issue.md'
+    code = run_on_stdin(monkeypatch, BROKEN_PARAGRAPH, 'check', '-', '--stdin-filename', str(draft), '--no-delegate')
+    assert code == 0
+    assert 'drafts/issue.md:1:1  warning  paragraph-line-break' in capsys.readouterr().out
+
+
+def test_fix_returns_a_draft_from_stdin_fixed_on_stdout_alone(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    draft = project.root / 'issue.md'
+    code = run_on_stdin(monkeypatch, BROKEN_PARAGRAPH, 'fix', '-', '--stdin-filename', str(draft), '--no-delegate')
+    captured = capsys.readouterr()
+    assert code == 0
+    assert captured.out == 'Cap the size so the mmap does not blow past it, an unbounded value faults.\n'
+    assert 'rewrote 1 of 1 file' in captured.err
+
+
+@pytest.mark.parametrize(
+    'arguments',
+    [
+        pytest.param(('check', '-'), id='no filename'),
+        pytest.param(('check', '-', 'other.md', '--stdin-filename', 'issue.md'), id='other paths'),
+        pytest.param(('check', 'other.md', '--stdin-filename', 'issue.md'), id='filename without stdin'),
+        pytest.param(('check', '-', '--stdin-filename', 'notes.txt'), id='unread extension'),
+        pytest.param(('fix', '-', '--write', '--stdin-filename', 'issue.md'), id='write'),
+        pytest.param(('check',), id='no input'),
+    ],
+)
+def test_a_command_takes_paths_or_a_draft_on_stdin_alone(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], arguments: tuple[str, ...]
+) -> None:
+    assert run_on_stdin(monkeypatch, 'Text.\n', *arguments) == 2
+    assert capsys.readouterr().err.startswith('subedit: ')
+
+
+def test_fix_lays_out_a_commit_message_from_stdin_as_the_file_git_writes_it_to(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project.write('subedit.toml', '')
+    message_file = project.root / '.git' / 'COMMIT_EDITMSG'
+    code = run_on_stdin(
+        monkeypatch,
+        'Fix the parser.\nIt dropped a line.\n',
+        'fix',
+        '-',
+        '--stdin-filename',
+        str(message_file),
+        '--no-delegate',
+    )
+    assert code == 0
+    assert capsys.readouterr().out == 'Fix the parser\n\nIt dropped a line.\n'
+
+
 class _PreparedLinter(ExternalLinter):
     name = 'probe'
 
@@ -260,37 +330,121 @@ def test_a_surface_switched_off_reports_nothing(project: Project) -> None:
     assert exit_info.value.code == 0
 
 
-def test_fix_staged_lays_out_the_staged_files_and_fails_until_they_are_staged_again(
+def test_a_named_file_the_config_excludes_passes(project: Project) -> None:
+    project.write('subedit.toml', '[subedit]\nexclude = ["vendor/*"]\n')
+    target = project.write('vendor/notes.md', '## when to apply\n')
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check', str(target), '--no-delegate'])
+    assert exit_info.value.code == 0, 'a hook names every file a commit holds, excluded or not'
+
+
+NEW_PARAGRAPH = 'Keep the cache warm so a restart does not\nreload it, a cold read stalls.\n'
+
+
+def committed_with_a_new_paragraph(repository: Project) -> pathlib.Path:
+    notes = repository.write('notes.md', BROKEN_PARAGRAPH)
+    repository.git('add', 'notes.md')
+    repository.git('commit', '-q', '-m', 'Add notes')
+    notes.write_text(BROKEN_PARAGRAPH + '\n' + NEW_PARAGRAPH, encoding='utf-8')
+    return notes
+
+
+def test_check_since_a_revision_reports_only_the_prose_changed_since_then(
+    repository: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    committed_with_a_new_paragraph(repository)
+    monkeypatch.chdir(repository.root)
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check', 'notes.md', '--since', 'HEAD', '--no-delegate'])
+    out = capsys.readouterr().out
+    assert exit_info.value.code == 1
+    assert 'notes.md:4:1' in out
+    assert 'notes.md:1:1' not in out, "the committed paragraph is someone else's to fix"
+
+
+def test_fix_since_a_revision_lays_out_only_the_prose_changed_since_then(
     repository: Project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repository.write('subedit.toml', '[subedit]\nline-width = 74\n')
-    target = repository.write(
-        'probe.py',
-        'def f():\n    # cap the size to the shared limit so the mmap does not\n'
-        '    # blow past it, an unbounded value faults the runner.\n    pass\n',
+    notes = committed_with_a_new_paragraph(repository)
+    monkeypatch.chdir(repository.root)
+    with pytest.raises(SystemExit):
+        app(['fix', 'notes.md', '--write', '--since', 'HEAD', '--no-delegate'])
+    assert notes.read_text(encoding='utf-8') == (
+        BROKEN_PARAGRAPH + '\nKeep the cache warm so a restart does not reload it, a cold read stalls.\n'
     )
-    repository.write('untouched.py', '# a line that is never staged.\n')
-    repository.git('add', 'probe.py', 'subedit.toml')
+
+
+def test_since_head_before_the_first_commit_reads_everything_as_new(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv('GIT_CONFIG_GLOBAL', '/dev/null')
+    project.git('init', '-q')
+    project.write('notes.md', BROKEN_PARAGRAPH)
+    monkeypatch.chdir(project.root)
+    with pytest.raises(SystemExit):
+        app(['check', 'notes.md', '--since', 'HEAD', '--no-delegate'])
+    assert 'notes.md:1:1' in capsys.readouterr().out
+
+
+def test_since_a_file_compares_a_draft_with_it_and_needs_no_git(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    published = project.write('published.md', BROKEN_PARAGRAPH)
+    monkeypatch.chdir(project.root)
+    draft = BROKEN_PARAGRAPH + '\n' + NEW_PARAGRAPH
+    code = run_on_stdin(
+        monkeypatch, draft, 'fix', '-', '--stdin-filename', str(published), '--since', './published.md', '--no-delegate'
+    )
+    assert code == 0
+    assert capsys.readouterr().out == (
+        BROKEN_PARAGRAPH + '\nKeep the cache warm so a restart does not reload it, a cold read stalls.\n'
+    )
+
+
+@pytest.mark.parametrize(
+    ('arguments', 'message'),
+    [
+        pytest.param(('--since', 'no-such-branch'), 'names no file and no commit', id='neither'),
+        pytest.param(('--since', 'HEAD'), 'Write ./HEAD for the file, or HEAD^0', id='both'),
+        pytest.param(('other.md', '--since', 'other.md'), 'single input', id='file with two inputs'),
+    ],
+)
+def test_since_names_one_start_that_exists(
+    repository: Project,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    arguments: tuple[str, ...],
+    message: str,
+) -> None:
+    committed_with_a_new_paragraph(repository)
+    repository.write('other.md', 'Other text.\n')
+    repository.write('HEAD', 'A file that shares its name with a revision.\n')
     monkeypatch.chdir(repository.root)
-
     with pytest.raises(SystemExit) as exit_info:
-        app(['fix', '--staged', '--write', '--no-delegate'])
-
-    assert exit_info.value.code == 1, 'the commit would hold the text before the fix'
-    assert 'does not blow past it,\n' in target.read_text(encoding='utf-8')
-
-
-def test_fix_staged_with_nothing_subedit_reads_passes(repository: Project, monkeypatch: pytest.MonkeyPatch) -> None:
-    repository.write('data.bin', 'x')
-    repository.git('add', 'data.bin')
-    monkeypatch.chdir(repository.root)
-
-    with pytest.raises(SystemExit) as exit_info:
-        app(['check', '--staged', '--no-delegate'])
-    assert exit_info.value.code == 0
-
-
-def test_a_command_with_neither_paths_nor_staged_is_a_usage_error() -> None:
-    with pytest.raises(SystemExit) as exit_info:
-        app(['check'])
+        app(['check', 'notes.md', *arguments, '--no-delegate'])
     assert exit_info.value.code == 2
+    assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('since', ['./HEAD', 'HEAD^0'])
+def test_a_name_both_a_file_and_a_revision_reads_once_marked(
+    repository: Project, monkeypatch: pytest.MonkeyPatch, since: str
+) -> None:
+    committed_with_a_new_paragraph(repository)
+    repository.write('HEAD', 'A file that shares its name with a revision.\n')
+    monkeypatch.chdir(repository.root)
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check', 'notes.md', '--since', since, '--no-delegate'])
+    assert exit_info.value.code != 2
+
+
+def test_since_a_revision_outside_a_repository_is_a_usage_error(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project.write('notes.md', BROKEN_PARAGRAPH)
+    monkeypatch.chdir(project.root)
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check', 'notes.md', '--since', 'HEAD', '--no-delegate'])
+    assert exit_info.value.code == 2
+    assert 'outside a git repository' in capsys.readouterr().err

@@ -9,6 +9,7 @@ from factories import FIXTURES, Project, document, found, lint, rule_set
 
 from subedit.application import Linter, ReportAggregator, RuleEngine
 from subedit.domain import (
+    Baseline,
     Diagnostic,
     Document,
     ExternalLinter,
@@ -291,3 +292,32 @@ def test_vale_reads_a_code_block_as_its_own_language(tmp_path: pathlib.Path) -> 
     assert [(item.rule_id, item.range.start) for item in report.diagnostics] == [
         ('subedit.Semicolon', text.index(';'))
     ], 'only the comment is prose, so the string in the code is left alone'
+
+
+TWO_BROKEN_PARAGRAPHS = (
+    'Cap the size so the mmap does not\nblow past it, an unbounded value faults.\n\n'
+    'Keep the cache warm so a restart does not\nreload it, a cold read stalls.\n'
+)
+
+
+def changed_lines(baseline: str) -> list[int]:
+    changed = dataclasses.replace(document(TWO_BROKEN_PARAGRAPHS, 'markdown'), baseline=Baseline(baseline))
+    report = ReportAggregator(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES))).run(changed, rule_set())
+    return sorted({changed.positions.to_position(item.range.start).line for item in report.diagnostics})
+
+
+def test_a_baseline_keeps_the_findings_in_prose_the_change_touched() -> None:
+    first_paragraph = TWO_BROKEN_PARAGRAPHS.split('\n\n')[0] + '\n'
+    assert changed_lines(first_paragraph) == [3], 'the first paragraph is as it was, so its finding is not ours'
+
+
+def test_a_changed_line_brings_in_the_whole_unit_it_belongs_to() -> None:
+    baseline = TWO_BROKEN_PARAGRAPHS.replace('reload it, a cold read stalls.', 'reload it.')
+    assert changed_lines(baseline) == [3], 'a reflow reads the paragraph whole, from the line above the change'
+
+
+def test_a_document_without_a_baseline_keeps_every_finding() -> None:
+    report = ReportAggregator(Linter(DEFAULT_PARSER, RuleEngine(ALL_RULES))).run(
+        document(TWO_BROKEN_PARAGRAPHS, 'markdown'), rule_set()
+    )
+    assert len(report.diagnostics) == 2

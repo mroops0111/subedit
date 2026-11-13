@@ -293,7 +293,7 @@ def test_a_session_in_a_repository_without_the_git_hook_hears_the_offer(reposito
 
 def test_a_session_hears_no_offer_once_the_git_hooks_run_subedit(repository: Project) -> None:
     repository.write('subedit.toml', ADOPTED)
-    repository.write('.git/hooks/pre-commit', '#!/bin/sh\nexec subedit fix --write --staged\n')
+    repository.write('.git/hooks/pre-commit', '#!/bin/sh\nexec subedit fix --write --since HEAD\n')
     repository.write('.git/hooks/commit-msg', '#!/bin/sh\nexec subedit fix --write "$1"\n')
 
     assert hook.run(session_payload(repository)).stdout == ''
@@ -301,3 +301,17 @@ def test_a_session_hears_no_offer_once_the_git_hooks_run_subedit(repository: Pro
 
 def test_a_session_hears_no_offer_where_subedit_is_not_configured(repository: Project) -> None:
     assert hook.run(session_payload(repository)).stdout == ''
+
+
+def test_an_edit_in_a_repository_lays_out_only_what_changed_since_the_last_commit(repository: Project) -> None:
+    target = seed(repository, MIS_WRAPPED)
+    repository.git('add', '.')
+    repository.git('commit', '-q', '-m', 'Add the probe')
+    edited = MIS_WRAPPED + 'def g():\n    # keep the cache warm so a\n    # restart does not reload it.\n    pass\n'
+    target.write_text(edited, encoding='utf-8')
+
+    hook.run(payload(target))
+
+    assert target.read_text(encoding='utf-8') == MIS_WRAPPED + (
+        'def g():\n    # keep the cache warm so a restart does not reload it.\n    pass\n'
+    ), "the committed comment is someone else's to lay out"

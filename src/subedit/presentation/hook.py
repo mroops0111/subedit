@@ -5,15 +5,18 @@ import sys
 
 from .. import __version__
 from ..application import Fixer, Linter, RuleEngine
+from ..domain.models.baseline import Baseline
 from ..domain.models.document import Document
 from ..infrastructure import (
     ALL_RULES,
     DEFAULT_CONFIG_SOURCE,
     DEFAULT_PARSER,
+    EXTENSIONS,
     EXTERNAL_LINTERS,
     ConfigError,
     GitHooks,
     GitRepository,
+    GitRevisionBaselineSource,
     language_id_for,
 )
 from . import report as reporters
@@ -136,7 +139,12 @@ def _check(harness: AgentHarness, written_texts: tuple[AgentWrittenText, ...], w
             # The project asked for subedit, so a config it cannot read goes back to the agent to fix.
             author_messages.append(f'subedit: {error}')
             continue
-        document = Document(uri=source_path.resolve().as_uri(), text=source_text, language_id=language_id)
+        document = Document(
+            uri=source_path.resolve().as_uri(),
+            text=source_text,
+            language_id=language_id,
+            baseline=_baseline_for(source_path),
+        )
         fix_result = fixer.run(document, rule_set)
         brief_report = reporters.brief(fix_result.document, fix_result.report)
         if brief_report:
@@ -167,6 +175,15 @@ def _check(harness: AgentHarness, written_texts: tuple[AgentWrittenText, ...], w
     )
 
 
+# An agent answers for what it changed since the last commit, not for prose others left in the same file.
+# Outside git there is nothing to tell the two apart, so the whole file is read.
+def _baseline_for(path: pathlib.Path) -> Baseline | None:
+    repository = GitRepository.at(path.parent)
+    if repository is None:
+        return None
+    return GitRevisionBaselineSource.at_head(repository).baseline_for(path)
+
+
 # A session that opens in a repository configuring subedit hears once that its git hooks do not run it.
 def _offer_git_hooks(harness: AgentHarness, directory: pathlib.Path) -> HookResult:
     quiet = HookResult(exit_code=0, harness_name=harness.metadata.name)
@@ -177,7 +194,7 @@ def _offer_git_hooks(harness: AgentHarness, directory: pathlib.Path) -> HookResu
     except ConfigError:
         # The first edit reports a config subedit cannot read, and nothing has been asked of the agent yet.
         return quiet
-    if GitHooks(repository, __version__).is_installed():
+    if GitHooks(repository, __version__, EXTENSIONS).is_installed():
         return quiet
     return HookResult(
         exit_code=0, stdout=harness.session_context_output(_GIT_HOOK_OFFER), harness_name=harness.metadata.name

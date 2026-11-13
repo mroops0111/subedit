@@ -128,10 +128,11 @@ def test_the_wrapper_lets_through_the_keyword_of_every_shell_reader() -> None:
     assert keywords == {reader.keyword for reader in ALL_SHELL_READERS}, 'a reader whose keyword is missing never runs'
 
 
-def test_the_pre_commit_hook_reads_every_extension_subedit_reads() -> None:
+@pytest.mark.parametrize('name', ['.pre-commit-hooks.yaml', '.pre-commit-config.yaml'])
+def test_the_pre_commit_hook_reads_every_extension_subedit_reads(name: str) -> None:
     from subedit.infrastructure import EXTENSIONS
 
-    hooks = (REPOSITORY_ROOT / '.pre-commit-hooks.yaml').read_text(encoding='utf-8')
+    hooks = (REPOSITORY_ROOT / name).read_text(encoding='utf-8')
     pattern = next(line.split('files:', 1)[1].strip() for line in hooks.splitlines() if 'files:' in line)
     listed = set(re.fullmatch(r'\\\.\((.+)\)\$', pattern).group(1).split('|'))  # type: ignore[union-attr]
 
@@ -168,9 +169,9 @@ def test_the_plugin_carries_everything_it_runs() -> None:
     assert [path.name for path in (PLUGIN / '.claude-plugin').iterdir()] == ['plugin.json']
 
 
-def test_the_judging_skill_names_itself_as_its_folder_does() -> None:
-    skill = PLUGIN / 'skills' / 'judging-findings' / 'SKILL.md'
-    front_matter = skill.read_text(encoding='utf-8').split('---')[1]
+@pytest.mark.parametrize('folder', sorted((PLUGIN / 'skills').iterdir()), ids=lambda folder: folder.name)
+def test_each_skill_names_itself_as_its_folder_does(folder: pathlib.Path) -> None:
+    front_matter = (folder / 'SKILL.md').read_text(encoding='utf-8').split('---')[1]
 
-    assert 'name: judging-findings' in front_matter, 'Claude Code loads a skill by the name in its front matter'
+    assert f'name: {folder.name}' in front_matter, 'Claude Code loads a skill by the name in its front matter'
     assert 'description:' in front_matter

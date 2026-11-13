@@ -1,3 +1,4 @@
+import dataclasses
 import difflib
 import pathlib
 import sys
@@ -18,18 +19,22 @@ from ..application import (
 from ..domain.models.document import Document
 from ..domain.models.rule_set import RuleSet
 from ..domain.models.text import source_lines
+from ..domain.ports.baseline_source import BaselineSource
 from ..domain.ports.external_linter import ExternalLinter
 from ..infrastructure import (
     ALL_RULES,
     DEFAULT_CONFIG_SOURCE,
     DEFAULT_PARSER,
+    EXTENSIONS,
     EXTERNAL_LINTERS,
     GENERATED_NAMES,
     VENDOR_DIRECTORIES,
     ConfigError,
+    FileBaselineSource,
     GitHookInstallError,
     GitHooks,
     GitRepository,
+    GitRevisionBaselineSource,
     language_id_for,
 )
 from . import report as reporters
@@ -46,19 +51,32 @@ _FORMATTERS = {
     'json': reporters.as_json,
 }
 _PERCENTILES = (0.5, 0.75, 0.9, 0.95, 0.99)
+# A path of - reads one draft from stdin, as ruff, Prettier, and ESLint take it.
+_STDIN = pathlib.Path('-')
+_STDIN_FILENAME = typer.Option(
+    None, '--stdin-filename', help='The file a draft read from stdin stands for, which picks its surface and config.'
+)
+# A change is read since where it began, a git revision or a file, so only the prose it touched is checked.
+_SINCE = typer.Option(
+    None,
+    '--since',
+    help='Read only the prose changed since a git revision, such as HEAD or origin/master..., '
+    'or since a file, written as ./old.md.',
+)
 
 ConfigT = typing.TypeVar('ConfigT')
 
 
 @app.command()
 def check(
-    paths: list[pathlib.Path] = typer.Argument(None, help='Files or directories to check.'),
+    paths: list[pathlib.Path] = typer.Argument(None, help='Files or directories to check, or - for a draft on stdin.'),
     output: str = typer.Option('full', '--output', help='full, actionable, or json.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
-    staged: bool = typer.Option(False, '--staged', help='Check the files git has staged, in place of paths.'),
+    stdin_filename: pathlib.Path | None = _STDIN_FILENAME,
+    since: str | None = _SINCE,
 ) -> None:
     """Report findings, and exit non-zero when any is an error."""
-    documents = _documents_to_read(paths, staged=staged)
+    documents = _with_baselines(_documents_to_read(paths, stdin_filename=stdin_filename), since)
     formatter = _FORMATTERS.get(output)
     if formatter is None:
         typer.echo(f'Unknown output format {output!r}. Choose full, actionable, or json.', err=True)
@@ -77,15 +95,20 @@ def check(
 
 @app.command()
 def fix(
-    paths: list[pathlib.Path] = typer.Argument(None, help='Files or directories to fix.'),
+    paths: list[pathlib.Path] = typer.Argument(None, help='Files or directories to fix, or - for a draft on stdin.'),
     write: bool = typer.Option(False, '--write', help='Write changes instead of printing a diff.'),
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
-    staged: bool = typer.Option(
-        False, '--staged', help='Fix the files git has staged, in place of paths, and fail when any changed.'
-    ),
+    stdin_filename: pathlib.Path | None = _STDIN_FILENAME,
+    since: str | None = _SINCE,
 ) -> None:
-    """Apply mechanical fixes, printing a diff unless told to write, and report what needs an author."""
-    documents = _documents_to_read(paths, staged=staged)
+    """Apply mechanical fixes, printing a diff unless told to write, and report what needs an author.
+
+    A draft read from stdin comes back fixed on stdout, with the findings on stderr, so a pipe keeps only the text.
+    """
+    documents = _with_baselines(_documents_to_read(paths, stdin_filename=stdin_filename), since)
+    from_stdin = stdin_filename is not None
+    if from_stdin and write:
+        _usage_error('--write has no file to write when the draft comes from stdin.')
 
     fixer = Fixer(_build_linter(), _external_linters(delegate))
     changed_file_count = 0
@@ -93,27 +116,26 @@ def fix(
     for document in documents:
         fix_result = fixer.run(document, _rules_for(document))
         unresolved_finding_count += len(fix_result.unresolved_findings)
+        if from_stdin:
+            typer.echo(fix_result.document.text, nl=False)
         if fix_result.has_changes:
             changed_file_count += 1
             if write:
                 pathlib.Path(_file_path(document)).write_text(fix_result.document.text, encoding='utf-8')
-            else:
+            elif not from_stdin:
                 typer.echo(_diff(document, fix_result.document))
         if fix_result.unresolved_findings:
-            typer.echo(reporters.brief(fix_result.document, fix_result.report))
+            typer.echo(reporters.brief(fix_result.document, fix_result.report), err=from_stdin)
         if fix_result.report.advisory:
-            typer.echo(reporters.advice(fix_result.document, fix_result.report))
+            typer.echo(reporters.advice(fix_result.document, fix_result.report), err=from_stdin)
 
-    action_word = 'rewrote' if write else 'would rewrite'
+    # A draft from stdin comes back rewritten on stdout, as a file does with --write.
+    action_word = 'rewrote' if write or from_stdin else 'would rewrite'
     typer.echo(
         f'{action_word} {changed_file_count} of {len(documents)} {"file" if len(documents) == 1 else "files"}, '
         f'{unresolved_finding_count} {"finding needs" if unresolved_finding_count == 1 else "findings need"} an author.',
         err=True,
     )
-    # A fix written over a staged file leaves the commit holding the old text, so it waits for the file to be staged.
-    if staged and changed_file_count:
-        typer.echo('Stage the laid out files and commit again.', err=True)
-        raise typer.Exit(1)
     raise typer.Exit(1 if unresolved_finding_count else 0)
 
 
@@ -135,7 +157,7 @@ def rules() -> None:
 def install_git_hooks(
     directory: pathlib.Path = typer.Argument(pathlib.Path('.'), help='A directory inside the repository.'),
 ) -> None:
-    """Install git hooks that lay out the staged files and the commit message, and stop on what needs rewriting.
+    """Install git hooks that lay out the prose a commit changes and its message, and stop on what needs rewriting.
 
     A hook another tool already holds, or one pre-commit manages, is left alone, with the step to take instead.
     """
@@ -144,7 +166,7 @@ def install_git_hooks(
         typer.echo(f'{directory} is not inside a git repository.', err=True)
         raise typer.Exit(2)
     try:
-        typer.echo(GitHooks(repository, __version__).install())
+        typer.echo(GitHooks(repository, __version__, EXTENSIONS).install())
     except GitHookInstallError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(1) from None
@@ -174,6 +196,11 @@ def _config(read: typing.Callable[[str], ConfigT], path: str) -> ConfigT:
         raise typer.Exit(2) from None
 
 
+def _usage_error(message: str) -> typing.NoReturn:
+    typer.echo(f'subedit: {message}', err=True)
+    raise typer.Exit(2)
+
+
 def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
     source_paths: list[pathlib.Path] = []
     for path in paths:
@@ -189,10 +216,7 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
             source_paths.append(path)
     documents: list[Document] = []
     for source_path in source_paths:
-        root = _config(DEFAULT_CONFIG_SOURCE.root_for, str(source_path))
-        if DEFAULT_CONFIG_SOURCE.is_excluded(
-            source_path, root, _config(DEFAULT_CONFIG_SOURCE.exclude_patterns, str(source_path))
-        ):
+        if _is_excluded(source_path):
             continue
         try:
             text = source_path.read_text(encoding='utf-8')
@@ -205,6 +229,11 @@ def _load(paths: tuple[pathlib.Path, ...]) -> tuple[Document, ...]:
     return tuple(documents)
 
 
+def _is_excluded(path: pathlib.Path) -> bool:
+    root = _config(DEFAULT_CONFIG_SOURCE.root_for, str(path))
+    return DEFAULT_CONFIG_SOURCE.is_excluded(path, root, _config(DEFAULT_CONFIG_SOURCE.exclude_patterns, str(path)))
+
+
 # Installed packages and tool caches hold code nobody here wrote, such as node_modules or a .venv,
 # and a tool writes a lock file whole.
 def _is_written_elsewhere(relative: pathlib.Path) -> bool:
@@ -213,23 +242,84 @@ def _is_written_elsewhere(relative: pathlib.Path) -> bool:
     return any(part in VENDOR_DIRECTORIES or part.startswith('.') for part in relative.parts[:-1])
 
 
-# A commit that stages no file subedit reads has nothing to check, which is no mistake.
-def _documents_to_read(paths: list[pathlib.Path] | None, *, staged: bool) -> tuple[Document, ...]:
-    if staged:
-        repository = GitRepository.at(pathlib.Path.cwd())
-        if repository is None:
-            typer.echo('--staged needs a git repository.', err=True)
-            raise typer.Exit(2)
-        documents = _load(repository.staged_files())
-        if not documents:
-            raise typer.Exit(0)
-        return documents
-    if not paths:
-        typer.echo('Name files or directories, or pass --staged.', err=True)
-        raise typer.Exit(2)
-    documents = _load(tuple(paths))
+# Paths and a draft on stdin are two ways to name the input, so a command takes one.
+def _documents_to_read(
+    paths: list[pathlib.Path] | None, *, stdin_filename: pathlib.Path | None
+) -> tuple[Document, ...]:
+    named = tuple(paths or ())
+    if not named:
+        _usage_error('Name files or directories, or - for a draft on stdin.')
+    if _STDIN in named:
+        return (_draft_on_stdin(named, stdin_filename),)
+    if stdin_filename is not None:
+        _usage_error('--stdin-filename names a draft read from stdin, so it needs - as the only path.')
+    documents = _load(named)
+    # A hook names the files a commit holds, and one the project excludes has nothing to check, which is no mistake.
+    if not documents and all(path.is_file() and _is_excluded(path) for path in named):
+        raise typer.Exit(0)
     _require(documents)
     return documents
+
+
+def _draft_on_stdin(paths: tuple[pathlib.Path, ...], stdin_filename: pathlib.Path | None) -> Document:
+    if len(paths) > 1:
+        _usage_error('- reads one draft from stdin, so it stands alone, with no other paths.')
+    if stdin_filename is None:
+        _usage_error('- needs --stdin-filename to name the file the draft stands for, such as issue.md.')
+    language_id = language_id_for(stdin_filename)
+    if language_id is None:
+        _usage_error(
+            f'subedit reads no {stdin_filename.suffix or "extensionless"} files, so name a draft such as issue.md.'
+        )
+    return Document(uri=stdin_filename.resolve().as_uri(), text=sys.stdin.read(), language_id=language_id)
+
+
+def _with_baselines(documents: tuple[Document, ...], since: str | None) -> tuple[Document, ...]:
+    if since is None:
+        return documents
+    source = _baseline_source(since, documents)
+    return tuple(
+        dataclasses.replace(document, baseline=source.baseline_for(pathlib.Path(_file_path(document))))
+        for document in documents
+    )
+
+
+# A file and a revision can share a name, as a file called HEAD would, so a name that is both is refused, as git does.
+# ./ marks a file, since no revision starts with a dot, and ^0 marks a commit.
+def _baseline_source(since: str, documents: tuple[Document, ...]) -> BaselineSource:
+    repository = GitRepository.at(pathlib.Path.cwd())
+    revision_source = _revision_source(repository, since)
+    named_file = pathlib.Path(since)
+    if named_file.is_file() and revision_source is not None:
+        _usage_error(
+            f'--since {since} names both a file and a git revision. '
+            f'Write ./{named_file.as_posix()} for the file, or {since}^0 for the commit.'
+        )
+    if revision_source is not None:
+        return revision_source
+    if named_file.is_file():
+        if len(documents) != 1:
+            _usage_error('--since a file compares one file or draft with it, so it takes a single input.')
+        try:
+            return FileBaselineSource(named_file.read_text(encoding='utf-8'))
+        except (OSError, UnicodeDecodeError):
+            _usage_error(f'--since cannot read {since}.')
+    if repository is None:
+        _usage_error(f'--since {since} names no file, and outside a git repository it names no revision either.')
+    _usage_error(
+        f'--since {since} names no file and no commit git knows. '
+        'Name a file, such as ./old.md, or a revision, such as HEAD or a branch.'
+    )
+
+
+# HEAD names the last commit, and in a repository with none yet, a start before every file.
+def _revision_source(repository: GitRepository | None, since: str) -> GitRevisionBaselineSource | None:
+    if repository is None:
+        return None
+    if since == 'HEAD':
+        return GitRevisionBaselineSource.at_head(repository)
+    commit = repository.commit_named(since)
+    return GitRevisionBaselineSource(repository, commit) if commit is not None else None
 
 
 def _require(documents: tuple[Document, ...]) -> None:
