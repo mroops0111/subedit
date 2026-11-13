@@ -58,6 +58,7 @@ Wait for the answers before the next round.
 Derive each suggestion by these rules, so the same repository always gets the same suggestion.
 
 - **Maximum**: keep the default when the repository's p95 fits within it. Otherwise suggest the p95, never past the max. What still lies beyond is prose worth rewriting, not a reason to raise the limit further.
+- **Standard**: keep a limit that a tool outside the project imposes, such as `max-subject-characters`, which GitHub and `git log --oneline` cut at. Show the measurement, and recommend the default even when the history runs past it.
 - **Minimum**: keep the default when the repository's p5 is at or above it. Otherwise suggest the p5.
 - **Width**: match the width another tool already sets. Without one, suggest the narrowest candidate width that leaves under 1% of sentences unable to break. A commit message keeps git's 72 unless the history runs wider at p95.
 - **Commit Style**: suggest `conventional` when most recent subjects open with a type such as `feat:`, and list the types they use. Otherwise suggest `git`.
