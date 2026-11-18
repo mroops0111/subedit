@@ -16,11 +16,20 @@ from .file_type import FileType
 from .laid_out_prose import LaidOutProse
 from .line_layout import LINE_PREFIX_LAYOUT, LineLayout, LinePrefixLayout, PrefixedLine
 from .markdown import MarkdownBlock, MarkdownBlockKind, MarkdownLine
+from .measurement import Measurement
 from .position import Encoding, Position, PositionMap, SourceRange
 from .prose import PLAIN_MARKUP, Prose, ProseMarkup, Sentence
 from .prose_map import ProseMap
 from .prose_unit import ProseLine, ProseUnit
-from .rule_option import ChoiceOption, CountOption, HeadingLevelsOption, ReplacementsOption, RuleOption, WordsOption
+from .rule_option import (
+    ChoiceOption,
+    CountOption,
+    CountRole,
+    HeadingLevelsOption,
+    ReplacementsOption,
+    RuleOption,
+    WordsOption,
+)
 from .rule_set import RuleSet, RuleSettings
 from .text import TextEdit, apply_edits
 
@@ -38,6 +47,7 @@ __all__ = [
     'CommitBody',
     'CommitSubject',
     'CountOption',
+    'CountRole',
     'Diagnostic',
     'Document',
     'EmbeddedDocument',
@@ -53,6 +63,7 @@ __all__ = [
     'MarkdownBlock',
     'MarkdownBlockKind',
     'MarkdownLine',
+    'Measurement',
     'Position',
     'PositionMap',
     'PrefixedLine',

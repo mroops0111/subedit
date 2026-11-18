@@ -88,7 +88,7 @@ These rules check where documentation lives, how much of it there is, and how a 
 | `comment-too-long` | A comment long enough to restate the code below it | `comments` | Rewrite | `warning` | `max-plain-lines` (4), `max-internal-doc-lines` (13), `max-public-doc-lines` (20) |
 | `missing-lead-sentence` | A heading that opens straight into a list, with no sentence to frame it | `markdown` | Rewrite | `error` | None |
 
-The `comment-too-long` limits are line counts, for a plain comment and for a doc comment on an internal or a public symbol, set from the 95th percentile of a measured corpus. `subedit stats` reports the same percentiles for your codebase.
+The `comment-too-long` limits are line counts, for a plain comment and for a doc comment on an internal or a public symbol, set from the 95th percentile of a measured corpus. `subedit stats` reports the same percentiles for your repository, and does so for every count a rule takes.
 
 A plain comment right under another declaration may head a group rather than document one symbol, so `plain-comment-on-public` reports that case as a warning.
 

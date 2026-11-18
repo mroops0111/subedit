@@ -22,6 +22,10 @@ subedit fix - --stdin-filename pr.md < pr.md | gh pr edit 42 --body-file -
 echo "Read a draft from stdin" | subedit check - --stdin-filename .git/COMMIT_EDITMSG
 ```
 
-## Projects Without subedit
+## Boundaries
 
-Skip the check where neither `subedit.toml` nor a `[tool.subedit]` table in `pyproject.toml` configures subedit. The draft would only be measured against defaults the project never chose.
+The skill checks a draft and leaves what it says to its author.
+
+- **Projects Without subedit**: skip the check where neither `subedit.toml` nor a `[tool.subedit]` table in `pyproject.toml` configures subedit. The draft would only be measured against defaults the project never chose.
+- **Meaning**: rewrite only what a finding names, and keep what the draft says.
+- **Posting**: the skill checks the draft before it is posted, and posting it stays the step the user asked for.

@@ -1,35 +1,56 @@
 import dataclasses
-import statistics
+import typing
 
 from ..domain.models.document import Document
 from ..domain.models.laid_out_prose import LaidOutProse
 from ..domain.models.prose_unit import ProseUnit
+from ..domain.models.rule_option import CountOption
+from ..domain.models.rule_set import RuleSet
 from ..domain.ports import SourceParser
+from ..domain.ports.rule import MeasuredRule, Rule, RuleContext
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Distribution:
+    """Measured values, held in order, whose percentiles are None when nothing was measured."""
+
     label: str
     measurements: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'measurements', tuple(sorted(self.measurements)))
 
     @property
     def count(self) -> int:
         return len(self.measurements)
 
-    def percentile(self, fraction: float) -> int:
+    def percentile(self, fraction: float) -> int | None:
         if not self.measurements:
-            return 0
-        sorted_values = sorted(self.measurements)
-        position = min(len(sorted_values) - 1, max(0, round(fraction * (len(sorted_values) - 1))))
-        return sorted_values[position]
+            return None
+        position = min(len(self.measurements) - 1, max(0, round(fraction * (len(self.measurements) - 1))))
+        return self.measurements[position]
 
     @property
-    def maximum(self) -> int:
-        return max(self.measurements, default=0)
+    def minimum(self) -> int | None:
+        return self.measurements[0] if self.measurements else None
 
     @property
-    def median(self) -> int:
-        return round(statistics.median(self.measurements)) if self.measurements else 0
+    def maximum(self) -> int | None:
+        return self.measurements[-1] if self.measurements else None
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class OptionStatistics:
+    """What a project's prose holds for one rule's count option, beside the value the project sets for it.
+
+    A repository whose configs set the option to different values has one of these for each value.
+    """
+
+    rule_id: str
+    option: CountOption
+    # The project's value, or the default where it sets none.
+    setting: int
+    distribution: Distribution
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -43,6 +64,8 @@ class SurfaceStatistics:
     physical_widths: Distribution
     sentence_lengths: Distribution
     unbreakable_counts_by_width: tuple[tuple[int, int], ...]
+    # Each count option of a rule that read the surface, measured even when the project runs the rule not.
+    options: tuple[OptionStatistics, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -53,38 +76,55 @@ class CorpusStatistics:
         return next((measured for measured in self.surfaces if measured.surface == surface), None)
 
 
+# The prose of one rule's count option, under one value a config sets for it.
+_OptionKey = tuple[MeasuredRule[typing.Any], CountOption, int]
+
+
 class CorpusMeter:
     """Measures how long the prose of each surface runs across a corpus, which is where the default limits come from."""
 
     def __init__(
-        self, parser: SourceParser[ProseUnit], candidate_widths: tuple[int, ...] = (72, 80, 88, 100, 120)
+        self,
+        parser: SourceParser[ProseUnit],
+        candidate_widths: tuple[int, ...] = (72, 80, 88, 100, 120),
+        *,
+        rules: tuple[Rule[typing.Any], ...] = (),
     ) -> None:
         self._parser = parser
         self._candidate_widths = candidate_widths
+        self._measured_rules = tuple(rule for rule in rules if isinstance(rule, MeasuredRule))
 
-    def run(self, documents: tuple[Document, ...]) -> CorpusStatistics:
-        by_surface: dict[str, list[Document]] = {}
+    def run(
+        self, documents: tuple[Document, ...], rule_set_for: typing.Callable[[Document], RuleSet]
+    ) -> CorpusStatistics:
+        """Measure each surface, reading each document under the rule set it is checked under.
+
+        A surface the project switches off is read by nothing, so it is left out.
+        """
+        by_surface: dict[str, list[tuple[Document, RuleSet]]] = {}
         for document in documents:
             file_type = next(
                 (file_type for file_type in self._parser.file_types if file_type.language_id == document.language_id),
                 None,
             )
-            if file_type is not None:
-                by_surface.setdefault(file_type.surface, []).append(document)
-        return CorpusStatistics(
-            tuple(self._measure(surface, tuple(surface_documents)) for surface, surface_documents in by_surface.items())
-        )
+            rule_set = rule_set_for(document).for_language(document.language_id)
+            if file_type is not None and not rule_set.is_off:
+                by_surface.setdefault(file_type.surface, []).append((document, rule_set))
+        return CorpusStatistics(tuple(self._measure(surface, tuple(read)) for surface, read in by_surface.items()))
 
-    def _measure(self, surface: str, documents: tuple[Document, ...]) -> SurfaceStatistics:
+    def _measure(self, surface: str, documents: tuple[tuple[Document, RuleSet], ...]) -> SurfaceStatistics:
         grouped_line_counts: dict[str, list[int]] = {}
         physical_widths: list[int] = []
         sentence_lengths: list[int] = []
         unbreakable_counts = dict.fromkeys(self._candidate_widths, 0)
         unit_count = 0
+        option_values: dict[_OptionKey, list[int]] = {}
 
-        for document in documents:
+        for document, rule_set in documents:
+            context = RuleContext(document, rule_set)
             for unit in self._parser.parse(document):
                 unit_count += 1
+                self._measure_options(unit, context, option_values)
                 for sentence in unit.prose().sentences():
                     sentence_lengths.append(len(sentence.text))
                     for width in self._candidate_widths:
@@ -105,7 +145,26 @@ class CorpusMeter:
             physical_widths=Distribution('physical-width', tuple(physical_widths)),
             sentence_lengths=Distribution('sentence-length', tuple(sentence_lengths)),
             unbreakable_counts_by_width=tuple(sorted(unbreakable_counts.items())),
+            options=tuple(
+                OptionStatistics(rule.metadata.rule_id, option, setting, Distribution(option.name, tuple(values)))
+                for (rule, option, setting), values in option_values.items()
+            ),
         )
+
+    # An option of a rule that reads the unit is listed even when nothing is measured, as an empty distribution.
+    def _measure_options(
+        self, unit: ProseUnit, context: RuleContext, option_values: dict[_OptionKey, list[int]]
+    ) -> None:
+        for rule in self._measured_rules:
+            if not rule.reads(unit):
+                continue
+            settings = context.settings(rule.metadata.rule_id)
+            for option in rule.metadata.options:
+                if isinstance(option, CountOption):
+                    option_values.setdefault((rule, option, settings.value(option)), [])
+            for measurement in rule.measure(unit, context):
+                key = (rule, measurement.option, settings.value(measurement.option))
+                option_values.setdefault(key, []).append(measurement.value)
 
     def _is_unbreakable(self, sentence: str, width: int) -> bool:
         return len(sentence) > width and ',' not in sentence

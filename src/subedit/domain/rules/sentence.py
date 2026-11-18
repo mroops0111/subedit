@@ -2,15 +2,16 @@ import typing
 
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.laid_out_prose import LaidOutProse
+from ..models.measurement import Measurement
 from ..models.prose import Prose
-from ..models.reflow import BreakPolicy, reflow_sentence
-from ..models.rule_option import CountOption
-from ..ports.rule import Rule, RuleContext
+from ..models.reflow import BreakPolicy, reflow_sentence, serial_item_words
+from ..models.rule_option import CountOption, CountRole
+from ..ports.rule import MeasuredRule, Rule, RuleContext
 
 
-_MINIMUM_CHARACTERS = CountOption('min-line-characters', 24)
+_MINIMUM_CHARACTERS = CountOption('min-line-characters', 24, CountRole.MINIMUM)
 # A piece this short between two commas may be a list item.
-_MAX_ITEM_WORDS = CountOption('max-item-words', 3)
+_MAX_ITEM_WORDS = CountOption('max-item-words', 3, CountRole.THRESHOLD)
 _BRACKET_NOTE = 'A comma inside brackets or a code span separates items, so it is no place to break. '
 
 
@@ -34,7 +35,7 @@ def break_policy(context: RuleContext) -> BreakPolicy:
     )
 
 
-class LineTooShortRule(Rule[LaidOutProse]):
+class LineTooShortRule(MeasuredRule[LaidOutProse]):
     metadata = RuleMetadata(
         rule_id='line-too-short',
         summary='A sentence forced to break must not leave a line too short to read as a clause.',
@@ -45,19 +46,8 @@ class LineTooShortRule(Rule[LaidOutProse]):
     surface = LaidOutProse
 
     def check(self, unit: LaidOutProse, context: RuleContext) -> typing.Iterable[Diagnostic]:
-        # Text that stays on its line never breaks,
-        # so a rule judging where a sentence breaks leaves it to line-too-long.
-        if unit.stays_on_its_line:
-            return
-        policy = break_policy(context)
-        minimum_length = policy.stub_floor
-        for index, (sentence, budget) in enumerate(_budgeted_sentences(unit, context)):
-            if is_summary(unit, index):
-                continue
-            split_pieces = reflow_sentence(sentence, budget, policy)
-            if len(split_pieces) < 2:
-                continue
-            shortest_piece = min(split_pieces, key=len)
+        minimum_length = break_policy(context).stub_floor
+        for shortest_piece in _shortest_lines(unit, context):
             if len(shortest_piece) >= minimum_length:
                 continue
             yield Diagnostic(
@@ -71,6 +61,10 @@ class LineTooShortRule(Rule[LaidOutProse]):
                 ),
                 fix=Fix.rewrite(),
             )
+
+    def measure(self, unit: LaidOutProse, context: RuleContext) -> typing.Iterable[Measurement]:
+        for shortest_piece in _shortest_lines(unit, context):
+            yield Measurement(_MINIMUM_CHARACTERS, len(shortest_piece))
 
 
 class UnbreakableSentenceRule(Rule[LaidOutProse]):
@@ -125,7 +119,7 @@ class UnbreakableSentenceRule(Rule[LaidOutProse]):
         )
 
 
-class MidListBreakRule(Rule[LaidOutProse]):
+class MidListBreakRule(MeasuredRule[LaidOutProse]):
     metadata = RuleMetadata(
         rule_id='mid-list-break',
         summary='A sentence that has to break should not break between the items of a list.',
@@ -151,6 +145,29 @@ class MidListBreakRule(Rule[LaidOutProse]):
                 ),
                 fix=Fix.rewrite(),
             )
+
+    def measure(self, unit: LaidOutProse, context: RuleContext) -> typing.Iterable[Measurement]:
+        if unit.stays_on_its_line:
+            return
+        for sentence in _prose_sentences(unit, context):
+            for words in serial_item_words(sentence):
+                yield Measurement(_MAX_ITEM_WORDS, words)
+
+
+def _shortest_lines(unit: LaidOutProse, context: RuleContext) -> typing.Iterator[str]:
+    """The shortest line of each sentence reflow breaks, laid out as the project's rules lay it out.
+
+    Text that stays on its line never breaks, so its width is line-too-long's to judge.
+    """
+    if unit.stays_on_its_line:
+        return
+    policy = break_policy(context)
+    for index, (sentence, budget) in enumerate(_budgeted_sentences(unit, context)):
+        if is_summary(unit, index):
+            continue
+        split_pieces = reflow_sentence(sentence, budget, policy)
+        if len(split_pieces) >= 2:
+            yield min(split_pieces, key=len)
 
 
 def _prose_sentences(unit: LaidOutProse, context: RuleContext) -> tuple[str, ...]:

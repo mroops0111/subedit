@@ -1,4 +1,5 @@
 import io
+import json
 import pathlib
 
 import pytest
@@ -33,6 +34,80 @@ def test_stats_reports_a_measured_corpus(project: Project, capsys: pytest.Captur
     assert 'comments: 1 documents, 2 units' in output
     assert 'doc/public' in output
     assert 'plain/inline-body' in output
+
+
+def test_stats_as_json_lists_each_option_beside_the_value_the_project_sets(
+    project: Project, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project.write('subedit.toml', '[rules.comment-too-long]\nmax-plain-lines = 2\n')
+    source = project.write('sample.py', '# one.\n# two.\n# three.\nx = 1\n')
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['stats', str(source), '--output', 'json'])
+    assert exit_info.value.code == 0
+
+    (surface,) = json.loads(capsys.readouterr().out)['surfaces']
+    option = next(option for option in surface['options'] if option['option'] == 'max-plain-lines')
+    assert (option['rule'], option['default'], option['setting']) == ('comment-too-long', 4, 2)
+    assert option['distribution']['max'] == 3
+
+
+def test_stats_measures_recent_commit_messages(repository: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    repository.git('commit', '-q', '--allow-empty', '-m', 'Add the parser', '-m', 'It reads the subject.')
+    source = repository.write('sample.py', '# note.\n')
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['stats', str(source), '--commits', '1', '--output', 'json'])
+    assert exit_info.value.code == 0
+
+    surfaces = {surface['surface']: surface for surface in json.loads(capsys.readouterr().out)['surfaces']}
+    assert surfaces['commit-messages']['documents'] == 1
+    subject = next(option for option in surfaces['commit-messages']['options'] if option['rule'] == 'subject-too-long')
+    assert subject['distribution']['max'] == len('Add the parser')
+
+
+def test_stats_as_json_names_each_count_role_and_leaves_an_empty_distribution_null(
+    project: Project, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = project.write('sample.py', '# note.\nx = 1\n')
+
+    with pytest.raises(SystemExit):
+        app(['stats', str(source), '--output', 'json'])
+
+    (surface,) = json.loads(capsys.readouterr().out)['surfaces']
+    options = {option['option']: option for option in surface['options']}
+    assert options['max-item-words']['role'] == 'threshold'
+    assert options['min-line-characters']['role'] == 'minimum'
+    assert options['min-line-characters']['distribution'] == {
+        'count': 0,
+        'min': None,
+        **dict.fromkeys(('p5', 'p10', 'p25', 'p50', 'p75', 'p90', 'p95', 'p99'), None),
+        'max': None,
+    }
+
+
+def test_check_reads_recent_commit_messages(repository: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    repository.write('subedit.toml', '')
+    repository.git('commit', '-q', '--allow-empty', '-m', 'Add ' + 'a very long subject ' * 5)
+    source = repository.write('sample.py', '# note.\n')
+    commit = repository.git('rev-parse', '--short', 'HEAD').strip()
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check', str(source), '--commits', '1', '--no-delegate'])
+    assert exit_info.value.code == 1
+
+    output = capsys.readouterr().out
+    assert f'{commit}/COMMIT_EDITMSG' in output
+    assert 'subject-too-long' in output
+
+
+def test_stats_reads_commits_only_in_a_repository(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    source = project.write('sample.py', '# note.\n')
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['stats', str(source), '--commits', '5'])
+    assert exit_info.value.code == 2
+    assert 'git repository' in capsys.readouterr().err
 
 
 def test_stats_exits_non_zero_when_nothing_is_readable(tmp_path: pathlib.Path) -> None:

@@ -332,3 +332,13 @@ def test_a_surface_written_wrong_names_its_mistake(project: Project, body: str, 
     target = commit_message_in(project, body)
     with pytest.raises(ConfigError, match=re.escape(complaint)):
         DEFAULT_CONFIG_SOURCE.resolve(str(target))
+
+
+def test_a_config_is_read_again_once_it_changes(project: Project) -> None:
+    config_source = source()
+    target = configured(project, '[subedit]\nline-width = 88\n')
+    assert config_source.resolve(str(target)).line_width == 88
+
+    project.write(CONFIG_NAME, '[subedit]\nline-width = 100\n')
+
+    assert config_source.resolve(str(target)).line_width == 100

@@ -1,4 +1,4 @@
-from .corpus_meter import CorpusMeter, CorpusStatistics, Distribution, SurfaceStatistics
+from .corpus_meter import CorpusMeter, CorpusStatistics, Distribution, OptionStatistics, SurfaceStatistics
 from .fixer import Fixer, FixResult
 from .linter import Embedding, Inspection, Linter, RuleEngine
 from .report_aggregator import ReportAggregator
@@ -13,6 +13,7 @@ __all__ = [
     'Fixer',
     'Inspection',
     'Linter',
+    'OptionStatistics',
     'ReportAggregator',
     'RuleEngine',
     'SurfaceStatistics',
