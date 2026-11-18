@@ -35,6 +35,9 @@ class TomlConfigSource:
         self._formatter_widths = formatter_widths or FormatterWidths({})
         self._fallback_width = fallback_width
         self._file_types = file_types
+        # Each config read so far, by its path, the time it last changed, and its size,
+        # so a run over many files reads it once.
+        self._config_files: dict[tuple[pathlib.Path, int, int], ConfigFile | None] = {}
 
     def resolve(self, path: str) -> RuleSet:
         config_file = self._read(path)
@@ -79,6 +82,13 @@ class TomlConfigSource:
         config_path = self._locate(pathlib.Path(path))
         if config_path is None:
             return None
+        status = config_path.stat()
+        key = (config_path, status.st_mtime_ns, status.st_size)
+        if key not in self._config_files:
+            self._config_files[key] = self._parse(config_path)
+        return self._config_files[key]
+
+    def _parse(self, config_path: pathlib.Path) -> ConfigFile | None:
         raw_table = _load(config_path)
         if raw_table is None:
             return None

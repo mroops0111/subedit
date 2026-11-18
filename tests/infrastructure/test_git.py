@@ -162,10 +162,33 @@ def test_the_pre_commit_hook_lays_out_only_the_staged_change_and_waits_for_it_to
     repository.git('commit', '-q', '-m', 'Add a paragraph')
 
 
-def test_commit_messages_are_the_newest_whole_messages(repository: Project) -> None:
+def test_logged_commits_are_the_newest_with_their_whole_messages(repository: Project) -> None:
     repository.git('commit', '-q', '--allow-empty', '-m', 'Add the parser', '-m', 'It reads the subject.')
 
-    assert opened(repository.root).commit_messages(5) == (
+    logged = opened(repository.root).logged_commits(5)
+
+    assert [commit.message for commit in logged] == [
         'Add the parser\n\nIt reads the subject.\n',
         'Start the repository\n',
+    ]
+    assert logged[0].commit == repository.git('rev-parse', '--short', 'HEAD').strip()
+
+
+def test_a_message_in_another_encoding_still_reads(repository: Project) -> None:
+    tree = repository.git('write-tree').strip()
+    raw = f'tree {tree}\nauthor A <a@example.com> 0 +0000\ncommitter A <a@example.com> 0 +0000\n\nCaf\xe9 opens\n'
+    commit = (
+        subprocess.run(
+            ['git', 'hash-object', '-t', 'commit', '-w', '--stdin'],
+            cwd=repository.root,
+            input=raw.encode('latin-1'),
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
     )
+    repository.git('update-ref', 'HEAD', commit)
+
+    (logged,) = opened(repository.root).logged_commits(1)
+    assert logged.message.startswith('Caf') and logged.message.endswith('opens\n')

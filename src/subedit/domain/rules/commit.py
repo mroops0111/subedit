@@ -5,7 +5,7 @@ from ..models.commit_message import CommitSubject
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.measurement import Measurement
 from ..models.position import SourceRange
-from ..models.rule_option import ChoiceOption, CountOption, WordsOption
+from ..models.rule_option import ChoiceOption, CountOption, CountRole, WordsOption
 from ..models.text import TextEdit
 from ..ports.rule import MeasuredRule, Rule, RuleContext
 
@@ -14,7 +14,7 @@ from ..ports.rule import MeasuredRule, Rule, RuleContext
 CONVENTIONAL_TYPES = ('build', 'chore', 'ci', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test')
 
 # GitHub shortens a longer subject, and git's own documentation keeps it to this.
-_MAX_SUBJECT_CHARACTERS = CountOption('max-subject-characters', 72)
+_MAX_SUBJECT_CHARACTERS = CountOption('max-subject-characters', 72, CountRole.MAXIMUM)
 _GIT, _CONVENTIONAL = 'git', 'conventional'
 # git's own convention capitalizes the description, and Conventional Commits puts a type before it in lowercase.
 _STYLE = ChoiceOption('style', _GIT, choices=(_GIT, _CONVENTIONAL))

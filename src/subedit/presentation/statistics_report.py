@@ -47,8 +47,16 @@ def _heading(label: str, label_width: int) -> str:
 
 
 def _row(label: str, distribution: Distribution, label_width: int) -> str:
-    cells = ' '.join(f'{distribution.percentile(fraction):<4d}' for fraction in _PERCENTILES)
-    return f'{label:{label_width}s} {distribution.count:6d} {distribution.minimum:5d} {cells} {distribution.maximum:4d}'
+    cells = ' '.join(f'{_cell(distribution.percentile(fraction)):<4s}' for fraction in _PERCENTILES)
+    return (
+        f'{label:{label_width}s} {distribution.count:6d} {_cell(distribution.minimum):>5s} {cells} '
+        f'{_cell(distribution.maximum):>4s}'
+    )
+
+
+# Nothing measured shows as a dash, so it never reads as a measured zero.
+def _cell(value: int | None) -> str:
+    return '-' if value is None else str(value)
 
 
 def _option_row(measured: OptionStatistics) -> str:
@@ -75,13 +83,14 @@ def _encode_option(measured: OptionStatistics) -> dict[str, object]:
     return {
         'rule': measured.rule_id,
         'option': measured.option.name,
+        'role': measured.option.role.value,
         'default': measured.option.default,
         'setting': measured.setting,
         'distribution': _encode_distribution(measured.distribution),
     }
 
 
-def _encode_distribution(distribution: Distribution) -> dict[str, int]:
+def _encode_distribution(distribution: Distribution) -> dict[str, int | None]:
     return {
         'count': distribution.count,
         'min': distribution.minimum,

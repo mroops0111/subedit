@@ -221,16 +221,21 @@ def _best_layout(
 
 
 def serial_item_words(sentence: str) -> tuple[int, ...]:
-    """How many words each item of a serial list runs to, as in "a parser, a linter, and a fixer".
+    """How many words each piece that may be an item of a serial list runs to, as in "a parser, a linter, and a fixer".
 
-    The items are the pieces between two commas ahead of the piece that closes the run on and or or,
-    leaving out a piece that opens a clause.
+    These are the pieces reflow weighs as items, whatever their length, which the project's item limit then decides.
     """
     pieces = _comma_pieces(sentence)
-    closers = [index for index, piece in enumerate(pieces) if index >= 2 and _closes_a_run(piece)]
-    if not closers:
-        return ()
-    return tuple(len(pieces[index].split()) for index in range(1, closers[-1]) if not _opens_a_clause(pieces[index]))
+    items = sorted(
+        {
+            item
+            for closer in range(2, len(pieces))
+            if _closes_a_run(pieces[closer])
+            for item in _run_items(pieces, closer)
+            if _may_read_as_item(pieces, item)
+        }
+    )
+    return tuple(len(pieces[item].split()) for item in items)
 
 
 def _splits_a_list(pieces: tuple[str, ...], index: int, item_words: int) -> bool:
@@ -264,18 +269,25 @@ def _splits_a_serial_run(pieces: tuple[str, ...], index: int, item_words: int) -
     for closer in (index, index + 1):
         if not 2 <= closer < len(pieces) or not _closes_a_run(pieces[closer]):
             continue
-        items = range(closer - 2, closer)
-        if any(_opens_a_clause(pieces[item]) for item in items):
-            continue
-        if any(_reads_as_item(pieces, item, item_words) for item in items):
+        if any(_reads_as_item(pieces, item, item_words) for item in _run_items(pieces, closer)):
             return True
     return False
 
 
-# A sentence's opening piece may instead lead in, as "However," or "In practice," does.
+# The two pieces before a closer form a run with it, unless either opens a clause.
+def _run_items(pieces: tuple[str, ...], closer: int) -> range:
+    items = range(closer - 2, closer)
+    return range(0) if any(_opens_a_clause(pieces[item]) for item in items) else items
+
+
 def _reads_as_item(pieces: tuple[str, ...], index: int, item_words: int) -> bool:
+    return _is_short(pieces[index], item_words) and _may_read_as_item(pieces, index)
+
+
+# A sentence's opening piece may instead lead in, as "However," or "In practice," does.
+def _may_read_as_item(pieces: tuple[str, ...], index: int) -> bool:
     piece = pieces[index]
-    if not _is_short(piece, item_words) or _is_appositive(piece, pieces[index + 1].split()):
+    if _is_appositive(piece, pieces[index + 1].split()):
         return False
     words = piece.split()
     return index > 0 or (len(words) > 1 and words[0].lower() not in _LEAD_IN_WORDS)

@@ -1,5 +1,6 @@
 import abc
 import dataclasses
+import enum
 import typing
 
 from .prose import words_pattern
@@ -32,8 +33,21 @@ class RuleOption(abc.ABC, typing.Generic[OptionT]):
         return typing.cast(OptionT, value)
 
 
+class CountRole(enum.Enum):
+    """What a count does in its rule, which tells which way of setting it lets more text pass."""
+
+    # The rule reports what runs past the count, so a higher one lets more pass.
+    MAXIMUM = 'maximum'
+    # The rule reports what falls short of the count, so a lower one lets more pass.
+    MINIMUM = 'minimum'
+    # The count sorts text into kinds, such as a list item from a clause, so no setting simply lets more pass.
+    THRESHOLD = 'threshold'
+
+
 @dataclasses.dataclass(frozen=True)
 class CountOption(RuleOption[int]):
+    role: CountRole
+
     def accepts(self, value: object) -> bool:
         return _is_whole_number(value) and typing.cast(int, value) >= 0
 

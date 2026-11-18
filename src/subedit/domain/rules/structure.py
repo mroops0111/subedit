@@ -4,7 +4,7 @@ import typing
 from ..models.comment import CommentForm, CommentGroup, CommentPlacement
 from ..models.diagnostic import Diagnostic, Fix, FixKind, RuleMetadata, Severity
 from ..models.measurement import Measurement
-from ..models.rule_option import CountOption
+from ..models.rule_option import CountOption, CountRole
 from ..ports.language_conventions import LanguageConventions
 from ..ports.rule import MeasuredRule, Rule, RuleContext
 
@@ -12,9 +12,9 @@ from ..ports.rule import MeasuredRule, Rule, RuleContext
 # Set from the p95 of a measured corpus, which subedit stats reports.
 # A comment past this length has usually started restating the code below it.
 _LIMITS = {
-    'plain': CountOption('max-plain-lines', 4),
-    'internal doc': CountOption('max-internal-doc-lines', 13),
-    'public doc': CountOption('max-public-doc-lines', 20),
+    'plain': CountOption('max-plain-lines', 4, CountRole.MAXIMUM),
+    'internal doc': CountOption('max-internal-doc-lines', 13, CountRole.MAXIMUM),
+    'public doc': CountOption('max-public-doc-lines', 20, CountRole.MAXIMUM),
 }
 
 

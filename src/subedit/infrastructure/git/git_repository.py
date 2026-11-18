@@ -13,6 +13,14 @@ _COMMIT_ACTION = 'commit'
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
+class LoggedCommit:
+    """A commit as git log lists it, by its short hash, with its message."""
+
+    commit: str
+    message: str
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
 class GitRepository:
     """A git working tree, read through the git command so that git's own settings, such as core.hooksPath, apply."""
 
@@ -47,10 +55,15 @@ class GitRepository:
             return None
         return _git(self.root, 'show', f'{commit}:{relative}', strip=False)
 
-    def commit_messages(self, count: int) -> tuple[str, ...]:
-        """The messages of the newest commits from HEAD, leaving out merges, whose messages git writes."""
-        log = _git(self.root, 'log', f'--max-count={count}', '--no-merges', '--format=%B%x00', strip=False)
-        return tuple(f'{message.strip()}\n' for message in (log or '').split('\0') if message.strip())
+    def logged_commits(self, count: int) -> tuple['LoggedCommit', ...]:
+        """The newest commits from HEAD with their messages, leaving out merges, whose messages git writes."""
+        log = _git(self.root, 'log', f'--max-count={count}', '--no-merges', '--format=%h%x00%B%x00', strip=False)
+        fields = (log or '').split('\0')
+        return tuple(
+            LoggedCommit(commit.strip(), f'{message.strip()}\n')
+            for commit, message in zip(fields[::2], fields[1::2], strict=False)
+            if commit.strip()
+        )
 
     def recent_commit_message(self) -> str | None:
         """The message of a commit made in the last few minutes, or None when HEAD last moved for another reason."""
@@ -74,7 +87,14 @@ def _git(directory: pathlib.Path, *arguments: str, strip: bool = True) -> str | 
     try:
         # The arguments are subedit's own, never text from the payload.
         completed = subprocess.run(  # noqa: S603
-            [executable, *arguments], cwd=directory, capture_output=True, text=True, encoding='utf-8', check=False
+            [executable, *arguments],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            # A commit message in another encoding still reads, with its odd bytes replaced.
+            errors='replace',
+            check=False,
         )
     except (OSError, ValueError):
         return None

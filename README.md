@@ -127,6 +127,7 @@ uv tool install subedit           # without Vale, the native rules and AutoCorre
 | `subedit check src/ --output=json` | Reports every finding as JSON, for other tools |
 | `subedit check src/ --since HEAD` | Reports the findings in prose changed since the last commit |
 | `subedit check - --stdin-filename issue.md` | Checks a draft read from stdin, as the file it names |
+| `subedit check src/ --commits 20` | Also checks the messages of the last 20 commits |
 | `subedit fix src/` | Shows the autofixes as a diff |
 | `subedit fix src/ --write` | Applies the autofixes in place |
 | `subedit fix src/ --write --since HEAD` | Applies the autofixes to prose changed since the last commit |

@@ -66,6 +66,41 @@ def test_stats_measures_recent_commit_messages(repository: Project, capsys: pyte
     assert subject['distribution']['max'] == len('Add the parser')
 
 
+def test_stats_as_json_names_each_count_role_and_leaves_an_empty_distribution_null(
+    project: Project, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = project.write('sample.py', '# note.\nx = 1\n')
+
+    with pytest.raises(SystemExit):
+        app(['stats', str(source), '--output', 'json'])
+
+    (surface,) = json.loads(capsys.readouterr().out)['surfaces']
+    options = {option['option']: option for option in surface['options']}
+    assert options['max-item-words']['role'] == 'threshold'
+    assert options['min-line-characters']['role'] == 'minimum'
+    assert options['min-line-characters']['distribution'] == {
+        'count': 0,
+        'min': None,
+        **dict.fromkeys(('p5', 'p10', 'p25', 'p50', 'p75', 'p90', 'p95', 'p99'), None),
+        'max': None,
+    }
+
+
+def test_check_reads_recent_commit_messages(repository: Project, capsys: pytest.CaptureFixture[str]) -> None:
+    repository.write('subedit.toml', '')
+    repository.git('commit', '-q', '--allow-empty', '-m', 'Add ' + 'a very long subject ' * 5)
+    source = repository.write('sample.py', '# note.\n')
+    commit = repository.git('rev-parse', '--short', 'HEAD').strip()
+
+    with pytest.raises(SystemExit) as exit_info:
+        app(['check', str(source), '--commits', '1', '--no-delegate'])
+    assert exit_info.value.code == 1
+
+    output = capsys.readouterr().out
+    assert f'{commit}/COMMIT_EDITMSG' in output
+    assert 'subject-too-long' in output
+
+
 def test_stats_reads_commits_only_in_a_repository(project: Project, capsys: pytest.CaptureFixture[str]) -> None:
     source = project.write('sample.py', '# note.\n')
 

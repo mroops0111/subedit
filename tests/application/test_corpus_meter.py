@@ -1,13 +1,15 @@
+import dataclasses
+
 import pytest
 from factories import commit_message, markdown, rule_set
 
 from subedit.application import CorpusMeter, CorpusStatistics, Distribution, OptionStatistics, SurfaceStatistics
-from subedit.domain import Document, RuleSettings
+from subedit.domain import Document, RuleSet, RuleSettings
 from subedit.infrastructure import ALL_RULES, DEFAULT_PARSER
 
 
 def measure_all(*documents: Document) -> CorpusStatistics:
-    return CorpusMeter(DEFAULT_PARSER).run(documents)
+    return CorpusMeter(DEFAULT_PARSER).run(documents, lambda _: rule_set())
 
 
 def measure(*sources: str) -> SurfaceStatistics:
@@ -40,19 +42,18 @@ def test_each_surface_is_measured_apart() -> None:
     assert [distribution.label for distribution in body.line_counts] == ['all']
 
 
-def test_percentiles_on_an_empty_distribution_are_zero() -> None:
+def test_an_empty_distribution_has_no_percentiles_rather_than_zero() -> None:
     empty = Distribution('none', ())
-    assert empty.percentile(0.9) == 0
-    assert empty.maximum == 0
-    assert empty.median == 0
+    assert empty.percentile(0.9) is None
+    assert empty.minimum is None
+    assert empty.maximum is None
 
 
 def test_percentiles_bracket_the_data() -> None:
-    distribution = Distribution('d', tuple(range(1, 101)))
-    assert distribution.percentile(0.0) == 1
-    assert distribution.percentile(1.0) == 100
-    assert distribution.median == 50
-    assert distribution.percentile(0.5) <= distribution.percentile(0.9) <= distribution.maximum
+    distribution = Distribution('d', tuple(range(99, 0, -1)))
+    assert distribution.minimum == distribution.percentile(0.0) == 1
+    assert distribution.maximum == distribution.percentile(1.0) == 99
+    assert distribution.percentile(0.5) == 50
 
 
 def test_blocks_group_by_form_placement_and_visibility() -> None:
@@ -100,7 +101,9 @@ def test_unbreakable_counts_fall_as_the_width_rises() -> None:
 
 
 def options_of(*documents: Document, settings: dict[str, RuleSettings] | None = None) -> dict[str, OptionStatistics]:
-    measured = CorpusMeter(DEFAULT_PARSER, ALL_RULES).run(documents, lambda _: rule_set((), 50, settings))
+    measured = CorpusMeter(DEFAULT_PARSER, rules=ALL_RULES).run(
+        documents, lambda _: rule_set(width=50, settings=settings)
+    )
     return {
         f'{option.rule_id} {option.option.name}': option for surface in measured.surfaces for option in surface.options
     }
@@ -117,18 +120,42 @@ def test_a_comment_is_measured_against_the_limit_for_its_kind() -> None:
     assert values(options, 'comment-too-long max-public-doc-lines') == ()
 
 
-def test_a_broken_sentence_is_measured_by_its_shortest_line_with_no_minimum_set() -> None:
+def test_a_broken_sentence_is_measured_by_its_shortest_line_as_the_project_lays_it_out() -> None:
     sentence = 'the cache keeps every entry it reads from disk, so a second read is quick'
     options = options_of(Document(uri='file:///a.py', text=f'x = 1\n# {sentence}.\n', language_id='python'))
 
     assert values(options, 'line-too-short min-line-characters') == (len('so a second read is quick.'),)
 
 
-def test_the_items_of_a_serial_list_are_measured_in_words() -> None:
-    sentence = 'It reads files, the rule engine, a fixer, and the rest.'
+def test_a_comment_beside_code_is_measured_by_no_rule_on_breaks() -> None:
+    options = options_of(
+        Document(
+            uri='file:///a.py',
+            text='x = 1  # reads files, the rule engine, a fixer, and the rest\n',
+            language_id='python',
+        )
+    )
+
+    assert values(options, 'mid-list-break max-item-words') == ()
+    assert values(options, 'line-too-short min-line-characters') == ()
+
+
+@pytest.mark.parametrize(
+    ('sentence', 'expected'),
+    [
+        pytest.param('It reads files, the rule engine, a fixer, and the rest.', (2, 3), id='items of a serial list'),
+        pytest.param(
+            'In short, when the cache is cold, the parser reads every file it finds, and the fixer writes.',
+            (),
+            id='clauses before a closer',
+        ),
+        pytest.param('However, the linter, a fixer, and a parser run.', (2, 2), id='a lead-in before the items'),
+    ],
+)
+def test_the_items_of_a_serial_list_are_measured_in_words(sentence: str, expected: tuple[int, ...]) -> None:
     options = options_of(Document(uri='file:///a.py', text=f'# {sentence}\nx = 1\n', language_id='python'))
 
-    assert values(options, 'mid-list-break max-item-words') == (2, 3)
+    assert values(options, 'mid-list-break max-item-words') == expected
 
 
 def test_each_kind_of_label_is_measured_against_its_own_limit() -> None:
@@ -144,6 +171,12 @@ def test_each_kind_of_label_is_measured_against_its_own_limit() -> None:
     assert values(options, 'mid-sentence-colon max-label-words') == (2,)
     assert values(options, 'mid-sentence-colon max-full-width-label-characters') == (4,)
     assert values(options, 'mid-sentence-colon max-tag-words') == (1,)
+
+
+def test_a_paragraph_opening_on_wide_text_is_no_label_to_measure() -> None:
+    options = options_of(markdown('ＷＩＤＥ ＴＥＸＴ：then a clause.\n'))  # noqa: RUF001
+
+    assert values(options, 'mid-sentence-colon max-full-width-label-characters') == ()
 
 
 def test_a_commit_subject_is_measured_in_characters() -> None:
@@ -163,11 +196,43 @@ def test_an_option_shows_the_value_the_project_sets_beside_its_default() -> None
 
 
 def test_a_rule_is_measured_even_when_the_project_runs_it_not() -> None:
-    measured = CorpusMeter(DEFAULT_PARSER, ALL_RULES).run((commit_message('Add the parser\n'),), lambda _: rule_set(()))
+    measured = CorpusMeter(DEFAULT_PARSER, rules=ALL_RULES).run(
+        (commit_message('Add the parser\n'),), lambda _: rule_set(())
+    )
 
     surface = measured.for_surface('commit-messages')
     assert surface is not None
     assert any(option.rule_id == 'subject-too-long' for option in surface.options)
+
+
+def test_each_value_the_configs_set_is_measured_apart() -> None:
+    plain = RuleSettings(options={'max-plain-lines': 2})
+    measured = CorpusMeter(DEFAULT_PARSER, rules=ALL_RULES).run(
+        (
+            Document(uri='file:///a/a.py', text='# one.\nx = 1\n', language_id='python'),
+            Document(uri='file:///b/b.py', text='# one.\n# two.\nx = 1\n', language_id='python'),
+        ),
+        lambda document: rule_set(settings={'comment-too-long': plain} if '/b/' in document.uri else None),
+    )
+
+    surface = measured.for_surface('comments')
+    assert surface is not None
+    plain_lines = {
+        option.setting: option.distribution.measurements
+        for option in surface.options
+        if option.option.name == 'max-plain-lines'
+    }
+    assert plain_lines == {4: (1,), 2: (2,)}
+
+
+def test_a_surface_the_project_switches_off_is_not_measured() -> None:
+    off = RuleSet(frozenset(), is_off=True)
+    measured = CorpusMeter(DEFAULT_PARSER, rules=ALL_RULES).run(
+        (commit_message('Add the parser\n'),),
+        lambda _: dataclasses.replace(rule_set(), by_language={'git-commit': off}),
+    )
+
+    assert measured.surfaces == ()
 
 
 def test_a_surface_no_rule_measures_has_no_options() -> None:

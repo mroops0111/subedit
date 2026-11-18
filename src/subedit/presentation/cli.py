@@ -62,6 +62,11 @@ _SINCE = typer.Option(
     'or since a file, written as ./old.md.',
 )
 
+# Commit messages live in git's history rather than in files, so a command reads them only when asked.
+_COMMITS = typer.Option(
+    0, '--commits', min=0, help='Also read the messages of this many recent commits in the repository.'
+)
+
 ConfigT = typing.TypeVar('ConfigT')
 
 
@@ -72,9 +77,11 @@ def check(
     delegate: bool = typer.Option(True, '--delegate/--no-delegate', help='Also run Vale and AutoCorrect.'),
     stdin_filename: pathlib.Path | None = _STDIN_FILENAME,
     since: str | None = _SINCE,
+    commits: int = _COMMITS,
 ) -> None:
     """Report findings, and exit non-zero when any is an error."""
     documents = _with_baselines(_documents_to_read(paths, stdin_filename=stdin_filename), since)
+    documents += _commit_messages(paths, commits)
     formatter = _FORMATTERS.get(output)
     if formatter is None:
         typer.echo(f'Unknown output format {output!r}. Choose full, actionable, or json.', err=True)
@@ -140,9 +147,7 @@ def fix(
 @app.command()
 def stats(
     paths: list[pathlib.Path] = typer.Argument(..., help='Files or directories to measure.'),
-    commits: int = typer.Option(
-        0, '--commits', min=0, help='Also measure the messages of this many recent commits in the repository.'
-    ),
+    commits: int = _COMMITS,
     output: str = typer.Option('text', '--output', help='text or json.'),
 ) -> None:
     """Measure the prose of each surface, to set limits from what the repository already holds.
@@ -152,9 +157,9 @@ def stats(
     formatter = _STATISTICS_FORMATTERS.get(output)
     if formatter is None:
         _usage_error(f'Unknown output format {output!r}. Choose text or json.')
-    documents = _load(tuple(paths)) + _commit_messages(paths[0], commits)
+    documents = _load(tuple(paths)) + _commit_messages(paths, commits)
     _require(documents)
-    typer.echo(formatter(CorpusMeter(DEFAULT_PARSER, ALL_RULES).run(documents, _rules_for)))
+    typer.echo(formatter(CorpusMeter(DEFAULT_PARSER, rules=ALL_RULES).run(documents, _rules_for)))
 
 
 @app.command()
@@ -332,9 +337,10 @@ def _revision_source(repository: GitRepository | None, since: str) -> GitRevisio
     return GitRevisionBaselineSource(repository, commit) if commit is not None else None
 
 
-def _commit_messages(path: pathlib.Path, count: int) -> tuple[Document, ...]:
+def _commit_messages(paths: list[pathlib.Path] | None, count: int) -> tuple[Document, ...]:
     if not count:
         return ()
+    path = (paths or [pathlib.Path('.')])[0]
     repository = GitRepository.at(path if path.is_dir() else path.parent)
     if repository is None:
         _usage_error(f'--commits reads the history of a git repository, and {path} is in none.')
@@ -342,9 +348,15 @@ def _commit_messages(path: pathlib.Path, count: int) -> tuple[Document, ...]:
     language_id = language_id_for(message_file)
     if language_id is None:
         return ()
+    # Each message is named beside git's own message file, in a folder named by its commit,
+    # so a finding says which commit it is in and the message still reads as a commit message.
     return tuple(
-        Document(uri=message_file.as_uri(), text=message, language_id=language_id)
-        for message in repository.commit_messages(count)
+        Document(
+            uri=(message_file.parent / logged.commit / message_file.name).as_uri(),
+            text=logged.message,
+            language_id=language_id,
+        )
+        for logged in repository.logged_commits(count)
     )
 
 
