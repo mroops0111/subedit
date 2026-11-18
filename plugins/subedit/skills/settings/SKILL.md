@@ -11,8 +11,8 @@ subedit's defaults come from a standard where one exists, and otherwise from jud
 
 Collect everything the discussion draws on before asking anything. Run each command from the repository root.
 
-1. **Measurements**: `subedit stats . --commits 200 --output json`. Each surface lists its widths, its sentences that cannot break at each candidate width, and an `options` entry for every count a rule takes, with its `default`, the project's `setting`, and the distribution of what the repository holds.
-2. **Findings**: `subedit check . --no-delegate --output json`, which prints one JSON object per file. Count the findings by `rule`, and keep the count that needs an author apart, where `mechanical` is false.
+1. **Measurements**: `subedit stats . --commits 200 --output json`. Each surface lists its widths, its sentences that cannot break at each candidate width, and an `options` entry for every count a rule takes. An entry holds the count's `role`, its `default`, the project's `setting`, and the distribution of what the repository holds. A distribution with a `count` of 0 measured nothing, so its percentiles are `null` and it suggests nothing. Where configs in different folders set one count apart, it has an entry for each value.
+2. **Findings**: `subedit check . --commits 200 --no-delegate --output json`, which prints one JSON object per file and one per commit message. Count the findings by `rule`, and keep the count that needs an author apart, where `mechanical` is false.
 3. **Existing Config**: read `subedit.toml`, or `[tool.subedit]` in `pyproject.toml`. Read the width other tools set too, such as ruff's `line-length`, Prettier's `printWidth`, and `max_line_length` in `.editorconfig`.
 4. **Stated Preferences**: read `CLAUDE.md` and `AGENTS.md` in the repository, and any style guide they point to. A preference written there, such as Title Case or a commit convention, answers its question, so show it in the round as the author's answer rather than ask it again.
 5. **Surfaces**: note which of `comments`, `markdown`, and `commit-messages` the measurements hold. Leave out every setting of a surface the repository does not have.
@@ -43,7 +43,7 @@ Every round has the same three parts, written in the language the user writes in
    | --- | --- | --- | --- | --- | --- |
    | `max-plain-lines` | 4 | 4 | p50 1, p95 2, max 4 | 0 | 4, kept |
 
-   For a maximum, Repository gives p50, p95, and max. For a minimum, such as `min-line-characters`, it gives min, p5, and p50. Findings is the count of findings of the rule the setting belongs to.
+   For a `maximum`, Repository gives p50, p95, and max. For a `minimum`, such as `min-line-characters`, it gives min, p5, and p50. For a `threshold`, it gives p25, p50, and p75. Findings is the count of findings of the rule the setting belongs to.
 3. **Questions**: one AskUserQuestion call per round, with one question per setting that has a choice to make, and at most four per call. A round with more settings takes further calls.
 
 Each question follows the same shape.
@@ -58,14 +58,16 @@ Wait for the answers before the next round.
 
 Derive each suggestion by these rules, so the same repository always gets the same suggestion.
 
-- **Maximum**: keep the default when the repository's p95 fits within it. Otherwise suggest the p95, never past the max. What still lies beyond is prose worth rewriting, not a reason to raise the limit further.
+- **Role**: pick the rule below by the count's `role`, never by its name. A count named `max-` may still be a `threshold`.
 - **Standard**: keep a limit that a tool outside the project imposes, such as `max-subject-characters`, which GitHub and `git log --oneline` cut at. Show the measurement, and recommend the default even when the history runs past it.
+- **Maximum**: keep the default when the repository's p95 fits within it. Otherwise suggest the p95, never past the max. What still lies beyond is prose worth rewriting, not a reason to raise the limit further.
 - **Minimum**: keep the default when the repository's p5 is at or above it. Otherwise suggest the p5.
+- **Threshold**: suggest nothing. A threshold sorts text into kinds, such as `max-item-words` telling a list item from a clause, so the measurements mix both kinds and no value lets more text simply pass. Show the distribution, say what a higher and a lower value each change, and ask with no option recommended.
 - **Width**: match the width another tool already sets. Without one, suggest the narrowest candidate width that leaves under 1% of sentences unable to break. A commit message keeps git's 72 unless the history runs wider at p95.
 - **Commit Style**: suggest `conventional` when most recent subjects open with a type such as `feat:`, and list the types they use. Otherwise suggest `git`.
 - **Exceptions**: suggest a word for `exceptions` only when the Title Case findings flag a name the project writes in lowercase, such as a product or a command.
 - **Exclude**: suggest a path only when its findings are many and it holds prose nobody writes by hand, such as generated docs or test fixtures.
-- **Levels**: list only the rules with findings, with the count and one example message in each option's description. Ask with `multiSelect`, as one question for rules to set to `warning` and one for rules to switch `off`, four rules per question. Recommend nothing, since how strict to be is the author's call.
+- **Levels**: list only the rules with findings, with the count and one example message in each option's description. Ask with `multiSelect`, as one question for each move a rule can make from its level now, which are to `error`, to `warning`, and `off`, four rules per question. Offer a rule only the moves that change it, so a rule already at `warning` is never offered `warning`. Recommend nothing, since how strict to be is the author's call.
 
 ## Writing
 
@@ -73,7 +75,7 @@ Close the discussion in three steps.
 
 1. **Summary**: show one table of every setting that will differ from the default, with its value and the measurement or answer behind it. Ask to confirm it, and where no config exists yet, whether it goes in `subedit.toml` or under `[tool.subedit]` in `pyproject.toml`. An existing config is where it goes.
 2. **Config**: write only the values that differ from the defaults, grouped as the README's configuration section shows. Put a one-line comment above each group naming the measurement or answer it came from. Keep every setting the existing config already holds unless the author changed it.
-3. **Result**: run `subedit check . --no-delegate --output json` again, and show a table of each rule's findings before and after. Point the user to `subedit fix . --write` for the mechanical fixes and to the `rewrites` skill for the rest.
+3. **Result**: run `subedit check . --commits 200 --no-delegate --output json` again, and show a table of each rule's findings before and after. Point the user to `subedit fix . --write` for the mechanical fixes and to the `rewrites` skill for the rest.
 
 ## Boundaries
 
